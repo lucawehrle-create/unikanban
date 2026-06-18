@@ -14,6 +14,8 @@ import {
 import { usePrograms, useProgramCourses, useSemesters } from '@/hooks/data'
 import { computeProgramStats, fmtGrade, PROGRAM_TYPE_LABEL } from '@/lib/study'
 import { Modal } from './Modal'
+import { DatePicker } from './DatePicker'
+import { Select } from './ui/Select'
 import { cn } from '@/lib/cn'
 
 const STATUS_OPTS: { id: CourseStatus; label: string }[] = [
@@ -229,24 +231,12 @@ function CourseRow({ course }: { course: Course }) {
         onBlur={(e) => upd({ grade: e.target.value ? Number(e.target.value) : undefined })}
         className="w-14 rounded-md border border-stone-200 px-1.5 py-1 text-center text-xs"
       />
-      <select
+      <Select
         value={status}
-        onChange={(e) => upd({ status: e.target.value as CourseStatus })}
-        className={cn(
-          'rounded-md border px-1.5 py-1 text-xs',
-          status === 'bestanden'
-            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-            : status === 'nicht_bestanden'
-              ? 'border-red-200 bg-red-50 text-red-600'
-              : 'border-stone-200 text-stone-500',
-        )}
-      >
-        {STATUS_OPTS.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.label}
-          </option>
-        ))}
-      </select>
+        options={STATUS_OPTS.map((o) => ({ value: o.id, label: o.label }))}
+        onChange={(v) => upd({ status: v as CourseStatus })}
+        className="w-28"
+      />
     </div>
   )
 }
@@ -329,13 +319,11 @@ function ProgramForm({
         <div className="grid grid-cols-2 gap-3">
           {field(
             'Art',
-            <select value={type} onChange={(e) => setType(e.target.value as ProgramType)} className={inputCls}>
-              {TYPE_OPTS.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.label}
-                </option>
-              ))}
-            </select>,
+            <Select
+              value={type}
+              options={TYPE_OPTS.map((o) => ({ value: o.id, label: o.label }))}
+              onChange={(v) => setType(v as ProgramType)}
+            />,
           )}
           {field(
             'Ziel-ECTS',
@@ -471,12 +459,7 @@ function SemesterForm({
         <div className="grid grid-cols-2 gap-3">
           {field(
             'Vorlesungsbeginn',
-            <input
-              type="date"
-              value={draft.startDate}
-              onChange={(e) => set('startDate', e.target.value)}
-              className={inputCls}
-            />,
+            <DatePicker dateOnly value={draft.startDate} onChange={(v) => set('startDate', v ?? draft.startDate)} />,
           )}
           {field(
             'Vorlesungswochen',
@@ -490,12 +473,7 @@ function SemesterForm({
         </div>
         {field(
           'Semesterende (optional)',
-          <input
-            type="date"
-            value={draft.endDate ?? ''}
-            onChange={(e) => set('endDate', e.target.value || undefined)}
-            className={inputCls}
-          />,
+          <DatePicker dateOnly value={draft.endDate} onChange={(v) => set('endDate', v)} />,
         )}
 
         <div className="rounded-xl bg-stone-50 p-3">
@@ -506,24 +484,18 @@ function SemesterForm({
                 <input
                   value={e.label}
                   onChange={(ev) => updExam(e.id, { label: ev.target.value })}
-                  className="w-32 rounded-md border border-stone-200 px-1.5 py-1"
+                  className="w-32 rounded-lg border border-stone-200 px-2 py-1.5"
                 />
-                <input
-                  type="date"
-                  value={e.start}
-                  onChange={(ev) => updExam(e.id, { start: ev.target.value })}
-                  className="rounded-md border border-stone-200 px-1.5 py-1"
-                />
+                <div className="w-36">
+                  <DatePicker dateOnly value={e.start} onChange={(v) => updExam(e.id, { start: v ?? e.start })} />
+                </div>
                 <span className="text-stone-400">–</span>
-                <input
-                  type="date"
-                  value={e.end}
-                  onChange={(ev) => updExam(e.id, { end: ev.target.value })}
-                  className="rounded-md border border-stone-200 px-1.5 py-1"
-                />
+                <div className="w-36">
+                  <DatePicker dateOnly value={e.end} onChange={(v) => updExam(e.id, { end: v ?? e.end })} />
+                </div>
                 <button
                   onClick={() => rmExam(e.id)}
-                  className="rounded-md p-1 text-stone-400 hover:bg-red-50 hover:text-red-500"
+                  className="rounded-lg p-1 text-stone-400 hover:bg-red-50 hover:text-red-500"
                 >
                   <X size={13} />
                 </button>

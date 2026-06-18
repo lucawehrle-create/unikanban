@@ -1,6 +1,7 @@
 import type { Course, Semester, Task } from '@/db/types'
 import { uid } from '@/db/db'
 import { dateForWeekday, withTime } from './semester'
+import { slotKindLabel } from './slotKinds'
 import { TASK_TYPES } from './taskTypes'
 
 const PALETTE = [
@@ -23,8 +24,6 @@ function fmtUTC(d: Date): string {
 function esc(text: string): string {
   return text.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n')
 }
-
-const KIND_LABEL = { vorlesung: 'Vorlesung', tutorium: 'Tutorium' } as const
 
 export interface IcsOptions {
   schedule: boolean
@@ -62,7 +61,7 @@ export function buildICS(
           `DTSTART:${fmtUTC(start)}`,
           `DTEND:${fmtUTC(end)}`,
           `RRULE:FREQ=WEEKLY;COUNT=${semester.weeks}`,
-          `SUMMARY:${esc(`${course.short} – ${KIND_LABEL[slot.kind]}`)}`,
+          `SUMMARY:${esc(`${course.short} – ${slotKindLabel(slot.kind)}`)}`,
           ...(slot.room ? [`LOCATION:${esc(slot.room)}`] : []),
           `DESCRIPTION:${esc(course.name)}`,
           'END:VEVENT',

@@ -4,8 +4,11 @@ import type { Course, CourseSlot, RecurringConfig, Semester } from '@/db/types'
 import { uid } from '@/db/db'
 import { TASK_TYPE_LIST } from '@/lib/taskTypes'
 import { deleteCourse, regenerateRecurring, saveCourse } from '@/lib/actions'
+import { SLOT_KINDS } from '@/lib/slotKinds'
 import { useUI } from '@/store/ui'
 import { Modal } from './Modal'
+import { Select } from './ui/Select'
+import { TimeField } from './ui/TimeField'
 import { cn } from '@/lib/cn'
 
 const PALETTE = [
@@ -13,6 +16,10 @@ const PALETTE = [
   '#ec4899', '#8b5cf6', '#14b8a6', '#f97316', '#64748b',
 ]
 const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+const WEEKDAY_OPTS = WEEKDAYS.map((w, i) => ({ value: String(i + 1), label: w }))
+const KIND_OPTS = SLOT_KINDS.map((k) => ({ value: k.id, label: k.label }))
+const TYPE_OPTS_REC = (list: { id: string; emoji: string; label: string }[]) =>
+  list.map((t) => ({ value: t.id, label: `${t.emoji} ${t.label}` }))
 
 function emptyCourse(semesterId: string): Course {
   return {
@@ -203,39 +210,25 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-xs text-stone-500">Typ</span>
-                  <select
+                  <Select
                     value={draft.recurring.type}
-                    onChange={(e) => setRec('type', e.target.value as RecurringConfig['type'])}
-                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5"
-                  >
-                    {TASK_TYPE_LIST.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.emoji} {t.label}
-                      </option>
-                    ))}
-                  </select>
+                    options={TYPE_OPTS_REC(TASK_TYPE_LIST)}
+                    onChange={(v) => setRec('type', v as RecurringConfig['type'])}
+                  />
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-xs text-stone-500">Abgabetag</span>
-                  <select
-                    value={draft.recurring.weekday}
-                    onChange={(e) => setRec('weekday', Number(e.target.value))}
-                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5"
-                  >
-                    {WEEKDAYS.map((w, i) => (
-                      <option key={w} value={i + 1}>
-                        {w}
-                      </option>
-                    ))}
-                  </select>
+                  <Select
+                    value={String(draft.recurring.weekday)}
+                    options={WEEKDAY_OPTS}
+                    onChange={(v) => setRec('weekday', Number(v))}
+                  />
                 </label>
                 <label className="block">
                   <span className="mb-1 block text-xs text-stone-500">Uhrzeit</span>
-                  <input
-                    type="time"
-                    value={draft.recurring.time ?? ''}
-                    onChange={(e) => setRec('time', e.target.value)}
-                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5"
+                  <TimeField
+                    value={draft.recurring.time ?? '12:00'}
+                    onChange={(v) => setRec('time', v)}
                   />
                 </label>
                 <label className="block">
@@ -271,43 +264,34 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
             <div className="mt-2 space-y-2">
               {draft.slots.map((s) => (
                 <div key={s.id} className="flex flex-wrap items-center gap-1.5 text-xs">
-                  <select
+                  <Select
                     value={s.kind}
-                    onChange={(e) => updateSlot(s.id, { kind: e.target.value as CourseSlot['kind'] })}
-                    className="rounded-lg border border-stone-200 px-1.5 py-1"
-                  >
-                    <option value="vorlesung">Vorlesung</option>
-                    <option value="tutorium">Tutorium</option>
-                  </select>
-                  <select
-                    value={s.weekday}
-                    onChange={(e) => updateSlot(s.id, { weekday: Number(e.target.value) })}
-                    className="rounded-lg border border-stone-200 px-1.5 py-1"
-                  >
-                    {WEEKDAYS.map((w, i) => (
-                      <option key={w} value={i + 1}>
-                        {w}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="time"
+                    options={KIND_OPTS}
+                    onChange={(v) => updateSlot(s.id, { kind: v as CourseSlot['kind'] })}
+                    className="w-28"
+                  />
+                  <Select
+                    value={String(s.weekday)}
+                    options={WEEKDAY_OPTS}
+                    onChange={(v) => updateSlot(s.id, { weekday: Number(v) })}
+                    className="w-16"
+                  />
+                  <TimeField
                     value={s.start}
-                    onChange={(e) => updateSlot(s.id, { start: e.target.value })}
-                    className="rounded-lg border border-stone-200 px-1.5 py-1"
+                    onChange={(v) => updateSlot(s.id, { start: v })}
+                    className="w-20"
                   />
                   <span className="text-stone-400">–</span>
-                  <input
-                    type="time"
+                  <TimeField
                     value={s.end}
-                    onChange={(e) => updateSlot(s.id, { end: e.target.value })}
-                    className="rounded-lg border border-stone-200 px-1.5 py-1"
+                    onChange={(v) => updateSlot(s.id, { end: v })}
+                    className="w-20"
                   />
                   <input
                     value={s.room ?? ''}
                     onChange={(e) => updateSlot(s.id, { room: e.target.value })}
                     placeholder="Raum"
-                    className="w-16 rounded-lg border border-stone-200 px-1.5 py-1"
+                    className="w-16 rounded-lg border border-stone-200 px-2 py-1.5"
                   />
                   <button
                     onClick={() => removeSlot(s.id)}

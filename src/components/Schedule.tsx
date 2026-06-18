@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
 import { Clock } from 'lucide-react'
 import { addDays, format, isSameDay, isToday, parseISO, startOfWeek } from 'date-fns'
-import type { Course, Task } from '@/db/types'
+import type { Course, SlotKind, Task } from '@/db/types'
 import { courseMap } from '@/lib/filter'
+import { slotKindShort } from '@/lib/slotKinds'
 import { TASK_TYPES } from '@/lib/taskTypes'
 import { useUI } from '@/store/ui'
 import { cn } from '@/lib/cn'
@@ -24,7 +25,7 @@ interface SlotView {
   courseId: string
   short: string
   color: string
-  kind: 'vorlesung' | 'tutorium'
+  kind: SlotKind
   weekday: number
   start: number
   end: number
@@ -190,7 +191,7 @@ export function Schedule({ courses, tasks }: ScheduleProps) {
                         {s.short}
                       </div>
                       <div className="text-stone-500">
-                        {s.kind === 'vorlesung' ? 'VL' : 'Tut'}
+                        {slotKindShort(s.kind)}
                         {s.room ? ` · ${s.room}` : ''}
                       </div>
                     </div>

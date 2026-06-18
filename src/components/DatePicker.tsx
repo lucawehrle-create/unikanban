@@ -17,11 +17,14 @@ import {
 } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { TimeField } from './ui/TimeField'
 import { cn } from '@/lib/cn'
 
 interface DatePickerProps {
   value?: string
-  onChange: (iso?: string) => void
+  onChange: (value?: string) => void
+  /** Nur Datum (Wert/Ausgabe als "yyyy-MM-dd", keine Uhrzeit). */
+  dateOnly?: boolean
 }
 
 const WEEKDAYS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
@@ -34,12 +37,14 @@ function nextWeekday(target: number, from = new Date()): Date {
   return addDays(from, diff)
 }
 
-export function DatePicker({ value, onChange }: DatePickerProps) {
+export function DatePicker({ value, onChange, dateOnly = false }: DatePickerProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const selected = value ? parseISO(value) : null
   const [viewMonth, setViewMonth] = useState<Date>(selected ?? new Date())
   const time = selected ? format(selected, 'HH:mm') : '23:59'
+  const emit = (day: Date) =>
+    onChange(dateOnly ? format(day, 'yyyy-MM-dd') : withTime(day).toISOString())
 
   useEffect(() => {
     if (!open) return
@@ -59,7 +64,7 @@ export function DatePicker({ value, onChange }: DatePickerProps) {
     const [h, m] = t.split(':').map(Number)
     return setMinutes(setHours(day, h || 0), m || 0)
   }
-  const pickDay = (day: Date) => onChange(withTime(day).toISOString())
+  const pickDay = (day: Date) => emit(day)
   const pickTime = (t: string) => onChange(withTime(selected ?? new Date(), t).toISOString())
 
   const gridDays = eachDayOfInterval({
@@ -87,7 +92,7 @@ export function DatePicker({ value, onChange }: DatePickerProps) {
         {selected ? (
           <span className="text-stone-800">
             {format(selected, 'EE, d. MMM yyyy', { locale: de })}
-            <span className="text-stone-400"> · {time}</span>
+            {!dateOnly && <span className="text-stone-400"> · {time}</span>}
           </span>
         ) : (
           <span className="text-stone-400">Kein Datum</span>
@@ -197,34 +202,31 @@ export function DatePicker({ value, onChange }: DatePickerProps) {
           </div>
 
           {/* Uhrzeit */}
-          <div className="mt-3 border-t border-stone-100 pt-3">
-            <div className="mb-1.5 flex items-center justify-between">
-              <span className="text-xs font-medium text-stone-500">Uhrzeit</span>
-              <input
-                type="time"
-                value={time}
-                onChange={(e) => pickTime(e.target.value)}
-                className="rounded-md border border-stone-200 px-1.5 py-0.5 text-xs text-stone-700 outline-none focus:border-brand-400"
-              />
+          {!dateOnly && (
+            <div className="mt-3 border-t border-stone-100 pt-3">
+              <div className="mb-1.5 flex items-center justify-between">
+                <span className="text-xs font-medium text-stone-500">Uhrzeit</span>
+                <TimeField value={time} onChange={pickTime} className="w-24" />
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {TIME_PRESETS.map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => pickTime(t)}
+                    className={cn(
+                      'rounded-full px-2.5 py-1 text-xs font-medium transition',
+                      time === t
+                        ? 'bg-stone-900 text-white'
+                        : 'bg-stone-100 text-stone-600 hover:bg-stone-200',
+                    )}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {TIME_PRESETS.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => pickTime(t)}
-                  className={cn(
-                    'rounded-full px-2.5 py-1 text-xs font-medium transition',
-                    time === t
-                      ? 'bg-stone-900 text-white'
-                      : 'bg-stone-100 text-stone-600 hover:bg-stone-200',
-                  )}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
+          )}
 
           <div className="mt-3 flex justify-end">
             <button

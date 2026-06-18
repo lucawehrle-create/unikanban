@@ -57,9 +57,12 @@ export interface Semester {
   active: boolean
 }
 
+/** Art eines Stundenplan-Termins. */
+export type SlotKind = 'vorlesung' | 'uebung' | 'tutorium' | 'repetitorium' | 'klausur'
+
 export interface CourseSlot {
   id: string
-  kind: 'vorlesung' | 'tutorium'
+  kind: SlotKind
   /** 1 = Montag … 7 = Sonntag */
   weekday: number
   start: string // "10:00"

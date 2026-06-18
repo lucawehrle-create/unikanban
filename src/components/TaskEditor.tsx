@@ -6,6 +6,7 @@ import { useTask } from '@/hooks/data'
 import { useUI } from '@/store/ui'
 import { Modal } from './Modal'
 import { DatePicker } from './DatePicker'
+import { Select } from './ui/Select'
 import { cn } from '@/lib/cn'
 
 const STATUS: { id: TaskStatus; label: string }[] = [
@@ -80,33 +81,24 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
         <div className="grid grid-cols-2 gap-3">
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-stone-500">Kurs</span>
-            <select
+            <Select
               value={task.courseId ?? ''}
-              onChange={(e) => patch({ courseId: e.target.value || undefined })}
-              className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm"
-            >
-              <option value="">– kein Kurs –</option>
-              {courses.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.short} · {c.name}
-                </option>
-              ))}
-            </select>
+              placeholder="– kein Kurs –"
+              options={[
+                { value: '', label: '– kein Kurs –' },
+                ...courses.map((c) => ({ value: c.id, label: `${c.short} · ${c.name}` })),
+              ]}
+              onChange={(v) => patch({ courseId: v || undefined })}
+            />
           </label>
 
           <label className="block">
             <span className="mb-1 block text-xs font-medium text-stone-500">Typ</span>
-            <select
+            <Select
               value={task.type}
-              onChange={(e) => void changeTaskType(id, e.target.value as Task['type'])}
-              className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm"
-            >
-              {TASK_TYPE_LIST.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.emoji} {t.label}
-                </option>
-              ))}
-            </select>
+              options={TASK_TYPE_LIST.map((t) => ({ value: t.id, label: `${t.emoji} ${t.label}` }))}
+              onChange={(v) => void changeTaskType(id, v as Task['type'])}
+            />
           </label>
         </div>
 
