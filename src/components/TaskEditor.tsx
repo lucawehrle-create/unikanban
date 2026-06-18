@@ -40,7 +40,7 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
               void deleteTask(id)
               close()
             }}
-            className="mr-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+            className="mr-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
           >
             <Trash2 size={15} /> Löschen
           </button>
@@ -57,11 +57,11 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
         <input
           defaultValue={task.title}
           onBlur={(e) => patch({ title: e.target.value })}
-          className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm font-medium outline-none focus:border-brand-400 dark:border-stone-700 dark:bg-stone-800"
+          className="w-full rounded-lg border border-stone-200 px-3 py-2 text-sm font-medium outline-none focus:border-brand-400"
         />
 
         {/* Status */}
-        <div className="flex rounded-lg bg-stone-100 p-0.5 dark:bg-stone-800">
+        <div className="flex rounded-lg bg-stone-100 p-0.5">
           {STATUS.map((s) => (
             <button
               key={s.id}
@@ -74,7 +74,7 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
               className={cn(
                 'flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition',
                 task.status === s.id
-                  ? 'bg-white text-stone-800 shadow-sm dark:bg-stone-700 dark:text-stone-100'
+                  ? 'bg-white text-stone-800 shadow-sm'
                   : 'text-stone-500',
               )}
             >
@@ -89,7 +89,7 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
             <select
               value={task.courseId ?? ''}
               onChange={(e) => patch({ courseId: e.target.value || undefined })}
-              className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm dark:border-stone-700 dark:bg-stone-800"
+              className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm"
             >
               <option value="">– kein Kurs –</option>
               {courses.map((c) => (
@@ -105,7 +105,7 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
             <select
               value={task.type}
               onChange={(e) => void changeTaskType(id, e.target.value as Task['type'])}
-              className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm dark:border-stone-700 dark:bg-stone-800"
+              className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm"
             >
               {TASK_TYPE_LIST.map((t) => (
                 <option key={t.id} value={t.id}>
@@ -124,7 +124,7 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
             onChange={(e) =>
               patch({ dueDate: e.target.value ? new Date(e.target.value).toISOString() : undefined })
             }
-            className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm dark:border-stone-700 dark:bg-stone-800"
+            className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm"
           />
         </label>
 
@@ -144,7 +144,7 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
                   },
                 })
               }
-              className="w-20 rounded-lg border border-stone-200 px-2 py-1 text-sm dark:border-stone-700 dark:bg-stone-800"
+              className="w-20 rounded-lg border border-stone-200 px-2 py-1 text-sm"
             />
             <span className="text-stone-400">/</span>
             <input
@@ -159,7 +159,7 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
                   },
                 })
               }
-              className="w-20 rounded-lg border border-stone-200 px-2 py-1 text-sm dark:border-stone-700 dark:bg-stone-800"
+              className="w-20 rounded-lg border border-stone-200 px-2 py-1 text-sm"
             />
           </div>
         )}
@@ -172,7 +172,7 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
               {task.phases.map((p, i) => (
                 <label
                   key={i}
-                  className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-stone-50 dark:hover:bg-stone-800"
+                  className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-stone-50"
                 >
                   <input
                     type="checkbox"
@@ -193,7 +193,7 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
             defaultValue={task.notes ?? ''}
             onBlur={(e) => patch({ notes: e.target.value || undefined })}
             rows={2}
-            className="w-full resize-none rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400 dark:border-stone-700 dark:bg-stone-800"
+            className="w-full resize-none rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
           />
         </label>
       </div>

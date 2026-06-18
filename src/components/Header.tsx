@@ -1,4 +1,4 @@
-import { GraduationCap, LayoutGrid, CalendarDays, Clock, Settings2 } from 'lucide-react'
+import { GraduationCap, LayoutGrid, CalendarDays, Clock, CalendarPlus, Settings2 } from 'lucide-react'
 import type { Semester } from '@/db/types'
 import { clampWeek, currentSemesterWeek } from '@/lib/semester'
 import { useUI, type ViewId } from '@/store/ui'
@@ -14,6 +14,7 @@ export function Header({ semester }: { semester: Semester }) {
   const view = useUI((s) => s.view)
   const setView = useUI((s) => s.setView)
   const setShowCourseManager = useUI((s) => s.setShowCourseManager)
+  const setShowCalendar = useUI((s) => s.setShowCalendar)
 
   const rawWeek = currentSemesterWeek(semester)
   const week = clampWeek(semester, rawWeek)
@@ -69,6 +70,14 @@ export function Header({ semester }: { semester: Semester }) {
             />
           </div>
         </div>
+
+        <button
+          onClick={() => setShowCalendar(true)}
+          className="flex items-center gap-1.5 rounded-full bg-white/70 px-3.5 py-2 text-xs font-medium text-stone-600 shadow-sm ring-1 ring-stone-200/70 backdrop-blur transition hover:bg-white"
+        >
+          <CalendarPlus size={15} />
+          <span className="hidden sm:inline">Kalender</span>
+        </button>
 
         <button
           onClick={() => setShowCourseManager(true)}

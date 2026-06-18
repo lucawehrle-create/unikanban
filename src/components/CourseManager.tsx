@@ -84,18 +84,18 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
       {!draft ? (
         <div className="space-y-2">
           {flash && (
-            <div className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400">
+            <div className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
               {flash}
             </div>
           )}
           {courses.map((c) => (
             <div
               key={c.id}
-              className="flex items-center gap-3 rounded-xl px-3 py-2 ring-1 ring-stone-200 dark:ring-stone-700"
+              className="flex items-center gap-3 rounded-xl px-3 py-2 ring-1 ring-stone-200"
             >
               <span className="h-8 w-1.5 rounded-full" style={{ backgroundColor: c.color }} />
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium text-stone-800 dark:text-stone-100">
+                <div className="text-sm font-medium text-stone-800">
                   {c.name || '(ohne Namen)'}
                 </div>
                 <div className="text-xs text-stone-400">
@@ -108,13 +108,13 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
               </div>
               <button
                 onClick={() => setDraft(structuredClone(c))}
-                className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-800"
+                className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
               >
                 <Pencil size={15} />
               </button>
               <button
                 onClick={() => void deleteCourse(c.id)}
-                className="rounded-lg p-2 text-stone-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/30"
+                className="rounded-lg p-2 text-stone-400 hover:bg-red-50 hover:text-red-500"
               >
                 <Trash2 size={15} />
               </button>
@@ -122,7 +122,7 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
           ))}
           <button
             onClick={() => setDraft(emptyCourse(semester.id))}
-            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-stone-300 py-2.5 text-sm font-medium text-stone-500 hover:border-brand-400 hover:text-brand-600 dark:border-stone-600"
+            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-stone-300 py-2.5 text-sm font-medium text-stone-500 hover:border-brand-400 hover:text-brand-600"
           >
             <Plus size={16} /> Neuer Kurs
           </button>
@@ -136,7 +136,7 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
                 value={draft.name}
                 onChange={(e) => set('name', e.target.value)}
                 placeholder="z.B. Analysis II"
-                className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm dark:border-stone-700 dark:bg-stone-800"
+                className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm"
               />
             </label>
             <label className="block">
@@ -145,7 +145,7 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
                 value={draft.short}
                 onChange={(e) => set('short', e.target.value.toUpperCase())}
                 placeholder="ANA2"
-                className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm dark:border-stone-700 dark:bg-stone-800"
+                className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm"
               />
             </label>
           </div>
@@ -159,7 +159,7 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
                     key={col}
                     onClick={() => set('color', col)}
                     className={cn(
-                      'h-6 w-6 rounded-full ring-offset-2 transition dark:ring-offset-stone-900',
+                      'h-6 w-6 rounded-full ring-offset-2 transition',
                       draft.color === col && 'ring-2 ring-stone-400',
                     )}
                     style={{ backgroundColor: col }}
@@ -173,14 +173,14 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
                 type="number"
                 value={draft.ects ?? ''}
                 onChange={(e) => set('ects', e.target.value ? Number(e.target.value) : undefined)}
-                className="w-16 rounded-lg border border-stone-200 px-2 py-1.5 text-sm dark:border-stone-700 dark:bg-stone-800"
+                className="w-16 rounded-lg border border-stone-200 px-2 py-1.5 text-sm"
               />
             </label>
           </div>
 
           {/* Wochenrhythmus */}
-          <div className="rounded-xl bg-stone-50 p-3 dark:bg-stone-800/50">
-            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-stone-700 dark:text-stone-200">
+          <div className="rounded-xl bg-stone-50 p-3">
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-stone-700">
               <input
                 type="checkbox"
                 checked={draft.recurring?.enabled ?? false}
@@ -198,7 +198,7 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
                   <input
                     value={draft.recurring.labelPrefix}
                     onChange={(e) => setRec('labelPrefix', e.target.value)}
-                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5 dark:border-stone-700 dark:bg-stone-800"
+                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5"
                   />
                 </label>
                 <label className="block">
@@ -206,7 +206,7 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
                   <select
                     value={draft.recurring.type}
                     onChange={(e) => setRec('type', e.target.value as RecurringConfig['type'])}
-                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5 dark:border-stone-700 dark:bg-stone-800"
+                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5"
                   >
                     {TASK_TYPE_LIST.map((t) => (
                       <option key={t.id} value={t.id}>
@@ -220,7 +220,7 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
                   <select
                     value={draft.recurring.weekday}
                     onChange={(e) => setRec('weekday', Number(e.target.value))}
-                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5 dark:border-stone-700 dark:bg-stone-800"
+                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5"
                   >
                     {WEEKDAYS.map((w, i) => (
                       <option key={w} value={i + 1}>
@@ -235,7 +235,7 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
                     type="time"
                     value={draft.recurring.time ?? ''}
                     onChange={(e) => setRec('time', e.target.value)}
-                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5 dark:border-stone-700 dark:bg-stone-800"
+                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5"
                   />
                 </label>
                 <label className="block">
@@ -244,7 +244,7 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
                     type="number"
                     value={draft.recurring.count}
                     onChange={(e) => setRec('count', Number(e.target.value))}
-                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5 dark:border-stone-700 dark:bg-stone-800"
+                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5"
                   />
                 </label>
                 <label className="block">
@@ -255,7 +255,7 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
                     onChange={(e) =>
                       setRec('maxPoints', e.target.value ? Number(e.target.value) : undefined)
                     }
-                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5 dark:border-stone-700 dark:bg-stone-800"
+                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5"
                   />
                 </label>
               </div>
@@ -329,7 +329,7 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
           <div className="flex justify-end gap-2 pt-1">
             <button
               onClick={() => setDraft(null)}
-              className="rounded-lg px-4 py-1.5 text-sm text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800"
+              className="rounded-lg px-4 py-1.5 text-sm text-stone-500 hover:bg-stone-100"
             >
               Abbrechen
             </button>

@@ -51,8 +51,8 @@ export function WeekView({ tasks, courses }: WeekViewProps) {
     <div className="h-full overflow-y-auto px-4 pb-6">
       <div className="mx-auto max-w-3xl space-y-3">
         {overdue.length > 0 && (
-          <section className="rounded-2xl border border-red-200 bg-red-50/60 p-3 dark:border-red-900/50 dark:bg-red-950/20">
-            <h3 className="mb-2 px-1 text-sm font-semibold text-red-600 dark:text-red-400">
+          <section className="rounded-2xl border border-red-200 bg-red-50/60 p-3">
+            <h3 className="mb-2 px-1 text-sm font-semibold text-red-600">
               ⚠️ Überfällig ({overdue.length})
             </h3>
             <div className="space-y-2">{overdue.map(renderCard)}</div>

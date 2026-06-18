@@ -11,6 +11,7 @@ import { WeekView } from '@/components/WeekView'
 import { Schedule } from '@/components/Schedule'
 import { TaskEditor } from '@/components/TaskEditor'
 import { CourseManager } from '@/components/CourseManager'
+import { CalendarModal } from '@/components/CalendarModal'
 
 export default function App() {
   const [ready, setReady] = useState(false)
@@ -21,6 +22,7 @@ export default function App() {
   const view = useUI((s) => s.view)
   const ui = useUI()
   const showCourseManager = useUI((s) => s.showCourseManager)
+  const showCalendar = useUI((s) => s.showCalendar)
 
   useEffect(() => {
     void seedIfEmpty().finally(() => setReady(true))
@@ -77,6 +79,7 @@ export default function App() {
 
       <TaskEditor courses={courses} />
       {showCourseManager && <CourseManager courses={courses} semester={semester} />}
+      {showCalendar && <CalendarModal semester={semester} courses={courses} tasks={tasks} />}
     </div>
   )
 }

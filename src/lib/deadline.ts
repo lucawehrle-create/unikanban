@@ -22,10 +22,10 @@ export function classifyDue(dueISO?: string, done?: boolean): DueClass {
 }
 
 export const DUE_META: Record<DueClass, { label: string; dot: string; text: string }> = {
-  overdue: { label: 'überfällig', dot: 'bg-red-500', text: 'text-red-600 dark:text-red-400' },
-  today: { label: 'heute', dot: 'bg-orange-500', text: 'text-orange-600 dark:text-orange-400' },
-  soon: { label: 'morgen', dot: 'bg-amber-500', text: 'text-amber-600 dark:text-amber-400' },
-  week: { label: 'diese Woche', dot: 'bg-yellow-400', text: 'text-yellow-600 dark:text-yellow-400' },
+  overdue: { label: 'überfällig', dot: 'bg-red-500', text: 'text-red-600' },
+  today: { label: 'heute', dot: 'bg-orange-500', text: 'text-orange-600' },
+  soon: { label: 'morgen', dot: 'bg-amber-500', text: 'text-amber-600' },
+  week: { label: 'diese Woche', dot: 'bg-yellow-400', text: 'text-yellow-600' },
   later: { label: 'später', dot: 'bg-stone-300', text: 'text-stone-500' },
   none: { label: '', dot: '', text: '' },
 }
