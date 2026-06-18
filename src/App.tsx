@@ -56,14 +56,14 @@ export default function App() {
 
   if (!ready || !semester) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-slate-400">
+      <div className="flex h-full items-center justify-center text-sm text-stone-400">
         Lädt…
       </div>
     )
   }
 
   return (
-    <div className="flex h-full flex-col bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+    <div className="flex h-full flex-col text-stone-900">
       <Header semester={semester} />
       <QuickAdd semesterId={semester.id} courses={courses} />
       <FilterBar courses={courses} />

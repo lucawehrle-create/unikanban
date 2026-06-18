@@ -2,10 +2,24 @@
 
 @theme {
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+  /* Markenfarben – warmes Gelb (Akzent) + Schwarz (stark) */
+  --color-brand-50: #fffbea;
+  --color-brand-100: #fff3c4;
+  --color-brand-200: #fce588;
+  --color-brand-300: #fadb5f;
+  --color-brand-400: #f7c948;
+  --color-brand-500: #f0b429;
+  --color-brand-600: #de911d;
+
+  /* Cremetöne für Flächen */
+  --color-cream-50: #fdfcf7;
+  --color-cream-100: #faf7ee;
+  --color-cream-200: #f3eddc;
 }
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
 html,
@@ -18,18 +32,23 @@ body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  color: #1c1917;
+  background:
+    radial-gradient(120% 120% at 85% 15%, #f7ecc9 0%, rgba(247, 236, 201, 0) 55%),
+    linear-gradient(135deg, #fdfcf7 0%, #faf6ec 55%, #f6eed6 100%);
+  background-attachment: fixed;
 }
 
 /* Schmale, dezente Scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgb(148 163 184 / 0.4) transparent;
+  scrollbar-color: rgb(168 162 158 / 0.35) transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background-color: rgb(148 163 184 / 0.4);
+  background-color: rgb(168 162 158 / 0.35);
   border-radius: 9999px;
 }

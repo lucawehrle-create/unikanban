@@ -17,20 +17,20 @@ export function FilterBar({ courses }: { courses: Course[] }) {
     ui.search.trim() !== '' || ui.filterCourseIds.length > 0 || ui.filterTypes.length > 0
 
   return (
-    <div className="flex flex-wrap items-center gap-2 px-4 py-2">
+    <div className="flex flex-wrap items-center gap-2 px-5 py-2">
       {/* Suche */}
-      <div className="flex items-center gap-1.5 rounded-lg bg-white px-2.5 py-1.5 ring-1 ring-slate-200 focus-within:ring-2 focus-within:ring-sky-400 dark:bg-slate-800 dark:ring-slate-700">
-        <Search size={14} className="text-slate-400" />
+      <div className="flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 shadow-sm ring-1 ring-stone-200/70 backdrop-blur focus-within:ring-2 focus-within:ring-brand-400">
+        <Search size={14} className="text-stone-400" />
         <input
           id="search"
           value={ui.search}
           onChange={(e) => ui.setSearch(e.target.value)}
           placeholder="Suchen…"
-          className="w-32 bg-transparent text-sm outline-none placeholder:text-slate-400 dark:text-slate-100"
+          className="w-32 bg-transparent text-sm outline-none placeholder:text-stone-400"
         />
       </div>
 
-      <div className="h-5 w-px bg-slate-200 dark:bg-slate-700" />
+      <div className="h-5 w-px bg-stone-200" />
 
       {/* Kurs-Filter */}
       {courses.map((c) => {
@@ -41,7 +41,7 @@ export function FilterBar({ courses }: { courses: Course[] }) {
             onClick={() => ui.toggleCourseFilter(c.id)}
             className={cn(
               'rounded-full px-2.5 py-1 text-xs font-semibold transition',
-              active ? 'text-white' : 'text-slate-600 dark:text-slate-300',
+              active ? 'text-white' : 'text-stone-600',
             )}
             style={{
               backgroundColor: active ? c.color : c.color + '22',
@@ -53,7 +53,7 @@ export function FilterBar({ courses }: { courses: Course[] }) {
         )
       })}
 
-      <div className="h-5 w-px bg-slate-200 dark:bg-slate-700" />
+      <div className="h-5 w-px bg-stone-200" />
 
       {/* Typ-Filter */}
       {TASK_TYPE_LIST.filter((t) => t.id !== 'sonstiges').map((t) => {
@@ -64,10 +64,10 @@ export function FilterBar({ courses }: { courses: Course[] }) {
             onClick={() => ui.toggleTypeFilter(t.id)}
             title={t.label}
             className={cn(
-              'rounded-full px-2 py-1 text-xs transition',
+              'rounded-full px-2 py-1 text-xs shadow-sm ring-1 transition',
               active
-                ? 'bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900'
-                : 'bg-slate-100 text-slate-500 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-400',
+                ? 'bg-stone-900 text-white ring-stone-900'
+                : 'bg-white/70 text-stone-500 ring-stone-200/70 hover:bg-white',
             )}
           >
             {t.emoji}
@@ -78,7 +78,7 @@ export function FilterBar({ courses }: { courses: Course[] }) {
       {hasFilters && (
         <button
           onClick={ui.clearFilters}
-          className="flex items-center gap-1 rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-500 hover:bg-slate-200 dark:bg-slate-800"
+          className="flex items-center gap-1 rounded-full bg-white/70 px-2.5 py-1 text-xs text-stone-500 shadow-sm ring-1 ring-stone-200/70 hover:bg-white"
         >
           <X size={12} /> Filter
         </button>
@@ -86,18 +86,18 @@ export function FilterBar({ courses }: { courses: Course[] }) {
 
       {/* Gruppierung (nur Board) */}
       {ui.view === 'board' && (
-        <div className="ml-auto flex items-center gap-1">
-          <span className="text-xs text-slate-400">Gruppieren:</span>
-          <div className="flex rounded-lg bg-slate-100 p-0.5 dark:bg-slate-800">
+        <div className="ml-auto flex items-center gap-1.5">
+          <span className="text-xs text-stone-400">Gruppieren:</span>
+          <div className="flex rounded-full bg-white/70 p-1 shadow-sm ring-1 ring-stone-200/70 backdrop-blur">
             {GROUP_OPTIONS.map((g) => (
               <button
                 key={g.id}
                 onClick={() => ui.setGroupBy(g.id)}
                 className={cn(
-                  'rounded-md px-2 py-1 text-xs font-medium transition',
+                  'rounded-full px-3 py-1 text-xs font-medium transition',
                   ui.groupBy === g.id
-                    ? 'bg-white text-slate-800 shadow-sm dark:bg-slate-700 dark:text-slate-100'
-                    : 'text-slate-500 hover:text-slate-700',
+                    ? 'bg-stone-900 text-white shadow-sm'
+                    : 'text-stone-500 hover:text-stone-800',
                 )}
               >
                 {g.label}

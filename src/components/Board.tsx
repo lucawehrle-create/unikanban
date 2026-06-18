@@ -102,7 +102,7 @@ function Droppable({
 }) {
   const { setNodeRef, isOver } = useDroppable({ id, disabled: !enabled })
   return (
-    <div ref={setNodeRef} className={cn(className, isOver && 'ring-2 ring-sky-400/60')}>
+    <div ref={setNodeRef} className={cn(className, isOver && 'ring-2 ring-brand-400/70')}>
       {children}
     </div>
   )
@@ -161,7 +161,7 @@ export function Board({ tasks, courses }: BoardProps) {
   }
 
   const grid = (
-    <div className="flex h-full gap-3 overflow-x-auto px-4 pb-4">
+    <div className="flex h-full gap-4 overflow-x-auto px-5 pb-5">
       {columns.map((col) => {
         const items = sortTasks(groups.get(col.id) ?? [])
         return (
@@ -169,7 +169,7 @@ export function Board({ tasks, courses }: BoardProps) {
             key={col.id}
             id={col.id}
             enabled={dndEnabled}
-            className="flex max-h-full w-72 shrink-0 flex-col rounded-2xl bg-slate-100/70 p-2 dark:bg-slate-900/60"
+            className="flex max-h-full w-72 shrink-0 flex-col rounded-3xl bg-white/40 p-2.5 ring-1 ring-stone-200/60 backdrop-blur"
           >
             <div className="flex items-center justify-between px-2 py-1.5">
               <div className="flex items-center gap-2">
@@ -179,16 +179,14 @@ export function Board({ tasks, courses }: BoardProps) {
                     style={{ backgroundColor: col.accent }}
                   />
                 )}
-                <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-                  {col.title}
-                </span>
+                <span className="text-sm font-semibold text-stone-700">{col.title}</span>
               </div>
-              <span className="rounded-full bg-slate-200 px-2 text-xs font-medium text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+              <span className="rounded-full bg-stone-100 px-2 text-xs font-medium text-stone-500">
                 {items.length}
               </span>
             </div>
 
-            <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-1">
+            <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto p-1">
               {items.map((t) => (
                 <Draggable key={t.id} task={t} enabled={dndEnabled}>
                   <TaskCard
@@ -200,7 +198,7 @@ export function Board({ tasks, courses }: BoardProps) {
                 </Draggable>
               ))}
               {items.length === 0 && (
-                <div className="px-2 py-6 text-center text-xs text-slate-400">leer</div>
+                <div className="px-2 py-6 text-center text-xs text-stone-400">leer</div>
               )}
             </div>
           </Droppable>

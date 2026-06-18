@@ -72,14 +72,14 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
           {courses.map((c) => (
             <div
               key={c.id}
-              className="flex items-center gap-3 rounded-xl px-3 py-2 ring-1 ring-slate-200 dark:ring-slate-700"
+              className="flex items-center gap-3 rounded-xl px-3 py-2 ring-1 ring-stone-200 dark:ring-stone-700"
             >
               <span className="h-8 w-1.5 rounded-full" style={{ backgroundColor: c.color }} />
               <div className="min-w-0 flex-1">
-                <div className="text-sm font-medium text-slate-800 dark:text-slate-100">
+                <div className="text-sm font-medium text-stone-800 dark:text-stone-100">
                   {c.name || '(ohne Namen)'}
                 </div>
-                <div className="text-xs text-slate-400">
+                <div className="text-xs text-stone-400">
                   {c.short}
                   {c.ects ? ` · ${c.ects} ECTS` : ''}
                   {c.recurring?.enabled
@@ -89,13 +89,13 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
               </div>
               <button
                 onClick={() => setDraft(structuredClone(c))}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800"
+                className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-600 dark:hover:bg-stone-800"
               >
                 <Pencil size={15} />
               </button>
               <button
                 onClick={() => void deleteCourse(c.id)}
-                className="rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/30"
+                className="rounded-lg p-2 text-stone-400 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/30"
               >
                 <Trash2 size={15} />
               </button>
@@ -103,7 +103,7 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
           ))}
           <button
             onClick={() => setDraft(emptyCourse(semester.id))}
-            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-slate-300 py-2.5 text-sm font-medium text-slate-500 hover:border-sky-400 hover:text-sky-600 dark:border-slate-600"
+            className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-stone-300 py-2.5 text-sm font-medium text-stone-500 hover:border-brand-400 hover:text-brand-600 dark:border-stone-600"
           >
             <Plus size={16} /> Neuer Kurs
           </button>
@@ -112,36 +112,36 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
         <div className="space-y-4">
           <div className="grid grid-cols-3 gap-2">
             <label className="col-span-2 block">
-              <span className="mb-1 block text-xs font-medium text-slate-500">Name</span>
+              <span className="mb-1 block text-xs font-medium text-stone-500">Name</span>
               <input
                 value={draft.name}
                 onChange={(e) => set('name', e.target.value)}
                 placeholder="z.B. Analysis II"
-                className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+                className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm dark:border-stone-700 dark:bg-stone-800"
               />
             </label>
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-slate-500">Kürzel</span>
+              <span className="mb-1 block text-xs font-medium text-stone-500">Kürzel</span>
               <input
                 value={draft.short}
                 onChange={(e) => set('short', e.target.value.toUpperCase())}
                 placeholder="ANA2"
-                className="w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+                className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm dark:border-stone-700 dark:bg-stone-800"
               />
             </label>
           </div>
 
           <div className="flex items-center gap-3">
             <div>
-              <span className="mb-1 block text-xs font-medium text-slate-500">Farbe</span>
+              <span className="mb-1 block text-xs font-medium text-stone-500">Farbe</span>
               <div className="flex gap-1.5">
                 {PALETTE.map((col) => (
                   <button
                     key={col}
                     onClick={() => set('color', col)}
                     className={cn(
-                      'h-6 w-6 rounded-full ring-offset-2 transition dark:ring-offset-slate-900',
-                      draft.color === col && 'ring-2 ring-slate-400',
+                      'h-6 w-6 rounded-full ring-offset-2 transition dark:ring-offset-stone-900',
+                      draft.color === col && 'ring-2 ring-stone-400',
                     )}
                     style={{ backgroundColor: col }}
                   />
@@ -149,45 +149,45 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
               </div>
             </div>
             <label className="block">
-              <span className="mb-1 block text-xs font-medium text-slate-500">ECTS</span>
+              <span className="mb-1 block text-xs font-medium text-stone-500">ECTS</span>
               <input
                 type="number"
                 value={draft.ects ?? ''}
                 onChange={(e) => set('ects', e.target.value ? Number(e.target.value) : undefined)}
-                className="w-16 rounded-lg border border-slate-200 px-2 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800"
+                className="w-16 rounded-lg border border-stone-200 px-2 py-1.5 text-sm dark:border-stone-700 dark:bg-stone-800"
               />
             </label>
           </div>
 
           {/* Wochenrhythmus */}
-          <div className="rounded-xl bg-slate-50 p-3 dark:bg-slate-800/50">
-            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
+          <div className="rounded-xl bg-stone-50 p-3 dark:bg-stone-800/50">
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-stone-700 dark:text-stone-200">
               <input
                 type="checkbox"
                 checked={draft.recurring?.enabled ?? false}
                 onChange={(e) => setRec('enabled', e.target.checked)}
-                className="h-4 w-4 rounded accent-sky-500"
+                className="h-4 w-4 rounded accent-brand-500"
               />
-              <Sparkles size={15} className="text-sky-500" />
+              <Sparkles size={15} className="text-brand-500" />
               Wöchentliche Aufgaben automatisch erzeugen
             </label>
 
             {draft.recurring?.enabled && (
               <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                 <label className="block">
-                  <span className="mb-1 block text-xs text-slate-500">Bezeichnung</span>
+                  <span className="mb-1 block text-xs text-stone-500">Bezeichnung</span>
                   <input
                     value={draft.recurring.labelPrefix}
                     onChange={(e) => setRec('labelPrefix', e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-2 py-1.5 dark:border-slate-700 dark:bg-slate-800"
+                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5 dark:border-stone-700 dark:bg-stone-800"
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs text-slate-500">Typ</span>
+                  <span className="mb-1 block text-xs text-stone-500">Typ</span>
                   <select
                     value={draft.recurring.type}
                     onChange={(e) => setRec('type', e.target.value as RecurringConfig['type'])}
-                    className="w-full rounded-lg border border-slate-200 px-2 py-1.5 dark:border-slate-700 dark:bg-slate-800"
+                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5 dark:border-stone-700 dark:bg-stone-800"
                   >
                     {TASK_TYPE_LIST.map((t) => (
                       <option key={t.id} value={t.id}>
@@ -197,11 +197,11 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
                   </select>
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs text-slate-500">Abgabetag</span>
+                  <span className="mb-1 block text-xs text-stone-500">Abgabetag</span>
                   <select
                     value={draft.recurring.weekday}
                     onChange={(e) => setRec('weekday', Number(e.target.value))}
-                    className="w-full rounded-lg border border-slate-200 px-2 py-1.5 dark:border-slate-700 dark:bg-slate-800"
+                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5 dark:border-stone-700 dark:bg-stone-800"
                   >
                     {WEEKDAYS.map((w, i) => (
                       <option key={w} value={i + 1}>
@@ -211,32 +211,32 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
                   </select>
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs text-slate-500">Uhrzeit</span>
+                  <span className="mb-1 block text-xs text-stone-500">Uhrzeit</span>
                   <input
                     type="time"
                     value={draft.recurring.time ?? ''}
                     onChange={(e) => setRec('time', e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 px-2 py-1.5 dark:border-slate-700 dark:bg-slate-800"
+                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5 dark:border-stone-700 dark:bg-stone-800"
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs text-slate-500">Anzahl</span>
+                  <span className="mb-1 block text-xs text-stone-500">Anzahl</span>
                   <input
                     type="number"
                     value={draft.recurring.count}
                     onChange={(e) => setRec('count', Number(e.target.value))}
-                    className="w-full rounded-lg border border-slate-200 px-2 py-1.5 dark:border-slate-700 dark:bg-slate-800"
+                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5 dark:border-stone-700 dark:bg-stone-800"
                   />
                 </label>
                 <label className="block">
-                  <span className="mb-1 block text-xs text-slate-500">Punkte/Blatt</span>
+                  <span className="mb-1 block text-xs text-stone-500">Punkte/Blatt</span>
                   <input
                     type="number"
                     value={draft.recurring.maxPoints ?? ''}
                     onChange={(e) =>
                       setRec('maxPoints', e.target.value ? Number(e.target.value) : undefined)
                     }
-                    className="w-full rounded-lg border border-slate-200 px-2 py-1.5 dark:border-slate-700 dark:bg-slate-800"
+                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5 dark:border-stone-700 dark:bg-stone-800"
                   />
                 </label>
               </div>
@@ -246,13 +246,13 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
           <div className="flex justify-end gap-2 pt-1">
             <button
               onClick={() => setDraft(null)}
-              className="rounded-lg px-4 py-1.5 text-sm text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800"
+              className="rounded-lg px-4 py-1.5 text-sm text-stone-500 hover:bg-stone-100 dark:hover:bg-stone-800"
             >
               Abbrechen
             </button>
             <button
               onClick={() => void save()}
-              className="rounded-lg bg-sky-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-sky-600"
+              className="rounded-full bg-brand-400 px-5 py-1.5 text-sm font-semibold text-stone-900 hover:bg-brand-500"
             >
               Speichern
             </button>

@@ -68,23 +68,23 @@ export function WeekView({ tasks, courses }: WeekViewProps) {
               <h3
                 className={cn(
                   'mb-2 flex items-baseline gap-2 px-1 text-sm font-semibold',
-                  isToday(day) ? 'text-sky-600 dark:text-sky-400' : 'text-slate-500',
+                  isToday(day) ? 'text-stone-900' : 'text-stone-500',
                 )}
               >
                 <span className="capitalize">{format(day, 'EEEE', { locale: de })}</span>
-                <span className="text-xs font-normal text-slate-400">
+                <span className="text-xs font-normal text-stone-400">
                   {format(day, 'd. MMM', { locale: de })}
                 </span>
                 {isToday(day) && (
-                  <span className="rounded-full bg-sky-100 px-2 text-[11px] text-sky-600 dark:bg-sky-900/40 dark:text-sky-300">
+                  <span className="rounded-full bg-brand-300 px-2 text-[11px] font-semibold text-stone-900">
                     heute
                   </span>
                 )}
               </h3>
               {items.length > 0 ? (
-                <div className="space-y-2">{items.map(renderCard)}</div>
+                <div className="space-y-2.5">{items.map(renderCard)}</div>
               ) : (
-                <div className="px-1 pb-1 text-xs text-slate-300 dark:text-slate-600">—</div>
+                <div className="px-1 pb-1 text-xs text-stone-300">—</div>
               )}
             </section>
           )

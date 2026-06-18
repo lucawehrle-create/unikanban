@@ -22,8 +22,8 @@ export function TaskCard({ task, course, onClick, dragging }: TaskCardProps) {
     <button
       onClick={onClick}
       className={cn(
-        'group relative w-full overflow-hidden rounded-xl bg-white px-3 py-2.5 text-left shadow-sm ring-1 ring-slate-200 transition',
-        'hover:shadow-md hover:ring-slate-300 dark:bg-slate-800 dark:ring-slate-700 dark:hover:ring-slate-600',
+        'group relative w-full overflow-hidden rounded-2xl bg-white px-3.5 py-3 text-left shadow-sm ring-1 ring-stone-200/80 transition',
+        'hover:-translate-y-0.5 hover:shadow-md hover:ring-stone-300',
         dragging && 'opacity-50',
         done && 'opacity-60',
       )}
@@ -40,10 +40,7 @@ export function TaskCard({ task, course, onClick, dragging }: TaskCardProps) {
         </span>
         <div className="min-w-0 flex-1">
           <div
-            className={cn(
-              'text-sm font-medium text-slate-800 dark:text-slate-100',
-              done && 'line-through',
-            )}
+            className={cn('text-sm font-medium text-stone-800', done && 'line-through')}
           >
             {task.title}
           </div>
@@ -66,21 +63,21 @@ export function TaskCard({ task, course, onClick, dragging }: TaskCardProps) {
             )}
 
             {task.points?.max != null && (
-              <span className="text-slate-400">
+              <span className="text-stone-400">
                 {task.points.earned != null ? `${task.points.earned}/` : ''}
                 {task.points.max} P
               </span>
             )}
 
             {phasesTotal > 0 && (
-              <span className="text-slate-400">
+              <span className="text-stone-400">
                 {phasesDone}/{phasesTotal} Schritte
               </span>
             )}
           </div>
 
           {phasesTotal > 0 && (
-            <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
+            <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-stone-100">
               <div
                 className="h-full rounded-full transition-all"
                 style={{
