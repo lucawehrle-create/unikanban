@@ -76,7 +76,7 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
               📅 {formatDue(draft.dueDate)}
             </span>
           )}
-          <span className="ml-auto text-stone-300">#kurs · @typ · !datum</span>
+          <span className="ml-auto text-stone-300"># Kurs · @ Art · ! Frist</span>
         </div>
       )}
     </div>

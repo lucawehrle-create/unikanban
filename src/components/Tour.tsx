@@ -20,7 +20,7 @@ const STEPS: TourStep[] = [
     target: 'quickadd',
     view: 'board',
     title: 'Aufgaben in Sekunden',
-    body: 'Tippe z. B. „Blatt 3 #ana2 @übung !fr" – Kurs, Typ und Frist werden automatisch erkannt. (Taste „n")',
+    body: 'Tippe einfach den Titel. Mit Kürzeln ordnest du direkt zu: # für den Kurs, @ für die Art, ! für die Frist. Aus „Blatt 3 #ana2 @übung !fr" wird: Blatt 3 · Kurs ANA2 · Übung · fällig Freitag.',
   },
   {
     target: 'filter',
