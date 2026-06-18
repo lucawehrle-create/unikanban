@@ -51,6 +51,7 @@ export async function saveProgram(program: Program): Promise<void> {
 
 export async function deleteProgram(id: string): Promise<void> {
   await db.transaction('rw', db.programs, db.semesters, db.courses, db.tasks, async () => {
+    const wasActive = (await db.programs.get(id))?.active ?? false
     const sems = await db.semesters.where('programId').equals(id).toArray()
     for (const s of sems) {
       await db.courses.where('semesterId').equals(s.id).delete()
@@ -58,6 +59,20 @@ export async function deleteProgram(id: string): Promise<void> {
     }
     await db.semesters.where('programId').equals(id).delete()
     await db.programs.delete(id)
+
+    // War der gelöschte Studiengang aktiv, einen anderen aktivieren.
+    if (wasActive) {
+      const next = await db.programs.orderBy('order').first()
+      if (next) {
+        await db.programs.update(next.id, { active: true })
+        const nextSem = await db.semesters.where('programId').equals(next.id).first()
+        if (nextSem) {
+          await db.semesters.toCollection().modify((s) => {
+            s.active = s.id === nextSem.id
+          })
+        }
+      }
+    }
   })
 }
 

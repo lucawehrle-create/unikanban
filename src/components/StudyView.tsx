@@ -68,6 +68,12 @@ export function StudyView({ activeProgram }: { activeProgram: Program }) {
             </button>
           ))}
           <button
+            onClick={() => setEditProgram(structuredClone(sel))}
+            className="flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-sm font-medium text-stone-500 ring-1 ring-stone-200/70 hover:bg-white hover:text-stone-700"
+          >
+            <Pencil size={13} /> Bearbeiten
+          </button>
+          <button
             onClick={() => setNewProgram(true)}
             className="rounded-full border border-dashed border-stone-300 px-3 py-1.5 text-sm font-medium text-stone-500 hover:border-brand-400 hover:text-brand-600"
           >
@@ -190,9 +196,10 @@ export function StudyView({ activeProgram }: { activeProgram: Program }) {
           program={editProgram}
           onClose={() => setEditProgram(null)}
           isNew={false}
+          canDelete={programs.length > 1}
         />
       )}
-      {newProgram && <ProgramForm onClose={() => setNewProgram(false)} isNew />}
+      {newProgram && <ProgramForm onClose={() => setNewProgram(false)} isNew canDelete={false} />}
       {semForm && (
         <SemesterForm
           semester={semForm}
@@ -262,10 +269,12 @@ function ProgramForm({
   program,
   isNew,
   onClose,
+  canDelete,
 }: {
   program?: Program
   isNew: boolean
   onClose: () => void
+  canDelete: boolean
 }) {
   const [name, setName] = useState(program?.name ?? '')
   const [type, setType] = useState<ProgramType>(program?.type ?? 'bachelor')
@@ -377,18 +386,27 @@ function ProgramForm({
           )}
 
         <div className="flex items-center justify-between pt-1">
-          {!isNew && program && (
+          {!isNew && program && canDelete && (
             <button
               onClick={() => {
-                if (confirm(`„${program.name}" mit allen Semestern löschen?`)) {
+                if (
+                  confirm(
+                    `„${program.name}" mit allen Semestern, Kursen & Aufgaben unwiderruflich löschen?`,
+                  )
+                ) {
                   void deleteProgram(program.id)
                   onClose()
                 }
               }}
               className="flex items-center gap-1.5 text-sm text-red-600 hover:underline"
             >
-              <Trash2 size={14} /> Löschen
+              <Trash2 size={14} /> Studiengang löschen
             </button>
+          )}
+          {!isNew && program && !canDelete && (
+            <span className="text-xs text-stone-400">
+              Der letzte Studiengang kann nicht gelöscht werden.
+            </span>
           )}
           <button
             onClick={() => void submit()}
