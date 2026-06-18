@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
-import { seedIfEmpty } from '@/lib/seed'
+import { useEffect, useMemo } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
+import { db } from '@/db/db'
 import { filterTasks } from '@/lib/filter'
 import { useActiveProgram, useActiveSemester, useCourses, useTasks } from '@/hooks/data'
 import { useUI } from '@/store/ui'
 import { Header } from '@/components/Header'
+import { Onboarding } from '@/components/Onboarding'
 import { QuickAdd } from '@/components/QuickAdd'
 import { FilterBar } from '@/components/FilterBar'
 import { Board } from '@/components/Board'
@@ -15,7 +17,7 @@ import { CourseManager } from '@/components/CourseManager'
 import { CalendarModal } from '@/components/CalendarModal'
 
 export default function App() {
-  const [ready, setReady] = useState(false)
+  const programCount = useLiveQuery(() => db.programs.count(), [])
   const program = useActiveProgram()
   const semester = useActiveSemester()
   const courses = useCourses(semester?.id)
@@ -25,10 +27,6 @@ export default function App() {
   const ui = useUI()
   const showCourseManager = useUI((s) => s.showCourseManager)
   const showCalendar = useUI((s) => s.showCalendar)
-
-  useEffect(() => {
-    void seedIfEmpty().finally(() => setReady(true))
-  }, [])
 
   // Tastatur-Kürzel: n = erfassen, / = suchen
   useEffect(() => {
@@ -59,11 +57,15 @@ export default function App() {
     [tasks, courses, ui.search, ui.filterCourseIds, ui.filterTypes, ui.showDone],
   )
 
-  if (!ready || !semester) {
+  if (programCount === undefined) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-stone-400">
-        Lädt…
-      </div>
+      <div className="flex h-full items-center justify-center text-sm text-stone-400">Lädt…</div>
+    )
+  }
+  if (programCount === 0) return <Onboarding />
+  if (!semester || !program) {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-stone-400">Lädt…</div>
     )
   }
 
