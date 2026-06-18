@@ -1,6 +1,26 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/db/db'
-import type { Course, Semester, Task } from '@/db/types'
+import type { Course, Program, Semester, Task } from '@/db/types'
+
+export function usePrograms(): Program[] {
+  return useLiveQuery(() => db.programs.orderBy('order').toArray(), []) ?? []
+}
+
+export function useActiveProgram(): Program | undefined {
+  return useLiveQuery(async () => {
+    const active = await db.programs.filter((p) => p.active).first()
+    return active ?? (await db.programs.orderBy('order').first())
+  }, [])
+}
+
+export function useSemesters(programId?: string): Semester[] {
+  return (
+    useLiveQuery(
+      () => (programId ? db.semesters.where('programId').equals(programId).toArray() : []),
+      [programId],
+    ) ?? []
+  )
+}
 
 export function useActiveSemester(): Semester | undefined {
   return useLiveQuery(async () => {
@@ -15,6 +35,19 @@ export function useCourses(semesterId?: string): Course[] {
       () => (semesterId ? db.courses.where('semesterId').equals(semesterId).toArray() : []),
       [semesterId],
     ) ?? []
+  )
+}
+
+/** Alle Kurse eines Studiengangs über sämtliche Semester (für die Studienakte). */
+export function useProgramCourses(programId?: string): Course[] {
+  return (
+    useLiveQuery(async () => {
+      if (!programId) return []
+      const sems = await db.semesters.where('programId').equals(programId).toArray()
+      const ids = sems.map((s) => s.id)
+      if (ids.length === 0) return []
+      return db.courses.where('semesterId').anyOf(ids).toArray()
+    }, [programId]) ?? []
   )
 }
 

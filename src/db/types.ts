@@ -1,4 +1,27 @@
-// Uni-natives Datenmodell: Semester → Kurse → Aufgaben (mit Typ-Lebenszyklus)
+// Uni-natives Datenmodell:
+// Studiengang → Semester → Kurse → Aufgaben (mit Typ-Lebenszyklus)
+//
+// Zwei Schichten:
+//   - Operativ (Board/Stundenplan/Aufgaben) ist auf das AKTIVE Semester begrenzt
+//     und "resettet" beim Semesterwechsel (= Kontextwechsel, nichts wird gelöscht).
+//   - Studienakte (Noten/ECTS aus Kursen) kumuliert über alle Semester eines
+//     Studiengangs und wird nie zurückgesetzt.
+
+export type ProgramType = 'bachelor' | 'master' | 'other'
+
+export interface Program {
+  id: string
+  name: string // "B.Sc. Informatik"
+  type: ProgramType
+  targetEcts: number // 180 (Bachelor) / 120 (Master) …
+  /** Startbilanz für Quereinstieg mitten im Studium (optional). */
+  priorEcts?: number // bereits erbrachte ECTS vor Tool-Nutzung
+  priorGradeAvg?: number // bisheriger Schnitt
+  priorGradedEcts?: number // ECTS, auf denen priorGradeAvg beruht (für korrekte Gewichtung)
+  active: boolean
+  order: number
+  createdAt: string
+}
 
 export type TaskTypeId =
   | 'uebung'
@@ -11,13 +34,26 @@ export type TaskTypeId =
 /** Spalten des Boards. */
 export type TaskStatus = 'offen' | 'dran' | 'erledigt'
 
+/** Ein Klausurenphasen-Zeitraum (eine Uni kann zwei haben). */
+export interface ExamPhase {
+  id: string
+  label: string // "1. Klausurenphase"
+  start: string // ISO-Datum
+  end: string // ISO-Datum
+}
+
 export interface Semester {
   id: string
+  programId: string
   name: string // z.B. "SoSe 2026"
-  /** ISO-Datum (yyyy-mm-dd) des Montags von Woche 1. */
+  /** ISO-Datum (yyyy-mm-dd) des Montags von Woche 1 (Vorlesungsbeginn). */
   startDate: string
   /** Anzahl Vorlesungswochen, z.B. 14. */
   weeks: number
+  /** Klausurenphasen (0–2). */
+  examPhases: ExamPhase[]
+  /** Semesterende (ISO) – danach beginnt das nächste Semester. */
+  endDate?: string
   active: boolean
 }
 
@@ -44,6 +80,9 @@ export interface RecurringConfig {
   maxPoints?: number // Punkte pro Blatt (optional)
 }
 
+/** Studienstatus eines Kurses – steuert, ob er in die Studienakte einfließt. */
+export type CourseStatus = 'laufend' | 'bestanden' | 'nicht_bestanden'
+
 export interface Course {
   id: string
   semesterId: string
@@ -52,6 +91,7 @@ export interface Course {
   color: string // Hex, z.B. "#6366f1"
   ects?: number
   grade?: number // 1.0 – 5.0
+  status?: CourseStatus // default: 'laufend'
   slots: CourseSlot[]
   recurring?: RecurringConfig
 }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { seedIfEmpty } from '@/lib/seed'
 import { filterTasks } from '@/lib/filter'
-import { useActiveSemester, useCourses, useTasks } from '@/hooks/data'
+import { useActiveProgram, useActiveSemester, useCourses, useTasks } from '@/hooks/data'
 import { useUI } from '@/store/ui'
 import { Header } from '@/components/Header'
 import { QuickAdd } from '@/components/QuickAdd'
@@ -9,12 +9,14 @@ import { FilterBar } from '@/components/FilterBar'
 import { Board } from '@/components/Board'
 import { WeekView } from '@/components/WeekView'
 import { Schedule } from '@/components/Schedule'
+import { StudyView } from '@/components/StudyView'
 import { TaskEditor } from '@/components/TaskEditor'
 import { CourseManager } from '@/components/CourseManager'
 import { CalendarModal } from '@/components/CalendarModal'
 
 export default function App() {
   const [ready, setReady] = useState(false)
+  const program = useActiveProgram()
   const semester = useActiveSemester()
   const courses = useCourses(semester?.id)
   const tasks = useTasks(semester?.id)
@@ -65,16 +67,23 @@ export default function App() {
     )
   }
 
+  const isStudy = view === 'study'
+
   return (
     <div className="flex h-full flex-col text-stone-900">
-      <Header semester={semester} />
-      <QuickAdd semesterId={semester.id} courses={courses} />
-      <FilterBar courses={courses} />
+      <Header semester={semester} program={program} />
+      {!isStudy && (
+        <>
+          <QuickAdd semesterId={semester.id} courses={courses} />
+          <FilterBar courses={courses} />
+        </>
+      )}
 
       <main className="min-h-0 flex-1 pt-1">
         {view === 'board' && <Board tasks={visible} courses={courses} />}
         {view === 'week' && <WeekView tasks={visible} courses={courses} />}
         {view === 'schedule' && <Schedule tasks={visible} courses={courses} />}
+        {view === 'study' && program && <StudyView activeProgram={program} />}
       </main>
 
       <TaskEditor courses={courses} />

@@ -1,0 +1,551 @@
+import { useMemo, useState, type ReactNode } from 'react'
+import { Pencil, Plus, GraduationCap, Trash2, X } from 'lucide-react'
+import type { Course, CourseStatus, ExamPhase, Program, ProgramType, Semester } from '@/db/types'
+import { db, uid } from '@/db/db'
+import {
+  createProgram,
+  createSemester,
+  deleteProgram,
+  saveProgram,
+  saveSemester,
+  switchSemester,
+} from '@/lib/actions'
+import { usePrograms, useProgramCourses, useSemesters } from '@/hooks/data'
+import { computeProgramStats, fmtGrade, PROGRAM_TYPE_LABEL } from '@/lib/study'
+import { Modal } from './Modal'
+import { cn } from '@/lib/cn'
+
+const STATUS_OPTS: { id: CourseStatus; label: string }[] = [
+  { id: 'laufend', label: 'läuft' },
+  { id: 'bestanden', label: 'bestanden' },
+  { id: 'nicht_bestanden', label: 'nicht best.' },
+]
+
+export function StudyView({ activeProgram }: { activeProgram: Program }) {
+  const programs = usePrograms()
+  const [selId, setSelId] = useState(activeProgram.id)
+  const sel = programs.find((p) => p.id === selId) ?? activeProgram
+
+  const semesters = useSemesters(sel.id)
+  const courses = useProgramCourses(sel.id)
+  const stats = useMemo(() => computeProgramStats(sel, courses), [sel, courses])
+
+  const [editProgram, setEditProgram] = useState<Program | null>(null)
+  const [newProgram, setNewProgram] = useState(false)
+  const [semForm, setSemForm] = useState<Semester | null>(null)
+
+  const coursesBySem = useMemo(() => {
+    const m = new Map<string, Course[]>()
+    for (const c of courses) {
+      if (!m.has(c.semesterId)) m.set(c.semesterId, [])
+      m.get(c.semesterId)!.push(c)
+    }
+    return m
+  }, [courses])
+
+  const sortedSems = [...semesters].sort((a, b) => a.startDate.localeCompare(b.startDate))
+
+  return (
+    <div className="h-full overflow-y-auto px-5 pb-8">
+      <div className="mx-auto max-w-4xl space-y-5">
+        {/* Studiengang-Auswahl */}
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          {programs.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setSelId(p.id)}
+              className={cn(
+                'flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition',
+                p.id === sel.id
+                  ? 'bg-stone-900 text-white'
+                  : 'bg-white/70 text-stone-600 ring-1 ring-stone-200/70 hover:bg-white',
+              )}
+            >
+              <GraduationCap size={14} /> {p.name}
+            </button>
+          ))}
+          <button
+            onClick={() => setNewProgram(true)}
+            className="rounded-full border border-dashed border-stone-300 px-3 py-1.5 text-sm font-medium text-stone-500 hover:border-brand-400 hover:text-brand-600"
+          >
+            <Plus size={14} className="-mt-0.5 mr-0.5 inline" /> Studiengang
+          </button>
+        </div>
+
+        {/* Statistik */}
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70 sm:col-span-2">
+            <div className="mb-1 flex items-baseline justify-between">
+              <span className="text-sm font-semibold text-stone-700">ECTS-Fortschritt</span>
+              <button
+                onClick={() => setEditProgram(structuredClone(sel))}
+                className="flex items-center gap-1 text-xs text-stone-400 hover:text-stone-600"
+              >
+                <Pencil size={12} /> {PROGRAM_TYPE_LABEL[sel.type]} bearbeiten
+              </button>
+            </div>
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-bold text-stone-800">{stats.doneEcts}</span>
+              <span className="text-stone-400">/ {stats.targetEcts} ECTS</span>
+              {stats.runningEcts > 0 && (
+                <span className="ml-auto text-xs text-stone-400">
+                  +{stats.runningEcts} laufend
+                </span>
+              )}
+            </div>
+            <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-stone-100">
+              <div
+                className="h-full rounded-full bg-brand-400 transition-all"
+                style={{ width: `${stats.progress * 100}%` }}
+              />
+            </div>
+            <div className="mt-1 text-xs text-stone-400">
+              {Math.round(stats.progress * 100)} % geschafft
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70">
+            <span className="text-sm font-semibold text-stone-700">Notenschnitt</span>
+            <div className="mt-1 text-3xl font-bold text-stone-800">{fmtGrade(stats.gradeAvg)}</div>
+            <div className="mt-1 text-xs text-stone-400">
+              {stats.gradedCourses} benotete Kurse
+              {sel.priorGradedEcts ? ' (inkl. Startbilanz)' : ''}
+            </div>
+          </div>
+        </div>
+
+        {/* Semester / Transcript */}
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-stone-700">Semester</h2>
+          <button
+            onClick={() =>
+              setSemForm({
+                id: uid(),
+                programId: sel.id,
+                name: '',
+                startDate: new Date().toISOString().slice(0, 10),
+                weeks: 14,
+                examPhases: [],
+                active: false,
+              })
+            }
+            className="flex items-center gap-1 rounded-full bg-brand-400 px-3 py-1.5 text-xs font-semibold text-stone-900 hover:bg-brand-500"
+          >
+            <Plus size={14} /> Neues Semester
+          </button>
+        </div>
+
+        {sortedSems.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-stone-200 py-8 text-center text-sm text-stone-400">
+            Noch kein Semester in diesem Studiengang.
+          </div>
+        )}
+
+        <div className="space-y-3">
+          {sortedSems.map((s) => {
+            const cs = coursesBySem.get(s.id) ?? []
+            return (
+              <section key={s.id} className="rounded-2xl bg-white p-3.5 shadow-sm ring-1 ring-stone-200/70">
+                <div className="mb-2 flex items-center gap-2 px-1">
+                  <span className="text-sm font-semibold text-stone-800">{s.name}</span>
+                  {s.active && (
+                    <span className="rounded-full bg-brand-300 px-2 text-[10px] font-semibold text-stone-900">
+                      aktiv
+                    </span>
+                  )}
+                  <button
+                    onClick={() => void switchSemester(s.id)}
+                    className="text-xs text-stone-400 hover:text-brand-600"
+                  >
+                    öffnen
+                  </button>
+                  <button
+                    onClick={() => setSemForm(structuredClone(s))}
+                    className="ml-auto rounded-lg p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                </div>
+
+                {cs.length === 0 ? (
+                  <div className="px-1 pb-1 text-xs text-stone-300">keine Kurse</div>
+                ) : (
+                  <div className="space-y-1">
+                    {cs.map((c) => (
+                      <CourseRow key={c.id} course={c} />
+                    ))}
+                  </div>
+                )}
+              </section>
+            )
+          })}
+        </div>
+      </div>
+
+      {editProgram && (
+        <ProgramForm
+          program={editProgram}
+          onClose={() => setEditProgram(null)}
+          isNew={false}
+        />
+      )}
+      {newProgram && <ProgramForm onClose={() => setNewProgram(false)} isNew />}
+      {semForm && (
+        <SemesterForm
+          semester={semForm}
+          isNew={!semesters.some((s) => s.id === semForm.id)}
+          onClose={() => setSemForm(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+/** Eine Kurszeile mit Inline-Bearbeitung von ECTS, Note & Status. */
+function CourseRow({ course }: { course: Course }) {
+  const upd = (patch: Partial<Course>) => void db.courses.update(course.id, patch)
+  const status = course.status ?? 'laufend'
+  return (
+    <div className="flex items-center gap-2 rounded-lg px-1 py-1.5 hover:bg-stone-50">
+      <span className="h-5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: course.color }} />
+      <span className="min-w-0 flex-1 truncate text-sm text-stone-700">
+        <span className="font-medium">{course.short}</span> · {course.name}
+      </span>
+      <input
+        type="number"
+        defaultValue={course.ects ?? ''}
+        placeholder="ECTS"
+        onBlur={(e) => upd({ ects: e.target.value ? Number(e.target.value) : undefined })}
+        className="w-14 rounded-md border border-stone-200 px-1.5 py-1 text-center text-xs"
+      />
+      <input
+        type="number"
+        step="0.1"
+        min="1"
+        max="5"
+        defaultValue={course.grade ?? ''}
+        placeholder="Note"
+        onBlur={(e) => upd({ grade: e.target.value ? Number(e.target.value) : undefined })}
+        className="w-14 rounded-md border border-stone-200 px-1.5 py-1 text-center text-xs"
+      />
+      <select
+        value={status}
+        onChange={(e) => upd({ status: e.target.value as CourseStatus })}
+        className={cn(
+          'rounded-md border px-1.5 py-1 text-xs',
+          status === 'bestanden'
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+            : status === 'nicht_bestanden'
+              ? 'border-red-200 bg-red-50 text-red-600'
+              : 'border-stone-200 text-stone-500',
+        )}
+      >
+        {STATUS_OPTS.map((o) => (
+          <option key={o.id} value={o.id}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+const TYPE_OPTS: { id: ProgramType; label: string }[] = [
+  { id: 'bachelor', label: 'Bachelor' },
+  { id: 'master', label: 'Master' },
+  { id: 'other', label: 'Sonstiges' },
+]
+
+function field(label: string, el: ReactNode) {
+  return (
+    <label className="block">
+      <span className="mb-1 block text-xs font-medium text-stone-500">{label}</span>
+      {el}
+    </label>
+  )
+}
+const inputCls = 'w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm'
+
+/** Studiengang anlegen/bearbeiten. Beim Anlegen wird ein erstes Semester erzeugt. */
+function ProgramForm({
+  program,
+  isNew,
+  onClose,
+}: {
+  program?: Program
+  isNew: boolean
+  onClose: () => void
+}) {
+  const [name, setName] = useState(program?.name ?? '')
+  const [type, setType] = useState<ProgramType>(program?.type ?? 'bachelor')
+  const [target, setTarget] = useState(program?.targetEcts ?? 180)
+  const [priorEcts, setPriorEcts] = useState(program?.priorEcts ?? 0)
+  const [priorAvg, setPriorAvg] = useState(program?.priorGradeAvg ?? 0)
+  const [semName, setSemName] = useState('')
+
+  async function submit() {
+    if (isNew) {
+      const pid = await createProgram({
+        name,
+        type,
+        targetEcts: target,
+        priorEcts: priorEcts || undefined,
+        priorGradeAvg: priorAvg || undefined,
+        priorGradedEcts: priorEcts || undefined,
+      })
+      await createSemester({
+        programId: pid,
+        name: semName || 'Semester 1',
+        startDate: new Date().toISOString().slice(0, 10),
+        weeks: 14,
+      })
+    } else if (program) {
+      await saveProgram({
+        ...program,
+        name,
+        type,
+        targetEcts: target,
+        priorEcts: priorEcts || undefined,
+        priorGradeAvg: priorAvg || undefined,
+        priorGradedEcts: priorEcts || undefined,
+      })
+    }
+    onClose()
+  }
+
+  return (
+    <Modal title={isNew ? 'Neuer Studiengang' : 'Studiengang bearbeiten'} onClose={onClose}>
+      <div className="space-y-3">
+        {field(
+          'Name',
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="z.B. B.Sc. Informatik"
+            className={inputCls}
+          />,
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          {field(
+            'Art',
+            <select value={type} onChange={(e) => setType(e.target.value as ProgramType)} className={inputCls}>
+              {TYPE_OPTS.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.label}
+                </option>
+              ))}
+            </select>,
+          )}
+          {field(
+            'Ziel-ECTS',
+            <input
+              type="number"
+              value={target}
+              onChange={(e) => setTarget(Number(e.target.value))}
+              className={inputCls}
+            />,
+          )}
+        </div>
+
+        <div className="rounded-xl bg-stone-50 p-3">
+          <div className="mb-2 text-xs font-medium text-stone-600">
+            Startbilanz (falls du mitten im Studium einsteigst)
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            {field(
+              'bisherige ECTS',
+              <input
+                type="number"
+                value={priorEcts || ''}
+                onChange={(e) => setPriorEcts(Number(e.target.value))}
+                placeholder="0"
+                className={inputCls}
+              />,
+            )}
+            {field(
+              'bisheriger Schnitt',
+              <input
+                type="number"
+                step="0.1"
+                value={priorAvg || ''}
+                onChange={(e) => setPriorAvg(Number(e.target.value))}
+                placeholder="z.B. 2,1"
+                className={inputCls}
+              />,
+            )}
+          </div>
+        </div>
+
+        {isNew &&
+          field(
+            'Erstes Semester',
+            <input
+              value={semName}
+              onChange={(e) => setSemName(e.target.value)}
+              placeholder="z.B. WiSe 2026/27"
+              className={inputCls}
+            />,
+          )}
+
+        <div className="flex items-center justify-between pt-1">
+          {!isNew && program && (
+            <button
+              onClick={() => {
+                if (confirm(`„${program.name}" mit allen Semestern löschen?`)) {
+                  void deleteProgram(program.id)
+                  onClose()
+                }
+              }}
+              className="flex items-center gap-1.5 text-sm text-red-600 hover:underline"
+            >
+              <Trash2 size={14} /> Löschen
+            </button>
+          )}
+          <button
+            onClick={() => void submit()}
+            className="ml-auto rounded-full bg-brand-400 px-5 py-1.5 text-sm font-semibold text-stone-900 hover:bg-brand-500"
+          >
+            Speichern
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+/** Semester anlegen/bearbeiten inkl. Klausurenphasen. */
+function SemesterForm({
+  semester,
+  isNew,
+  onClose,
+}: {
+  semester: Semester
+  isNew: boolean
+  onClose: () => void
+}) {
+  const [draft, setDraft] = useState<Semester>(semester)
+  const set = <K extends keyof Semester>(k: K, v: Semester[K]) => setDraft((d) => ({ ...d, [k]: v }))
+
+  const addExam = () =>
+    set('examPhases', [
+      ...draft.examPhases,
+      {
+        id: uid(),
+        label: `${draft.examPhases.length + 1}. Klausurenphase`,
+        start: draft.startDate,
+        end: draft.startDate,
+      },
+    ])
+  const updExam = (id: string, patch: Partial<ExamPhase>) =>
+    set('examPhases', draft.examPhases.map((e) => (e.id === id ? { ...e, ...patch } : e)))
+  const rmExam = (id: string) => set('examPhases', draft.examPhases.filter((e) => e.id !== id))
+
+  async function submit() {
+    if (isNew) {
+      const id = await createSemester({
+        programId: draft.programId,
+        name: draft.name || 'Neues Semester',
+        startDate: draft.startDate,
+        weeks: draft.weeks,
+      })
+      await saveSemester({ ...draft, id, active: true })
+    } else {
+      await saveSemester(draft)
+    }
+    onClose()
+  }
+
+  return (
+    <Modal title={isNew ? 'Neues Semester' : 'Semester bearbeiten'} onClose={onClose}>
+      <div className="space-y-3">
+        {field(
+          'Name',
+          <input
+            value={draft.name}
+            onChange={(e) => set('name', e.target.value)}
+            placeholder="z.B. WiSe 2026/27"
+            className={inputCls}
+          />,
+        )}
+        <div className="grid grid-cols-2 gap-3">
+          {field(
+            'Vorlesungsbeginn',
+            <input
+              type="date"
+              value={draft.startDate}
+              onChange={(e) => set('startDate', e.target.value)}
+              className={inputCls}
+            />,
+          )}
+          {field(
+            'Vorlesungswochen',
+            <input
+              type="number"
+              value={draft.weeks}
+              onChange={(e) => set('weeks', Number(e.target.value))}
+              className={inputCls}
+            />,
+          )}
+        </div>
+        {field(
+          'Semesterende (optional)',
+          <input
+            type="date"
+            value={draft.endDate ?? ''}
+            onChange={(e) => set('endDate', e.target.value || undefined)}
+            className={inputCls}
+          />,
+        )}
+
+        <div className="rounded-xl bg-stone-50 p-3">
+          <div className="mb-2 text-xs font-medium text-stone-600">Klausurenphasen</div>
+          <div className="space-y-2">
+            {draft.examPhases.map((e) => (
+              <div key={e.id} className="flex flex-wrap items-center gap-1.5 text-xs">
+                <input
+                  value={e.label}
+                  onChange={(ev) => updExam(e.id, { label: ev.target.value })}
+                  className="w-32 rounded-md border border-stone-200 px-1.5 py-1"
+                />
+                <input
+                  type="date"
+                  value={e.start}
+                  onChange={(ev) => updExam(e.id, { start: ev.target.value })}
+                  className="rounded-md border border-stone-200 px-1.5 py-1"
+                />
+                <span className="text-stone-400">–</span>
+                <input
+                  type="date"
+                  value={e.end}
+                  onChange={(ev) => updExam(e.id, { end: ev.target.value })}
+                  className="rounded-md border border-stone-200 px-1.5 py-1"
+                />
+                <button
+                  onClick={() => rmExam(e.id)}
+                  className="rounded-md p-1 text-stone-400 hover:bg-red-50 hover:text-red-500"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            ))}
+            <button
+              onClick={addExam}
+              className="flex items-center gap-1 text-xs font-medium text-stone-500 hover:text-brand-600"
+            >
+              <Plus size={13} /> Klausurenphase hinzufügen
+            </button>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-1">
+          <button
+            onClick={() => void submit()}
+            className="rounded-full bg-brand-400 px-5 py-1.5 text-sm font-semibold text-stone-900 hover:bg-brand-500"
+          >
+            Speichern
+          </button>
+        </div>
+      </div>
+    </Modal>
+  )
+}

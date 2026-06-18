@@ -1,19 +1,45 @@
 import { db, uid } from '@/db/db'
-import type { Course, Semester, Task } from '@/db/types'
+import type { Course, Program, Semester, Task } from '@/db/types'
 import { makePhases } from './taskTypes'
 import { generateRecurringTasks } from './recurring'
 import { dateForWeekday, withTime } from './semester'
 
-/** Legt einmalig ein Demo-Semester an, falls die DB leer ist. */
-export async function seedIfEmpty(): Promise<void> {
-  const count = await db.semesters.count()
-  if (count > 0) return
+// Dedupe gegen StrictMode-Doppelaufruf / parallele Aufrufe in derselben Session.
+let seedPromise: Promise<void> | null = null
+
+/** Legt einmalig ein Demo-Studium an, falls die DB leer ist. */
+export function seedIfEmpty(): Promise<void> {
+  return (seedPromise ??= doSeed())
+}
+
+async function doSeed(): Promise<void> {
+  if ((await db.programs.count()) > 0) return
+
+  // Quereinstieg-Szenario: schon 2 Semester (60 ECTS, Schnitt 2,1) absolviert.
+  const program: Program = {
+    id: uid(),
+    name: 'B.Sc. Informatik',
+    type: 'bachelor',
+    targetEcts: 180,
+    priorEcts: 60,
+    priorGradeAvg: 2.1,
+    priorGradedEcts: 60,
+    active: true,
+    order: 0,
+    createdAt: new Date().toISOString(),
+  }
 
   const semester: Semester = {
     id: uid(),
+    programId: program.id,
     name: 'SoSe 2026',
     startDate: '2026-04-13', // Montag, Woche 1
     weeks: 14,
+    examPhases: [
+      { id: uid(), label: '1. Klausurenphase', start: '2026-07-20', end: '2026-08-01' },
+      { id: uid(), label: '2. Klausurenphase', start: '2026-09-21', end: '2026-09-26' },
+    ],
+    endDate: '2026-09-30',
     active: true,
   }
 
@@ -131,7 +157,10 @@ export async function seedIfEmpty(): Promise<void> {
 
   const recurring = courses.flatMap((c) => generateRecurringTasks(c, semester))
 
-  await db.transaction('rw', db.semesters, db.courses, db.tasks, async () => {
+  await db.transaction('rw', db.programs, db.semesters, db.courses, db.tasks, async () => {
+    // atomare Doppel-Seed-Sicherung innerhalb der Transaktion
+    if ((await db.programs.count()) > 0) return
+    await db.programs.add(program)
     await db.semesters.add(semester)
     await db.courses.bulkAdd(courses)
     await db.tasks.bulkAdd([...recurring, ...oneOff])

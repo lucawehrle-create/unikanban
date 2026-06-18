@@ -1,7 +1,103 @@
 import { db, uid } from '@/db/db'
-import type { Course, Phase, Semester, Task, TaskStatus, TaskTypeId } from '@/db/types'
+import type {
+  Course,
+  Phase,
+  Program,
+  ProgramType,
+  Semester,
+  Task,
+  TaskStatus,
+  TaskTypeId,
+} from '@/db/types'
 import { makePhases } from './taskTypes'
 import { generateRecurringTasks } from './recurring'
+
+// ---------- Studiengänge ----------
+
+export async function createProgram(input: {
+  name: string
+  type: ProgramType
+  targetEcts: number
+  priorEcts?: number
+  priorGradeAvg?: number
+  priorGradedEcts?: number
+}): Promise<string> {
+  const id = uid()
+  const order = await db.programs.count()
+  const program: Program = {
+    id,
+    name: input.name || 'Studiengang',
+    type: input.type,
+    targetEcts: input.targetEcts,
+    priorEcts: input.priorEcts,
+    priorGradeAvg: input.priorGradeAvg,
+    priorGradedEcts: input.priorGradedEcts ?? input.priorEcts,
+    active: true,
+    order,
+    createdAt: new Date().toISOString(),
+  }
+  await db.transaction('rw', db.programs, async () => {
+    await db.programs.toCollection().modify((p) => (p.active = false))
+    await db.programs.add(program)
+  })
+  return id
+}
+
+export async function saveProgram(program: Program): Promise<void> {
+  await db.programs.put(program)
+}
+
+export async function deleteProgram(id: string): Promise<void> {
+  await db.transaction('rw', db.programs, db.semesters, db.courses, db.tasks, async () => {
+    const sems = await db.semesters.where('programId').equals(id).toArray()
+    for (const s of sems) {
+      await db.courses.where('semesterId').equals(s.id).delete()
+      await db.tasks.where('semesterId').equals(s.id).delete()
+    }
+    await db.semesters.where('programId').equals(id).delete()
+    await db.programs.delete(id)
+  })
+}
+
+// ---------- Semester & Kontextwechsel ----------
+
+export async function createSemester(input: {
+  programId: string
+  name: string
+  startDate: string
+  weeks: number
+}): Promise<string> {
+  const id = uid()
+  const semester: Semester = {
+    id,
+    programId: input.programId,
+    name: input.name || 'Neues Semester',
+    startDate: input.startDate,
+    weeks: input.weeks,
+    examPhases: [],
+    active: true,
+  }
+  await db.transaction('rw', db.programs, db.semesters, async () => {
+    await db.semesters.toCollection().modify((s) => (s.active = false))
+    await db.programs.toCollection().modify((p) => (p.active = p.id === input.programId))
+    await db.semesters.add(semester)
+  })
+  return id
+}
+
+export async function saveSemester(semester: Semester): Promise<void> {
+  await db.semesters.put(semester)
+}
+
+/** Wechselt das aktive Semester (und aktiviert dessen Studiengang). */
+export async function switchSemester(id: string): Promise<void> {
+  await db.transaction('rw', db.programs, db.semesters, async () => {
+    const sem = await db.semesters.get(id)
+    if (!sem) return
+    await db.semesters.toCollection().modify((s) => (s.active = s.id === id))
+    await db.programs.toCollection().modify((p) => (p.active = p.id === sem.programId))
+  })
+}
 
 export async function createTask(input: {
   semesterId: string
