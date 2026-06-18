@@ -6,6 +6,7 @@ import {
   createProgram,
   createSemester,
   deleteProgram,
+  deleteSemester,
   saveProgram,
   saveSemester,
   switchSemester,
@@ -537,10 +538,23 @@ function SemesterForm({
           </div>
         </div>
 
-        <div className="flex justify-end pt-1">
+        <div className="flex items-center justify-between pt-1">
+          {!isNew && (
+            <button
+              onClick={() => {
+                if (confirm(`„${draft.name}" mit allen Kursen & Aufgaben löschen?`)) {
+                  void deleteSemester(draft.id)
+                  onClose()
+                }
+              }}
+              className="flex items-center gap-1.5 text-sm text-red-600 hover:underline"
+            >
+              <Trash2 size={14} /> Löschen
+            </button>
+          )}
           <button
             onClick={() => void submit()}
-            className="rounded-full bg-brand-400 px-5 py-1.5 text-sm font-semibold text-stone-900 hover:bg-brand-500"
+            className="ml-auto rounded-full bg-brand-400 px-5 py-1.5 text-sm font-semibold text-stone-900 hover:bg-brand-500"
           >
             Speichern
           </button>

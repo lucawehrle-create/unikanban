@@ -37,7 +37,9 @@ export async function createProgram(input: {
     createdAt: new Date().toISOString(),
   }
   await db.transaction('rw', db.programs, async () => {
-    await db.programs.toCollection().modify((p) => (p.active = false))
+    await db.programs.toCollection().modify((p) => {
+      p.active = false
+    })
     await db.programs.add(program)
   })
   return id
@@ -78,8 +80,12 @@ export async function createSemester(input: {
     active: true,
   }
   await db.transaction('rw', db.programs, db.semesters, async () => {
-    await db.semesters.toCollection().modify((s) => (s.active = false))
-    await db.programs.toCollection().modify((p) => (p.active = p.id === input.programId))
+    await db.semesters.toCollection().modify((s) => {
+      s.active = false
+    })
+    await db.programs.toCollection().modify((p) => {
+      p.active = p.id === input.programId
+    })
     await db.semesters.add(semester)
   })
   return id
@@ -89,13 +95,31 @@ export async function saveSemester(semester: Semester): Promise<void> {
   await db.semesters.put(semester)
 }
 
+/** Löscht ein Semester samt seinen Kursen & Aufgaben. Aktiviert ggf. ein anderes. */
+export async function deleteSemester(id: string): Promise<void> {
+  await db.transaction('rw', db.semesters, db.courses, db.tasks, async () => {
+    const sem = await db.semesters.get(id)
+    await db.courses.where('semesterId').equals(id).delete()
+    await db.tasks.where('semesterId').equals(id).delete()
+    await db.semesters.delete(id)
+    if (sem?.active) {
+      const next = await db.semesters.toCollection().first()
+      if (next) await db.semesters.update(next.id, { active: true })
+    }
+  })
+}
+
 /** Wechselt das aktive Semester (und aktiviert dessen Studiengang). */
 export async function switchSemester(id: string): Promise<void> {
   await db.transaction('rw', db.programs, db.semesters, async () => {
     const sem = await db.semesters.get(id)
     if (!sem) return
-    await db.semesters.toCollection().modify((s) => (s.active = s.id === id))
-    await db.programs.toCollection().modify((p) => (p.active = p.id === sem.programId))
+    await db.semesters.toCollection().modify((s) => {
+      s.active = s.id === id
+    })
+    await db.programs.toCollection().modify((p) => {
+      p.active = p.id === sem.programId
+    })
   })
 }
 

@@ -7,13 +7,13 @@ import { getPhaseInfo } from '@/lib/semester'
 import { useUI } from '@/store/ui'
 import { cn } from '@/lib/cn'
 
-/** Kompakte Phasen-Info als Text. */
-function phaseText(semester: Semester): string {
+/** Kompakte Phasen-Info (einzeilig) für den Trigger. */
+function shortPhase(semester: Semester): string {
   const info = getPhaseInfo(semester)
-  if (info.phase === 'vorlesung') return `Vorlesungszeit · Woche ${info.week}/${info.weeks}`
-  if (info.phase === 'klausurphase') return `Klausurenphase`
-  if (info.phase === 'vor') return 'vor Vorlesungsbeginn'
-  return 'vorlesungsfreie Zeit'
+  if (info.phase === 'vorlesung') return `Woche ${info.week}/${info.weeks}`
+  if (info.phase === 'klausurphase') return 'Klausurenphase'
+  if (info.phase === 'vor') return 'vor Beginn'
+  return 'vorlesungsfrei'
 }
 
 export function SemesterSwitcher({ semester }: { semester: Semester }) {
@@ -32,29 +32,26 @@ export function SemesterSwitcher({ semester }: { semester: Semester }) {
   }, [open])
 
   const info = getPhaseInfo(semester)
-  const countdown =
-    info.nextExam && info.nextExam.daysUntil >= 0 && info.nextExam.daysUntil <= 21
-      ? `${info.nextExam.daysUntil} T bis Klausuren`
+  const nearExam =
+    info.nextExam && info.nextExam.daysUntil >= 0 && info.nextExam.daysUntil <= 14
+      ? info.nextExam.daysUntil
       : null
 
   return (
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className="flex items-center gap-2 rounded-full bg-white/70 px-3.5 py-2 text-left shadow-sm ring-1 ring-stone-200/70 backdrop-blur transition hover:bg-white"
+        aria-label="Semester wechseln"
+        className="flex items-center gap-1.5 rounded-full bg-white/70 px-3.5 py-2 text-xs font-medium shadow-sm ring-1 ring-stone-200/70 backdrop-blur transition hover:bg-white"
       >
-        <div className="leading-tight">
-          <div className="flex items-center gap-1 text-xs font-semibold text-stone-700">
-            {semester.name}
-            <ChevronDown size={13} className="text-stone-400" />
-          </div>
-          <div className="text-[10px] text-stone-400">{phaseText(semester)}</div>
-        </div>
-        {countdown && (
-          <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold text-orange-600">
-            {countdown}
+        <span className="font-semibold text-stone-700">{semester.name}</span>
+        <span className="hidden text-stone-400 sm:inline">· {shortPhase(semester)}</span>
+        {nearExam != null && (
+          <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-600">
+            {nearExam} T
           </span>
         )}
+        <ChevronDown size={13} className="text-stone-400" />
       </button>
 
       {open && (
