@@ -30,7 +30,7 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
   }
 
   return (
-    <div className="px-5 pt-1 pb-2">
+    <div className="px-5 pt-1 pb-2" data-tour="quickadd">
       <div className="flex items-center gap-2 rounded-2xl bg-white/80 px-4 py-3 shadow-sm ring-1 ring-stone-200/80 backdrop-blur focus-within:ring-2 focus-within:ring-brand-400">
         <Plus size={18} className="shrink-0 text-stone-400" />
         <input

@@ -5,6 +5,7 @@ import {
   Clock,
   CalendarPlus,
   Gauge,
+  HelpCircle,
   Settings2,
 } from 'lucide-react'
 import type { Program, Semester } from '@/db/types'
@@ -24,6 +25,7 @@ export function Header({ semester, program }: { semester: Semester; program?: Pr
   const setView = useUI((s) => s.setView)
   const setShowCourseManager = useUI((s) => s.setShowCourseManager)
   const setShowCalendar = useUI((s) => s.setShowCalendar)
+  const setTour = useUI((s) => s.setTour)
 
   return (
     <header className="flex flex-wrap items-center gap-3 px-5 py-4">
@@ -39,13 +41,17 @@ export function Header({ semester, program }: { semester: Semester; program?: Pr
       </div>
 
       {/* Zentrierte Pill-Navigation */}
-      <nav className="mx-auto flex items-center gap-1 rounded-full bg-white/70 p-1 shadow-sm ring-1 ring-stone-200/70 backdrop-blur">
+      <nav
+        data-tour="nav"
+        className="mx-auto flex items-center gap-1 rounded-full bg-white/70 p-1 shadow-sm ring-1 ring-stone-200/70 backdrop-blur"
+      >
         {VIEWS.map((v) => {
           const Icon = v.icon
           const active = view === v.id
           return (
             <button
               key={v.id}
+              data-tour={v.id === 'study' ? 'tab-study' : undefined}
               onClick={() => setView(v.id)}
               className={cn(
                 'flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition',
@@ -71,11 +77,21 @@ export function Header({ semester, program }: { semester: Semester; program?: Pr
         </button>
 
         <button
+          data-tour="courses"
           onClick={() => setShowCourseManager(true)}
           className="flex items-center gap-1.5 rounded-full bg-white/70 px-3.5 py-2 text-xs font-medium text-stone-600 shadow-sm ring-1 ring-stone-200/70 backdrop-blur transition hover:bg-white"
         >
           <Settings2 size={15} />
           <span className="hidden sm:inline">Kurse</span>
+        </button>
+
+        <button
+          onClick={() => setTour(true)}
+          aria-label="Tour starten"
+          title="Tour starten"
+          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/70 text-stone-500 shadow-sm ring-1 ring-stone-200/70 backdrop-blur transition hover:bg-white hover:text-stone-700"
+        >
+          <HelpCircle size={16} />
         </button>
       </div>
     </header>

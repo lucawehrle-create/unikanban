@@ -17,7 +17,7 @@ export function FilterBar({ courses }: { courses: Course[] }) {
     ui.search.trim() !== '' || ui.filterCourseIds.length > 0 || ui.filterTypes.length > 0
 
   return (
-    <div className="flex flex-wrap items-center gap-2 px-5 py-2">
+    <div className="flex flex-wrap items-center gap-2 px-5 py-2" data-tour="filter">
       {/* Suche */}
       <div className="flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 shadow-sm ring-1 ring-stone-200/70 backdrop-blur focus-within:ring-2 focus-within:ring-brand-400">
         <Search size={14} className="text-stone-400" />

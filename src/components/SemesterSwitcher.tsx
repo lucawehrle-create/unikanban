@@ -38,7 +38,7 @@ export function SemesterSwitcher({ semester }: { semester: Semester }) {
       : null
 
   return (
-    <div className="relative" ref={ref}>
+    <div className="relative" ref={ref} data-tour="semester">
       <button
         onClick={() => setOpen((o) => !o)}
         aria-label="Semester wechseln"

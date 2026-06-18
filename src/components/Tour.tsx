@@ -1,0 +1,205 @@
+import { useEffect, useState } from 'react'
+import { ArrowLeft, ArrowRight, Check, X } from 'lucide-react'
+import { useUI, type ViewId } from '@/store/ui'
+
+interface TourStep {
+  target: string // data-tour="…"
+  title: string
+  body: string
+  view?: ViewId
+}
+
+const STEPS: TourStep[] = [
+  {
+    target: 'nav',
+    view: 'board',
+    title: 'Vier Ansichten',
+    body: 'Board für den Überblick, „Diese Woche" für den Fokus, Stundenplan für deinen Rhythmus und Studium für Noten & ECTS.',
+  },
+  {
+    target: 'quickadd',
+    view: 'board',
+    title: 'Aufgaben in Sekunden',
+    body: 'Tippe z. B. „Blatt 3 #ana2 @übung !fr" – Kurs, Typ und Frist werden automatisch erkannt. (Taste „n")',
+  },
+  {
+    target: 'filter',
+    view: 'board',
+    title: 'Filtern & gruppieren',
+    body: 'Nach Kurs oder Typ filtern, suchen („/") und das Board nach Status, Deadline, Kurs oder Typ gruppieren.',
+  },
+  {
+    target: 'semester',
+    view: 'board',
+    title: 'Semester & Phase',
+    body: 'Hier siehst du das aktive Semester und die Phase (z. B. Vorlesungszeit). Ein Klick wechselt Semester oder Studiengang.',
+  },
+  {
+    target: 'courses',
+    view: 'board',
+    title: 'Kurse anlegen',
+    body: 'Lege Kurse mit Stundenplan an – wöchentliche Übungsblätter erzeugt UniKanban dann automatisch fürs ganze Semester.',
+  },
+  {
+    target: 'tab-study',
+    view: 'study',
+    title: 'Dein Studium im Blick',
+    body: 'ECTS-Fortschritt und Notenschnitt – kumuliert über alle Semester, Bachelor und Master getrennt.',
+  },
+]
+
+const PAD = 8
+
+export function Tour() {
+  const active = useUI((s) => s.tour)
+  const setTour = useUI((s) => s.setTour)
+  const setView = useUI((s) => s.setView)
+  const [i, setI] = useState(0)
+  const [rect, setRect] = useState<DOMRect | null>(null)
+
+  // Bei Start auf Schritt 0 zurück
+  useEffect(() => {
+    if (active) setI(0)
+  }, [active])
+
+  // Element des aktuellen Schritts finden & vermessen (mit Retries nach View-Wechsel)
+  useEffect(() => {
+    if (!active) return
+    const step = STEPS[i]
+    if (step.view) setView(step.view)
+
+    let raf = 0
+    let tries = 0
+    const locate = () => {
+      const el = document.querySelector(`[data-tour="${step.target}"]`)
+      if (el) setRect(el.getBoundingClientRect())
+      else if (tries++ < 40) raf = requestAnimationFrame(locate)
+    }
+    locate()
+
+    const onMove = () => {
+      const el = document.querySelector(`[data-tour="${step.target}"]`)
+      if (el) setRect(el.getBoundingClientRect())
+    }
+    window.addEventListener('resize', onMove)
+    window.addEventListener('scroll', onMove, true)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('resize', onMove)
+      window.removeEventListener('scroll', onMove, true)
+    }
+  }, [active, i, setView])
+
+  function finish() {
+    localStorage.setItem('uk:tourSeen', '1')
+    setTour(false)
+    setView('board')
+    setI(0)
+  }
+
+  if (!active || !rect) return null
+
+  const step = STEPS[i]
+  const last = i === STEPS.length - 1
+  const top = rect.top - PAD
+  const left = rect.left - PAD
+  const w = rect.width + PAD * 2
+  const h = rect.height + PAD * 2
+
+  // Tooltip-Platzierung: bevorzugt unter dem Ziel, sonst darüber
+  const ttWidth = 320
+  const below = top + h + 12 + 170 < window.innerHeight
+  const ttTop = below ? top + h + 12 : top - 12
+  let ttLeft = left
+  ttLeft = Math.max(12, Math.min(ttLeft, window.innerWidth - ttWidth - 12))
+
+  return (
+    <div className="fixed inset-0 z-[100]">
+      {/* Spotlight (Loch via großem Schatten) */}
+      <div
+        className="pointer-events-none absolute rounded-xl ring-2 ring-brand-400/70 transition-all duration-300"
+        style={{
+          top,
+          left,
+          width: w,
+          height: h,
+          boxShadow: '0 0 0 9999px rgba(28,25,23,0.55)',
+        }}
+      />
+      {/* Klick-Blocker (überspringt bei Klick außerhalb des Tooltips) */}
+      <div className="absolute inset-0" onClick={finish} />
+
+      {/* Tooltip */}
+      <div
+        className="pointer-events-auto absolute rounded-2xl bg-white p-4 shadow-xl ring-1 ring-stone-200"
+        style={{
+          top: ttTop,
+          left: ttLeft,
+          width: ttWidth,
+          transform: below ? undefined : 'translateY(-100%)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-1 flex items-start justify-between gap-2">
+          <h3 className="text-sm font-bold text-stone-800">{step.title}</h3>
+          <button
+            onClick={finish}
+            className="rounded-full p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
+            aria-label="Tour beenden"
+          >
+            <X size={15} />
+          </button>
+        </div>
+        <p className="text-sm leading-relaxed text-stone-500">{step.body}</p>
+
+        <div className="mt-4 flex items-center justify-between">
+          {/* Fortschritt */}
+          <div className="flex gap-1.5">
+            {STEPS.map((_, j) => (
+              <span
+                key={j}
+                className={`h-1.5 rounded-full transition-all ${
+                  j === i ? 'w-5 bg-brand-400' : 'w-1.5 bg-stone-200'
+                }`}
+              />
+            ))}
+          </div>
+
+          <div className="flex items-center gap-1">
+            {i > 0 && (
+              <button
+                onClick={() => setI((n) => n - 1)}
+                className="flex items-center gap-1 rounded-full px-2.5 py-1.5 text-xs font-medium text-stone-500 hover:bg-stone-100"
+              >
+                <ArrowLeft size={13} /> Zurück
+              </button>
+            )}
+            <button
+              onClick={() => (last ? finish() : setI((n) => n + 1))}
+              className="flex items-center gap-1 rounded-full bg-brand-400 px-3.5 py-1.5 text-xs font-semibold text-stone-900 hover:bg-brand-500"
+            >
+              {last ? (
+                <>
+                  <Check size={14} /> Fertig
+                </>
+              ) : (
+                <>
+                  Weiter <ArrowRight size={14} />
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {!last && (
+          <button
+            onClick={finish}
+            className="mt-2 w-full text-center text-[11px] text-stone-400 hover:text-stone-600"
+          >
+            Tour überspringen
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}

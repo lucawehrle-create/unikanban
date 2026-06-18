@@ -16,6 +16,7 @@ interface UIState {
   creatingTask: boolean
   showCourseManager: boolean
   showCalendar: boolean
+  tour: boolean
 
   setView: (v: ViewId) => void
   setGroupBy: (g: GroupBy) => void
@@ -29,6 +30,7 @@ interface UIState {
   setCreatingTask: (b: boolean) => void
   setShowCourseManager: (b: boolean) => void
   setShowCalendar: (b: boolean) => void
+  setTour: (b: boolean) => void
 }
 
 export const useUI = create<UIState>((set) => ({
@@ -43,6 +45,7 @@ export const useUI = create<UIState>((set) => ({
   creatingTask: false,
   showCourseManager: false,
   showCalendar: false,
+  tour: false,
 
   setView: (view) => set({ view }),
   setGroupBy: (groupBy) => set({ groupBy }),
@@ -66,4 +69,5 @@ export const useUI = create<UIState>((set) => ({
   setCreatingTask: (creatingTask) => set({ creatingTask }),
   setShowCourseManager: (showCourseManager) => set({ showCourseManager }),
   setShowCalendar: (showCalendar) => set({ showCalendar }),
+  setTour: (tour) => set({ tour }),
 }))

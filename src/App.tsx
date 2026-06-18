@@ -15,6 +15,7 @@ import { StudyView } from '@/components/StudyView'
 import { TaskEditor } from '@/components/TaskEditor'
 import { CourseManager } from '@/components/CourseManager'
 import { CalendarModal } from '@/components/CalendarModal'
+import { Tour } from '@/components/Tour'
 
 export default function App() {
   const programCount = useLiveQuery(() => db.programs.count(), [])
@@ -27,6 +28,14 @@ export default function App() {
   const ui = useUI()
   const showCourseManager = useUI((s) => s.showCourseManager)
   const showCalendar = useUI((s) => s.showCalendar)
+  const setTour = useUI((s) => s.setTour)
+
+  // Produkt-Tour einmalig für neue Nutzer automatisch starten
+  useEffect(() => {
+    if (programCount && programCount > 0 && !localStorage.getItem('uk:tourSeen')) {
+      setTour(true)
+    }
+  }, [programCount, setTour])
 
   // Tastatur-Kürzel: n = erfassen, / = suchen
   useEffect(() => {
@@ -91,6 +100,7 @@ export default function App() {
       <TaskEditor courses={courses} />
       {showCourseManager && <CourseManager courses={courses} semester={semester} />}
       {showCalendar && <CalendarModal semester={semester} courses={courses} tasks={tasks} />}
+      <Tour />
     </div>
   )
 }
