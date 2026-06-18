@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Pencil, Plus, Sparkles, Trash2 } from 'lucide-react'
-import type { Course, RecurringConfig, Semester } from '@/db/types'
+import { Clock, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react'
+import type { Course, CourseSlot, RecurringConfig, Semester } from '@/db/types'
 import { uid } from '@/db/db'
 import { TASK_TYPE_LIST } from '@/lib/taskTypes'
 import { deleteCourse, regenerateRecurring, saveCourse } from '@/lib/actions'
@@ -45,6 +45,25 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
     setDraft((d) => (d ? { ...d, [k]: v } : d))
   const setRec = <K extends keyof RecurringConfig>(k: K, v: RecurringConfig[K]) =>
     setDraft((d) => (d && d.recurring ? { ...d, recurring: { ...d.recurring, [k]: v } } : d))
+
+  const addSlot = () =>
+    setDraft((d) =>
+      d
+        ? {
+            ...d,
+            slots: [
+              ...d.slots,
+              { id: uid(), kind: 'vorlesung', weekday: 1, start: '10:00', end: '12:00', room: '' },
+            ],
+          }
+        : d,
+    )
+  const updateSlot = (sid: string, patch: Partial<CourseSlot>) =>
+    setDraft((d) =>
+      d ? { ...d, slots: d.slots.map((s) => (s.id === sid ? { ...s, ...patch } : s)) } : d,
+    )
+  const removeSlot = (sid: string) =>
+    setDraft((d) => (d ? { ...d, slots: d.slots.filter((s) => s.id !== sid) } : d))
 
   async function save() {
     if (!draft) return
@@ -241,6 +260,70 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
                 </label>
               </div>
             )}
+          </div>
+
+          {/* Termine (Stundenplan) */}
+          <div className="rounded-xl bg-stone-50 p-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-stone-700">
+              <Clock size={15} className="text-stone-500" />
+              Termine (Stundenplan)
+            </div>
+            <div className="mt-2 space-y-2">
+              {draft.slots.map((s) => (
+                <div key={s.id} className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <select
+                    value={s.kind}
+                    onChange={(e) => updateSlot(s.id, { kind: e.target.value as CourseSlot['kind'] })}
+                    className="rounded-lg border border-stone-200 px-1.5 py-1"
+                  >
+                    <option value="vorlesung">Vorlesung</option>
+                    <option value="tutorium">Tutorium</option>
+                  </select>
+                  <select
+                    value={s.weekday}
+                    onChange={(e) => updateSlot(s.id, { weekday: Number(e.target.value) })}
+                    className="rounded-lg border border-stone-200 px-1.5 py-1"
+                  >
+                    {WEEKDAYS.map((w, i) => (
+                      <option key={w} value={i + 1}>
+                        {w}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    type="time"
+                    value={s.start}
+                    onChange={(e) => updateSlot(s.id, { start: e.target.value })}
+                    className="rounded-lg border border-stone-200 px-1.5 py-1"
+                  />
+                  <span className="text-stone-400">–</span>
+                  <input
+                    type="time"
+                    value={s.end}
+                    onChange={(e) => updateSlot(s.id, { end: e.target.value })}
+                    className="rounded-lg border border-stone-200 px-1.5 py-1"
+                  />
+                  <input
+                    value={s.room ?? ''}
+                    onChange={(e) => updateSlot(s.id, { room: e.target.value })}
+                    placeholder="Raum"
+                    className="w-16 rounded-lg border border-stone-200 px-1.5 py-1"
+                  />
+                  <button
+                    onClick={() => removeSlot(s.id)}
+                    className="rounded-lg p-1 text-stone-400 hover:bg-red-50 hover:text-red-500"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+              <button
+                onClick={addSlot}
+                className="flex items-center gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-stone-500 hover:text-brand-600"
+              >
+                <Plus size={13} /> Termin hinzufügen
+              </button>
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-1">

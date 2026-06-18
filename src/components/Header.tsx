@@ -1,4 +1,4 @@
-import { GraduationCap, LayoutGrid, CalendarDays, Settings2 } from 'lucide-react'
+import { GraduationCap, LayoutGrid, CalendarDays, Clock, Settings2 } from 'lucide-react'
 import type { Semester } from '@/db/types'
 import { clampWeek, currentSemesterWeek } from '@/lib/semester'
 import { useUI, type ViewId } from '@/store/ui'
@@ -7,6 +7,7 @@ import { cn } from '@/lib/cn'
 const VIEWS: { id: ViewId; label: string; icon: typeof LayoutGrid }[] = [
   { id: 'board', label: 'Board', icon: LayoutGrid },
   { id: 'week', label: 'Diese Woche', icon: CalendarDays },
+  { id: 'schedule', label: 'Stundenplan', icon: Clock },
 ]
 
 export function Header({ semester }: { semester: Semester }) {

@@ -8,6 +8,7 @@ import { QuickAdd } from '@/components/QuickAdd'
 import { FilterBar } from '@/components/FilterBar'
 import { Board } from '@/components/Board'
 import { WeekView } from '@/components/WeekView'
+import { Schedule } from '@/components/Schedule'
 import { TaskEditor } from '@/components/TaskEditor'
 import { CourseManager } from '@/components/CourseManager'
 
@@ -69,11 +70,9 @@ export default function App() {
       <FilterBar courses={courses} />
 
       <main className="min-h-0 flex-1 pt-1">
-        {view === 'board' ? (
-          <Board tasks={visible} courses={courses} />
-        ) : (
-          <WeekView tasks={visible} courses={courses} />
-        )}
+        {view === 'board' && <Board tasks={visible} courses={courses} />}
+        {view === 'week' && <WeekView tasks={visible} courses={courses} />}
+        {view === 'schedule' && <Schedule tasks={visible} courses={courses} />}
       </main>
 
       <TaskEditor courses={courses} />
