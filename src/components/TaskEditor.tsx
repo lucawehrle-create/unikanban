@@ -5,6 +5,7 @@ import { changeTaskType, deleteTask, togglePhase, updateTask } from '@/lib/actio
 import { useTask } from '@/hooks/data'
 import { useUI } from '@/store/ui'
 import { Modal } from './Modal'
+import { DatePicker } from './DatePicker'
 import { cn } from '@/lib/cn'
 
 const STATUS: { id: TaskStatus; label: string }[] = [
@@ -12,13 +13,6 @@ const STATUS: { id: TaskStatus; label: string }[] = [
   { id: 'dran', label: 'Dran' },
   { id: 'erledigt', label: 'Erledigt' },
 ]
-
-function toLocalInput(iso?: string): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  const tz = d.getTimezoneOffset() * 60000
-  return new Date(d.getTime() - tz).toISOString().slice(0, 16)
-}
 
 export function TaskEditor({ courses }: { courses: Course[] }) {
   const id = useUI((s) => s.editingTaskId)
@@ -116,17 +110,10 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
           </label>
         </div>
 
-        <label className="block">
+        <div className="block">
           <span className="mb-1 block text-xs font-medium text-stone-500">Fällig</span>
-          <input
-            type="datetime-local"
-            defaultValue={toLocalInput(task.dueDate)}
-            onChange={(e) =>
-              patch({ dueDate: e.target.value ? new Date(e.target.value).toISOString() : undefined })
-            }
-            className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm"
-          />
-        </label>
+          <DatePicker value={task.dueDate} onChange={(iso) => patch({ dueDate: iso })} />
+        </div>
 
         {/* Punkte (v.a. Übungsblätter) */}
         {(task.type === 'uebung' || task.points) && (
