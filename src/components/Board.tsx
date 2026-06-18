@@ -169,7 +169,7 @@ export function Board({ tasks, courses }: BoardProps) {
             key={col.id}
             id={col.id}
             enabled={dndEnabled}
-            className="flex max-h-full w-72 shrink-0 flex-col rounded-3xl bg-white/40 p-2.5 ring-1 ring-stone-200/60 backdrop-blur"
+            className="flex max-h-full min-w-[280px] flex-1 flex-col rounded-3xl bg-white/40 p-2.5 ring-1 ring-stone-200/60 backdrop-blur"
           >
             <div className="flex items-center justify-between px-2 py-1.5">
               <div className="flex items-center gap-2">
@@ -186,7 +186,7 @@ export function Board({ tasks, courses }: BoardProps) {
               </span>
             </div>
 
-            <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto p-1">
+            <div className="grid flex-1 content-start gap-2.5 overflow-y-auto p-1 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]">
               {items.map((t) => (
                 <Draggable key={t.id} task={t} enabled={dndEnabled}>
                   <TaskCard
@@ -198,7 +198,7 @@ export function Board({ tasks, courses }: BoardProps) {
                 </Draggable>
               ))}
               {items.length === 0 && (
-                <div className="px-2 py-6 text-center text-xs text-stone-400">leer</div>
+                <div className="col-span-full px-2 py-6 text-center text-xs text-stone-400">leer</div>
               )}
             </div>
           </Droppable>

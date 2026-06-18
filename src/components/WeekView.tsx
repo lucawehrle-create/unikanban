@@ -47,15 +47,17 @@ export function WeekView({ tasks, courses }: WeekViewProps) {
     />
   )
 
+  const cardGrid = 'grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(260px,1fr))]'
+
   return (
-    <div className="h-full overflow-y-auto px-4 pb-6">
-      <div className="mx-auto max-w-3xl space-y-3">
+    <div className="h-full overflow-y-auto px-5 pb-6">
+      <div className="mx-auto max-w-6xl space-y-3">
         {overdue.length > 0 && (
           <section className="rounded-2xl border border-red-200 bg-red-50/60 p-3">
             <h3 className="mb-2 px-1 text-sm font-semibold text-red-600">
               ⚠️ Überfällig ({overdue.length})
             </h3>
-            <div className="space-y-2">{overdue.map(renderCard)}</div>
+            <div className={cardGrid}>{overdue.map(renderCard)}</div>
           </section>
         )}
 
@@ -82,7 +84,7 @@ export function WeekView({ tasks, courses }: WeekViewProps) {
                 )}
               </h3>
               {items.length > 0 ? (
-                <div className="space-y-2.5">{items.map(renderCard)}</div>
+                <div className={cardGrid}>{items.map(renderCard)}</div>
               ) : (
                 <div className="px-1 pb-1 text-xs text-stone-300">—</div>
               )}
