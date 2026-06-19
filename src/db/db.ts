@@ -77,6 +77,26 @@ export class UniKanbanDB extends Dexie {
               c.recurring.type = 'tutoriumsblatt'
           })
       })
+
+    // v4: Anwesenheit als Mehrfach-Marker (vorbereitet/besucht/nicht_besucht/
+    // nachbereitet) statt Einzelstatus.
+    this.version(4)
+      .stores({
+        programs: 'id, active, order',
+        semesters: 'id, programId, active',
+        courses: 'id, semesterId',
+        tasks: 'id, semesterId, courseId, status, type, dueDate',
+        attendance: 'id, semesterId, slotId',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('attendance')
+          .toCollection()
+          .modify((a: { status?: string; markers?: string[] }) => {
+            if (!a.markers) a.markers = a.status ? [a.status] : []
+            delete a.status
+          })
+      })
   }
 }
 

@@ -72,8 +72,8 @@ export type SlotKind =
   | 'kolloquium'
   | 'klausur'
 
-/** Anwesenheits-/Vorbereitungsstatus einer einzelnen Termin-Sitzung. */
-export type AttendanceStatus = 'vorbereitet' | 'besucht' | 'nicht_besucht'
+/** Unabhängige Markierungen einer Termin-Sitzung (Mehrfachauswahl). */
+export type AttendanceMarker = 'vorbereitet' | 'besucht' | 'nicht_besucht' | 'nachbereitet'
 
 /** Status einer konkreten Termin-Sitzung (slot an einem Datum). */
 export interface Attendance {
@@ -81,7 +81,7 @@ export interface Attendance {
   semesterId: string
   slotId: string
   date: string // yyyy-mm-dd
-  status: AttendanceStatus
+  markers: AttendanceMarker[]
 }
 
 export interface CourseSlot {

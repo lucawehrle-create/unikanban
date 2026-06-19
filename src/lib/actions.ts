@@ -1,6 +1,6 @@
 import { db, uid } from '@/db/db'
 import type {
-  AttendanceStatus,
+  AttendanceMarker,
   Course,
   Phase,
   Priority,
@@ -17,16 +17,33 @@ export function attendanceKey(slotId: string, date: string): string {
   return `${slotId}|${date}`
 }
 
-/** Setzt/entfernt den Status einer Termin-Sitzung (slot an einem Datum). */
-export async function setAttendance(
+/**
+ * Schaltet einen Marker einer Termin-Sitzung um (Mehrfachauswahl).
+ * "besucht" und "nicht_besucht" schließen sich gegenseitig aus.
+ */
+export async function toggleAttendanceMarker(
   semesterId: string,
   slotId: string,
   date: string,
-  status?: AttendanceStatus,
+  marker: AttendanceMarker,
 ): Promise<void> {
   const id = attendanceKey(slotId, date)
-  if (!status) await db.attendance.delete(id)
-  else await db.attendance.put({ id, semesterId, slotId, date, status })
+  const rec = await db.attendance.get(id)
+  let markers = rec?.markers ?? []
+  if (markers.includes(marker)) {
+    markers = markers.filter((m) => m !== marker)
+  } else {
+    markers = [...markers, marker]
+    if (marker === 'besucht') markers = markers.filter((m) => m !== 'nicht_besucht')
+    if (marker === 'nicht_besucht') markers = markers.filter((m) => m !== 'besucht')
+  }
+  if (markers.length === 0) await db.attendance.delete(id)
+  else await db.attendance.put({ id, semesterId, slotId, date, markers })
+}
+
+/** Entfernt alle Marker einer Termin-Sitzung. */
+export async function clearAttendance(slotId: string, date: string): Promise<void> {
+  await db.attendance.delete(attendanceKey(slotId, date))
 }
 import { makePhases } from './taskTypes'
 import { generateRecurringTasks } from './recurring'

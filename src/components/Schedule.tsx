@@ -10,12 +10,12 @@ import {
   startOfWeek,
 } from 'date-fns'
 import { de } from 'date-fns/locale'
-import { Check, ChevronLeft, ChevronRight, Clock, Pencil, X } from 'lucide-react'
-import type { AttendanceStatus, Course, SlotKind, Task } from '@/db/types'
+import { Check, CheckCheck, ChevronLeft, ChevronRight, Clock, Pencil, X } from 'lucide-react'
+import type { AttendanceMarker, Course, SlotKind, Task } from '@/db/types'
 import { courseMap } from '@/lib/filter'
 import { slotKindShort } from '@/lib/slotKinds'
 import { TASK_TYPES } from '@/lib/taskTypes'
-import { attendanceKey, setAttendance } from '@/lib/actions'
+import { attendanceKey, clearAttendance, toggleAttendanceMarker } from '@/lib/actions'
 import { useAttendance } from '@/hooks/data'
 import { useUI } from '@/store/ui'
 import { cn } from '@/lib/cn'
@@ -29,12 +29,13 @@ interface ScheduleProps {
 const WEEKDAY_LABEL = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 const PX_PER_HOUR = 56
 
-const ATT_META: Record<AttendanceStatus, { label: string; color: string; Icon: typeof Check }> = {
+const ATT_META: Record<AttendanceMarker, { label: string; color: string; Icon: typeof Check }> = {
   vorbereitet: { label: 'Vorbereitet', color: '#f59e0b', Icon: Pencil },
   besucht: { label: 'Besucht', color: '#10b981', Icon: Check },
   nicht_besucht: { label: 'Nicht besucht', color: '#ef4444', Icon: X },
+  nachbereitet: { label: 'Nachbereitet', color: '#6366f1', Icon: CheckCheck },
 }
-const ATT_ORDER: AttendanceStatus[] = ['vorbereitet', 'besucht', 'nicht_besucht']
+const ATT_ORDER: AttendanceMarker[] = ['vorbereitet', 'besucht', 'nicht_besucht', 'nachbereitet']
 
 function toMin(time: string): number {
   const [h, m] = time.split(':').map(Number)
@@ -114,8 +115,12 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i)
   const gridHeight = (endHour - startHour) * PX_PER_HOUR
 
-  function choose(status?: AttendanceStatus) {
-    if (menu) void setAttendance(semesterId, menu.slotId, menu.date, status)
+  const menuMarkers = menu ? (attendance[attendanceKey(menu.slotId, menu.date)] ?? []) : []
+  function toggle(marker: AttendanceMarker) {
+    if (menu) void toggleAttendanceMarker(semesterId, menu.slotId, menu.date, marker)
+  }
+  function reset() {
+    if (menu) void clearAttendance(menu.slotId, menu.date)
     setMenu(null)
   }
 
@@ -253,36 +258,48 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
                     {daySlots.map((s) => {
                       const top = ((s.start - startHour * 60) / 60) * PX_PER_HOUR
                       const height = ((s.end - s.start) / 60) * PX_PER_HOUR
-                      const status = attendance[attendanceKey(s.id, dateStr)]
-                      const meta = status ? ATT_META[status] : undefined
+                      const markers = attendance[attendanceKey(s.id, dateStr)] ?? []
+                      // Flächen-Tönung nach Anwesenheit, sonst Kursfarbe
+                      const tint = markers.includes('besucht')
+                        ? ATT_META.besucht.color
+                        : markers.includes('nicht_besucht')
+                          ? ATT_META.nicht_besucht.color
+                          : s.color
+                      const notAttended = markers.includes('nicht_besucht')
                       return (
                         <button
                           key={s.id}
                           onClick={(e) => setMenu({ slotId: s.id, date: dateStr, x: e.clientX, y: e.clientY })}
                           className={cn(
                             'absolute inset-x-1 overflow-hidden rounded-lg px-2 py-1 text-left text-[11px] leading-tight shadow-sm transition hover:shadow-md',
-                            status === 'nicht_besucht' && 'opacity-60',
+                            notAttended && 'opacity-70',
                           )}
                           style={{
                             top,
                             height: Math.max(height - 2, 18),
-                            backgroundColor: (meta?.color ?? s.color) + '22',
-                            borderLeft: `3px solid ${meta?.color ?? s.color}`,
+                            backgroundColor: tint + '22',
+                            borderLeft: `3px solid ${tint}`,
                           }}
                         >
-                          {meta && (
-                            <span
-                              className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full text-white"
-                              style={{ backgroundColor: meta.color }}
-                            >
-                              <meta.Icon size={10} strokeWidth={3} />
+                          {markers.length > 0 && (
+                            <span className="absolute right-1 top-1 flex gap-0.5">
+                              {ATT_ORDER.filter((m) => markers.includes(m)).map((m) => {
+                                const mm = ATT_META[m]
+                                return (
+                                  <span
+                                    key={m}
+                                    title={mm.label}
+                                    className="flex h-4 w-4 items-center justify-center rounded-full text-white"
+                                    style={{ backgroundColor: mm.color }}
+                                  >
+                                    <mm.Icon size={10} strokeWidth={3} />
+                                  </span>
+                                )
+                              })}
                             </span>
                           )}
                           <div
-                            className={cn(
-                              'font-semibold',
-                              status === 'nicht_besucht' && 'line-through',
-                            )}
+                            className={cn('font-semibold', notAttended && 'line-through')}
                             style={{ color: s.color }}
                           >
                             {s.short}
@@ -307,32 +324,43 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
         <>
           <div className="fixed inset-0 z-40" onClick={() => setMenu(null)} />
           <div
-            className="fixed z-50 w-44 rounded-xl border border-stone-200 bg-white p-1 shadow-xl"
+            className="fixed z-50 w-52 rounded-xl border border-stone-200 bg-white p-1 shadow-xl"
             style={{
-              top: Math.min(menu.y, window.innerHeight - 180),
-              left: Math.min(menu.x, window.innerWidth - 188),
+              top: Math.min(menu.y, window.innerHeight - 230),
+              left: Math.min(menu.x, window.innerWidth - 220),
             }}
           >
-            {ATT_ORDER.map((s) => {
-              const m = ATT_META[s]
+            <div className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium text-stone-400">
+              Mehrfachauswahl möglich
+            </div>
+            {ATT_ORDER.map((m) => {
+              const meta = ATT_META[m]
+              const active = menuMarkers.includes(m)
               return (
                 <button
-                  key={s}
-                  onClick={() => choose(s)}
-                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-stone-700 hover:bg-stone-100"
+                  key={m}
+                  onClick={() => toggle(m)}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm transition',
+                    active ? 'bg-stone-50 text-stone-800' : 'text-stone-600 hover:bg-stone-100',
+                  )}
                 >
                   <span
-                    className="flex h-4 w-4 items-center justify-center rounded-full text-white"
-                    style={{ backgroundColor: m.color }}
+                    className={cn(
+                      'flex h-5 w-5 items-center justify-center rounded-full transition',
+                      active ? 'text-white' : 'text-stone-300 ring-1 ring-stone-200',
+                    )}
+                    style={active ? { backgroundColor: meta.color } : undefined}
                   >
-                    <m.Icon size={10} strokeWidth={3} />
+                    <meta.Icon size={12} strokeWidth={3} />
                   </span>
-                  {m.label}
+                  <span className="flex-1 text-left">{meta.label}</span>
+                  {active && <Check size={14} className="text-stone-400" />}
                 </button>
               )
             })}
             <button
-              onClick={() => choose(undefined)}
+              onClick={reset}
               className="mt-0.5 w-full rounded-lg px-2.5 py-1.5 text-left text-sm text-stone-400 hover:bg-stone-100"
             >
               Zurücksetzen
