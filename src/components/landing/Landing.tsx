@@ -71,24 +71,19 @@ export default function Landing({ onStart }: { onStart: () => void }) {
  * (Board → Stundenplan → Noten → Sync). Alle Offsets liegen in [0,1].
  */
 function ScrollBackground({ progress }: { progress: MotionValue<number> }) {
-  // große, wandernde Farbflächen (Mesh-Gefühl)
-  const ax = useTransform(progress, [0, 1], ['-12%', '26%'])
-  const ay = useTransform(progress, [0, 1], ['-8%', '50%'])
-  const bx = useTransform(progress, [0, 1], ['30%', '-20%'])
-  const by = useTransform(progress, [0, 1], ['10%', '70%'])
-  const cy = useTransform(progress, [0, 1], ['85%', '5%'])
+  // Video langsam mitzoomen, damit es lebendig statt statisch wirkt
+  const vidScale = useTransform(progress, [0, 1], [1.08, 1.24])
 
   return (
     <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      <motion.div style={{ x: ax, y: ay }} className="absolute left-0 top-0 h-[70vmin] w-[70vmin]">
-        <Pulse className="h-full w-full rounded-full bg-brand-300/55 blur-[110px]" />
+      {/* Cinematic Loop-Video als Basis */}
+      <motion.div style={{ scale: vidScale }} className="absolute inset-0">
+        <video autoPlay muted loop playsInline className="h-full w-full object-cover">
+          <source src="/landing/aurora.mp4" type="video/mp4" />
+        </video>
       </motion.div>
-      <motion.div style={{ x: bx, y: by }} className="absolute right-0 top-0 h-[64vmin] w-[64vmin]">
-        <Pulse className="h-full w-full rounded-full blur-[110px]" style={{ backgroundColor: '#e9633c40' }} />
-      </motion.div>
-      <motion.div style={{ y: cy }} className="absolute left-1/2 h-[72vmin] w-[72vmin] -translate-x-1/2">
-        <Pulse className="h-full w-full rounded-full blur-[120px]" style={{ backgroundColor: '#6366f140' }} />
-      </motion.div>
+      {/* Cream-Schleier: dämpft die Sättigung, hält Text & Panels lesbar */}
+      <div className="absolute inset-0 bg-cream-50/40" />
 
       {/* echte Produkt-Screenshots als große, gekippte Panels, die durchscrollen */}
       <BgLayer progress={progress} range={[0.06, 0.34]} parallax={80} drift={-10} tilt={-11}>
@@ -138,17 +133,6 @@ function Grain() {
     <div
       className="absolute inset-0 opacity-[0.22] mix-blend-soft-light"
       style={{ backgroundImage: `url("${noise}")`, backgroundSize: '160px 160px' }}
-    />
-  )
-}
-
-function Pulse({ className, style }: { className?: string; style?: React.CSSProperties }) {
-  return (
-    <motion.div
-      animate={{ scale: [1, 1.12, 1] }}
-      transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
-      className={className}
-      style={style}
     />
   )
 }
@@ -215,7 +199,9 @@ function Hero({ onStart, progress }: { onStart: () => void; progress: MotionValu
 
   return (
     <section className="relative flex min-h-screen items-center px-5">
-      <motion.div style={{ y: yText, opacity: fade }} className="mx-auto w-full max-w-3xl text-center">
+      {/* weiche Aufhellung hinter dem Hero-Text (über dem Video) */}
+      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[55vmin] w-[150vmin] max-w-[96vw] -translate-x-1/2 -translate-y-1/2 rounded-[50%] bg-cream-50/60 blur-3xl" />
+      <motion.div style={{ y: yText, opacity: fade }} className="relative mx-auto w-full max-w-3xl text-center">
         <motion.div variants={stagger} initial="hidden" animate="show">
           <motion.div
             variants={item}
