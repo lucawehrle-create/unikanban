@@ -78,6 +78,7 @@ const eyebrowCls = 'text-xs font-semibold uppercase tracking-[0.12em] text-stone
 
 export default function Landing({ onStart }: { onStart: () => void }) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const lenisRef = useRef<Lenis | null>(null)
   const { scrollYProgress } = useScroll({ container: scrollRef })
 
   // Lenis Smooth-Scroll auf dem Container (reduced-motion respektieren)
@@ -96,6 +97,7 @@ export default function Landing({ onStart }: { onStart: () => void }) {
         smoothWheel: true,
         syncTouch: false,
       })
+      lenisRef.current = lenis
       const loop = (t: number) => {
         lenis?.raf(t)
         raf = requestAnimationFrame(loop)
@@ -107,8 +109,23 @@ export default function Landing({ onStart }: { onStart: () => void }) {
     return () => {
       cancelAnimationFrame(raf)
       lenis?.destroy()
+      lenisRef.current = null
     }
   }, [])
+
+  // „Wie's funktioniert" scrollt im Container zum Feature-Bereich.
+  // Wichtig: Die Seite scrollt in einem Container, kein Window-Scroll →
+  // native #anchor-Links funktionieren nicht.
+  const scrollToFeatures = () => {
+    const el = scrollRef.current?.querySelector<HTMLElement>('#features')
+    if (!el) return
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (lenisRef.current && !reduce) {
+      lenisRef.current.scrollTo(el, { offset: -8 })
+    } else {
+      el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+    }
+  }
 
   return (
     <MotionConfig reducedMotion="user">
@@ -136,7 +153,7 @@ export default function Landing({ onStart }: { onStart: () => void }) {
 
         <div className="relative z-10">
           <Nav onStart={onStart} />
-          <Hero onStart={onStart} progress={scrollYProgress} />
+          <Hero onStart={onStart} progress={scrollYProgress} onHowItWorks={scrollToFeatures} />
           <Problem />
           <Showcase container={scrollRef} />
           <Trust />
@@ -204,7 +221,15 @@ function Nav({ onStart }: { onStart: () => void }) {
 
 /* ---------------- hero ---------------- */
 
-function Hero({ onStart, progress }: { onStart: () => void; progress: MotionValue<number> }) {
+function Hero({
+  onStart,
+  progress,
+  onHowItWorks,
+}: {
+  onStart: () => void
+  progress: MotionValue<number>
+  onHowItWorks: () => void
+}) {
   const y = useTransform(progress, [0, 0.16], [0, -50])
   const opacity = useTransform(progress, [0, 0.13], [1, 0])
 
@@ -232,12 +257,12 @@ function Hero({ onStart, progress }: { onStart: () => void; progress: MotionValu
               Kostenlos loslegen
               <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
             </button>
-            <a href="#features" className={btnSecondary}>
+            <button type="button" onClick={onHowItWorks} className={btnSecondary}>
               Wie's funktioniert
-            </a>
+            </button>
           </motion.div>
           <motion.p variants={item} className="mt-4 text-xs text-stone-400">
-            Kostenlos · Kein Konto nötig · Daten bleiben auf deinem Gerät
+            Kostenlos · Werbefrei · Auf all deinen Geräten synchron
           </motion.p>
         </motion.div>
 
@@ -437,9 +462,9 @@ function ShowcaseStacked() {
 
 function Trust() {
   const items = [
-    { icon: ShieldCheck, title: 'Local-first', body: 'Deine Daten liegen auf deinem Gerät – nicht auf irgendeinem Server.' },
-    { icon: WifiOff, title: 'Offline-tauglich', body: 'In der Bib ohne WLAN oder im Zug ohne Empfang: läuft trotzdem.' },
-    { icon: Sparkles, title: 'Kostenlos', body: 'Kein Abo, kein Kleingedrucktes. Sync über Geräte ist optional & gratis.' },
+    { icon: ShieldCheck, title: 'Privat & geschützt', body: 'Alles liegt sicher in deinem persönlichen Konto – Zugriff hast nur du.' },
+    { icon: WifiOff, title: 'Auch offline da', body: 'SemBan läuft lokal auf deinem Gerät weiter und gleicht sich ab, sobald du wieder online bist.' },
+    { icon: Sparkles, title: 'Kostenlos & werbefrei', body: 'Kein Abo, kein Kleingedrucktes. Deine Notenliste verkaufen wir nicht.' },
   ]
   return (
     <section className="px-5 py-24 sm:px-6 sm:py-32">
@@ -447,11 +472,11 @@ function Trust() {
         <Reveal className="mx-auto max-w-2xl text-center">
           <p className={eyebrowCls}>Kein Haken</p>
           <h2 className="mt-3 text-4xl font-bold leading-[1.07] tracking-[-0.02em] sm:text-5xl text-balance" style={{ color: NAVY }}>
-            Deine Daten bleiben deine.
+            Deine Daten gehören dir.
           </h2>
           <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-stone-600">
-            SemBan läuft local-first – das macht die App blitzschnell und offline-tauglich. Deine
-            Notenliste ist niemandes Geschäftsmodell.
+            Dein Konto ist privat: Was du in SemBan einträgst, sehen nur du – sicher gespeichert und
+            auf all deinen Geräten synchron. Deine Notenliste ist niemandes Geschäftsmodell.
           </p>
         </Reveal>
         <div className="mt-12 grid gap-5 md:grid-cols-3">
@@ -519,10 +544,10 @@ function Steps() {
 
 const FAQS = [
   { q: 'Ist SemBan kostenlos?', a: 'Ja, komplett. Kein Abo, keine Testphase, die plötzlich Geld kostet, kein „Premium" hinter der nächsten Tür.' },
-  { q: 'Brauche ich ein Konto?', a: 'Nein. Du kannst sofort ohne Anmeldung loslegen – deine Daten liegen auf deinem Gerät. Ein kostenloses Konto brauchst du nur, wenn du zwischen Handy und Laptop syncen willst.' },
-  { q: 'Sind meine Daten sicher? Wo werden sie gespeichert?', a: 'Standardmäßig bleiben deine Daten lokal auf deinem Gerät (local-first), nicht auf unseren Servern. Nur wenn du den optionalen Sync nutzt, werden sie zwischen deinen Geräten abgeglichen.' },
-  { q: 'Funktioniert das offline?', a: 'Ja, komplett. Weil SemBan local-first ist, läuft alles direkt auf deinem Gerät – im Funkloch der Bib genauso wie im Zug.' },
-  { q: 'Kann ich Handy und Laptop nutzen?', a: 'Klar. Mit dem optionalen, kostenlosen Konto hältst du beide Geräte im Gleichstand.' },
+  { q: 'Brauche ich ein Konto?', a: 'Ja, ein kostenloses Konto. Damit sind deine Daten sicher gespeichert und auf Handy und Laptop automatisch synchron. Die Anmeldung dauert nur ein paar Sekunden.' },
+  { q: 'Sind meine Daten sicher? Wo werden sie gespeichert?', a: 'Deine Daten liegen geschützt in deinem persönlichen Konto und sind so abgesichert, dass nur du darauf zugreifen kannst. Auf deinem Gerät bleibt zusätzlich eine Kopie, damit alles schnell und offline läuft.' },
+  { q: 'Funktioniert das offline?', a: 'Ja. SemBan speichert eine Kopie direkt auf deinem Gerät und läuft deshalb auch im Funkloch der Bib oder im Zug. Sobald du wieder online bist, gleicht sich alles automatisch ab.' },
+  { q: 'Kann ich Handy und Laptop nutzen?', a: 'Klar. Mit deinem Konto sind alle Geräte automatisch im Gleichstand – einmal eintragen, überall aktuell.' },
   { q: 'Für welche Studiengänge eignet sich SemBan?', a: 'Für fast alle – besonders stark, wenn dein Studium auf wöchentlichen Übungs- oder Tutoriumsblättern läuft (Mathe, Informatik, Physik, Ingenieurwesen, BWL …). Stundenplan, Noten und ECTS helfen in jedem Fach.' },
   { q: 'Wie schnell ist das eingerichtet?', a: 'In ein paar Minuten. Du tippst einmal das Gerüst deines Semesters ein – SemBan generiert den Rest.' },
 ]
@@ -597,8 +622,8 @@ function FinalCTA({ onStart }: { onStart: () => void }) {
             Hol dir dein Semester zurück.
           </h2>
           <p className="relative mx-auto mt-4 max-w-md text-base text-indigo-200">
-            Einmal einrichten, das ganze Semester profitieren. Kostenlos, sofort – und das Konto ist
-            optional.
+            Einmal einrichten, das ganze Semester profitieren. Kostenlos, werbefrei und auf all
+            deinen Geräten synchron.
           </p>
           <button onClick={onStart} className={btnPrimary + ' relative mt-8'}>
             Kostenlos loslegen <ArrowRight size={16} />

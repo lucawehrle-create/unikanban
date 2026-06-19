@@ -344,7 +344,7 @@ export function Onboarding() {
 
         {step === 'welcome' && (
           <div className="mt-4 flex items-center justify-center gap-1.5 text-[11px] text-stone-400">
-            <Sparkles size={12} /> Alles bleibt lokal auf deinem Gerät
+            <Sparkles size={12} /> Sicher in deinem Konto · auf allen Geräten synchron
           </div>
         )}
       </div>

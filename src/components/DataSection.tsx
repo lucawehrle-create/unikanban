@@ -35,8 +35,8 @@ export function DataSection() {
     <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70">
       <h3 className="text-sm font-semibold text-stone-700">Daten & Sicherung</h3>
       <p className="mt-1 text-xs text-stone-400">
-        Alles liegt lokal auf diesem Gerät. Sichere regelmäßig – oder übertrage deine Daten auf ein
-        anderes Gerät.
+        Deine Daten sind sicher in deinem Konto gespeichert und werden zwischen deinen Geräten
+        synchronisiert. Für ein zusätzliches Offline-Backup kannst du sie hier exportieren.
       </p>
 
       <div className="mt-3 flex flex-wrap gap-2">
