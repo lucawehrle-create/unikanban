@@ -7,9 +7,12 @@ import {
   HelpCircle,
   Settings2,
   MoreHorizontal,
+  Cloud,
   type LucideIcon,
 } from 'lucide-react'
 import type { Program, Semester } from '@/db/types'
+import { isSyncConfigured } from '@/lib/supabase'
+import { useSync } from '@/lib/sync'
 import { useUI, type ViewId } from '@/store/ui'
 import { Logo } from './Logo'
 import { SemesterSwitcher } from './SemesterSwitcher'
@@ -28,7 +31,9 @@ export function Header({ semester, program }: { semester?: Semester; program?: P
   const setView = useUI((s) => s.setView)
   const setShowCourseManager = useUI((s) => s.setShowCourseManager)
   const setShowCalendar = useUI((s) => s.setShowCalendar)
+  const setShowAccount = useUI((s) => s.setShowAccount)
   const setTour = useUI((s) => s.setTour)
+  const signedIn = useSync((s) => !!s.user)
 
   return (
     <header className="flex items-center gap-3 px-4 py-3 sm:px-5 sm:py-4">
@@ -75,6 +80,16 @@ export function Header({ semester, program }: { semester?: Semester; program?: P
           <Popover label="Mehr" icon={<MoreHorizontal size={15} />} width={208}>
             {(close) => (
               <div className="space-y-0.5">
+                {isSyncConfigured && (
+                  <MenuItem
+                    icon={Cloud}
+                    label={signedIn ? 'Konto & Sync' : 'Anmelden & sichern'}
+                    onClick={() => {
+                      setShowAccount(true)
+                      close()
+                    }}
+                  />
+                )}
                 <MenuItem
                   icon={Settings2}
                   label="Kurse verwalten"

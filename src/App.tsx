@@ -16,7 +16,9 @@ import { StudyView } from '@/components/StudyView'
 import { TaskEditor } from '@/components/TaskEditor'
 import { CourseManager } from '@/components/CourseManager'
 import { CalendarModal } from '@/components/CalendarModal'
+import { AccountModal } from '@/components/AccountModal'
 import { Tour } from '@/components/Tour'
+import { initSync } from '@/lib/sync'
 
 export default function App() {
   const programCount = useLiveQuery(() => db.programs.count(), [])
@@ -29,7 +31,13 @@ export default function App() {
   const ui = useUI()
   const showCourseManager = useUI((s) => s.showCourseManager)
   const showCalendar = useUI((s) => s.showCalendar)
+  const showAccount = useUI((s) => s.showAccount)
   const setTour = useUI((s) => s.setTour)
+
+  // Cloud-Sync (no-op, falls nicht konfiguriert) einmalig initialisieren.
+  useEffect(() => {
+    initSync()
+  }, [])
 
   // Produkt-Tour einmalig für neue Nutzer automatisch starten
   useEffect(() => {
@@ -110,6 +118,7 @@ export default function App() {
       <TaskEditor courses={courses} />
       {showCourseManager && semester && <CourseManager courses={courses} semester={semester} />}
       {showCalendar && semester && <CalendarModal semester={semester} courses={courses} tasks={tasks} />}
+      {showAccount && <AccountModal />}
       <Tour />
     </div>
   )

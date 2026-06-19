@@ -20,6 +20,7 @@ interface UIState {
   creatingTask: boolean
   showCourseManager: boolean
   showCalendar: boolean
+  showAccount: boolean
   tour: boolean
 
   setView: (v: ViewId) => void
@@ -36,6 +37,7 @@ interface UIState {
   setCreatingTask: (b: boolean) => void
   setShowCourseManager: (b: boolean) => void
   setShowCalendar: (b: boolean) => void
+  setShowAccount: (b: boolean) => void
   setTour: (b: boolean) => void
 }
 
@@ -53,6 +55,7 @@ export const useUI = create<UIState>((set) => ({
   creatingTask: false,
   showCourseManager: false,
   showCalendar: false,
+  showAccount: false,
   tour: false,
 
   setView: (view) => set({ view }),
@@ -79,5 +82,6 @@ export const useUI = create<UIState>((set) => ({
   setCreatingTask: (creatingTask) => set({ creatingTask }),
   setShowCourseManager: (showCourseManager) => set({ showCourseManager }),
   setShowCalendar: (showCalendar) => set({ showCalendar }),
+  setShowAccount: (showAccount) => set({ showAccount }),
   setTour: (tour) => set({ tour }),
 }))
