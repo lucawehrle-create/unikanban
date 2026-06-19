@@ -11,7 +11,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['icon.svg', 'apple-touch-icon.png'],
+      includeAssets: ['icon.svg', 'apple-touch-icon.png', 'favicon-16.png', 'favicon-32.png'],
       manifest: {
         name: 'SemBan – Semester-Kanban',
         short_name: 'SemBan',
