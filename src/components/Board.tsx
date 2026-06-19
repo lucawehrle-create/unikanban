@@ -11,6 +11,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import type { Course, Task, TaskStatus } from '@/db/types'
+import { Layers } from 'lucide-react'
 import { TASK_TYPE_LIST } from '@/lib/taskTypes'
 import { classifyDue, dueSortKey } from '@/lib/deadline'
 import { priorityRank } from '@/lib/priority'
@@ -67,6 +68,28 @@ function sortTasks(tasks: Task[], sortBy: SortBy): Task[] {
           a.order - b.order,
       )
   }
+}
+
+/**
+ * Staffelt Serien-Aufgaben: pro Serie werden nur die nächsten `limit` noch
+ * offenen Aufgaben gezeigt. Erledigte/begonnene und manuelle Aufgaben bleiben
+ * immer sichtbar. So taucht nach dem Abhaken automatisch die nächste Woche auf.
+ */
+function collapseSeries(tasks: Task[], limit: number): Task[] {
+  const openBySeries = new Map<string, Task[]>()
+  for (const t of tasks) {
+    if (t.recurringId && t.status === 'offen') {
+      const arr = openBySeries.get(t.recurringId) ?? []
+      arr.push(t)
+      openBySeries.set(t.recurringId, arr)
+    }
+  }
+  const allowed = new Set<string>()
+  for (const arr of openBySeries.values()) {
+    arr.sort((a, b) => dueSortKey(a.dueDate) - dueSortKey(b.dueDate))
+    for (const t of arr.slice(0, limit)) allowed.add(t.id)
+  }
+  return tasks.filter((t) => !(t.recurringId && t.status === 'offen') || allowed.has(t.id))
 }
 
 const PRIORITY_COLUMNS: ColumnDef[] = [
@@ -168,6 +191,8 @@ function Draggable({
 export function Board({ tasks, courses }: BoardProps) {
   const groupBy = useUI((s) => s.groupBy)
   const sortBy = useUI((s) => s.sortBy)
+  const showAllSeries = useUI((s) => s.showAllSeries)
+  const setShowAllSeries = useUI((s) => s.setShowAllSeries)
   const editTask = useUI((s) => s.editTask)
   const byId = useMemo(() => courseMap(courses), [courses])
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -175,9 +200,15 @@ export function Board({ tasks, courses }: BoardProps) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
   const dndEnabled = groupBy === 'status'
 
+  const shown = useMemo(
+    () => (showAllSeries ? tasks : collapseSeries(tasks, 2)),
+    [tasks, showAllSeries],
+  )
+  const hiddenCount = tasks.length - shown.length
+
   const { columns, groups } = useMemo(
-    () => buildColumns(tasks, courses, groupBy),
-    [tasks, courses, groupBy],
+    () => buildColumns(shown, courses, groupBy),
+    [shown, courses, groupBy],
   )
 
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : undefined
@@ -193,8 +224,26 @@ export function Board({ tasks, courses }: BoardProps) {
     if (task && task.status !== target) void setTaskStatus(task.id, target)
   }
 
+  const hint =
+    hiddenCount > 0 || showAllSeries ? (
+      <div className="flex items-center gap-2 px-5 pt-1 text-xs text-stone-400">
+        <Layers size={13} />
+        {showAllSeries ? (
+          <span>Alle Wochen sichtbar.</span>
+        ) : (
+          <span>{hiddenCount} kommende Serien-Aufgaben gestaffelt ausgeblendet.</span>
+        )}
+        <button
+          onClick={() => setShowAllSeries(!showAllSeries)}
+          className="font-medium text-stone-500 underline-offset-2 hover:text-brand-600 hover:underline"
+        >
+          {showAllSeries ? 'Gestaffelt anzeigen' : 'Alle anzeigen'}
+        </button>
+      </div>
+    ) : null
+
   const grid = (
-    <div className="flex h-full gap-4 overflow-x-auto px-5 pb-5">
+    <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto px-5 pb-5">
       {columns.map((col) => {
         const items = sortTasks(groups.get(col.id) ?? [], sortBy)
         return (
@@ -240,11 +289,18 @@ export function Board({ tasks, courses }: BoardProps) {
     </div>
   )
 
-  if (!dndEnabled) return grid
+  const board = (
+    <div className="flex h-full flex-col">
+      {hint}
+      {grid}
+    </div>
+  )
+
+  if (!dndEnabled) return board
 
   return (
     <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-      {grid}
+      {board}
       <DragOverlay>
         {activeTask && (
           <div className="w-72">

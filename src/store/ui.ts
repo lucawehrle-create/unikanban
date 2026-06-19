@@ -13,6 +13,8 @@ interface UIState {
   filterCourseIds: string[]
   filterTypes: TaskTypeId[]
   showDone: boolean
+  /** false = pro Serie nur die nächsten Wochen zeigen (gestaffelt). */
+  showAllSeries: boolean
 
   editingTaskId: string | null
   creatingTask: boolean
@@ -28,6 +30,7 @@ interface UIState {
   toggleTypeFilter: (t: TaskTypeId) => void
   clearFilters: () => void
   setShowDone: (b: boolean) => void
+  setShowAllSeries: (b: boolean) => void
 
   editTask: (id: string | null) => void
   setCreatingTask: (b: boolean) => void
@@ -44,6 +47,7 @@ export const useUI = create<UIState>((set) => ({
   filterCourseIds: [],
   filterTypes: [],
   showDone: true,
+  showAllSeries: false,
 
   editingTaskId: null,
   creatingTask: false,
@@ -69,6 +73,7 @@ export const useUI = create<UIState>((set) => ({
     })),
   clearFilters: () => set({ filterCourseIds: [], filterTypes: [], search: '' }),
   setShowDone: (showDone) => set({ showDone }),
+  setShowAllSeries: (showAllSeries) => set({ showAllSeries }),
 
   editTask: (editingTaskId) => set({ editingTaskId }),
   setCreatingTask: (creatingTask) => set({ creatingTask }),
