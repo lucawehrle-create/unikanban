@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState, lazy, Suspense } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/db/db'
 import { filterTasks } from '@/lib/filter'
@@ -25,6 +25,8 @@ import { initSync, useSync } from '@/lib/sync'
 import { isSyncConfigured } from '@/lib/supabase'
 import { hasSeenTour } from '@/lib/tour'
 
+const Landing = lazy(() => import('@/components/landing/Landing'))
+
 export default function App() {
   const programCount = useLiveQuery(() => db.programs.count(), [])
   const program = useActiveProgram()
@@ -43,6 +45,8 @@ export default function App() {
   const user = useSync((s) => s.user)
   const syncStatus = useSync((s) => s.status)
   const conflict = useSync((s) => s.conflict)
+  // Landing zeigen, bis der Besucher auf „Anmelden/Loslegen" tippt.
+  const [showAuth, setShowAuth] = useState(false)
 
   // Cloud-Sync (no-op, falls nicht konfiguriert) einmalig initialisieren.
   useEffect(() => {
@@ -92,8 +96,18 @@ export default function App() {
       <div className="flex h-full items-center justify-center text-sm text-stone-400">Lädt…</div>
     )
   }
-  // Konto-basiert: Ist Sync konfiguriert, gibt es ohne Login keinen Zugriff.
-  if (isSyncConfigured && !user) return <AuthGate />
+  // Konto-basiert: Ist Sync konfiguriert, sehen Ausgeloggte die Landing Page,
+  // von dort geht's per Klick zur Anmeldung.
+  if (isSyncConfigured && !user) {
+    if (!showAuth) {
+      return (
+        <Suspense fallback={<div className="h-full bg-cream-50" />}>
+          <Landing onStart={() => setShowAuth(true)} />
+        </Suspense>
+      )
+    }
+    return <AuthGate onBack={() => setShowAuth(false)} />
+  }
   // Eingeloggt, aber lokal noch keine Daten: erst warten, bis der Sync wirklich
   // bestätigt hat, dass es nichts gibt ('synced'). Bei langsamer/fehlender
   // Verbindung zeigt der Ladescreen Optionen statt fälschlich das Onboarding

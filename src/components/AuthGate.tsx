@@ -1,10 +1,19 @@
+import { ArrowLeft } from 'lucide-react'
 import { Logo } from './Logo'
 import { SignInPanel } from './SignInPanel'
 
 /** Vollbild-Anmeldung: ohne Login gibt es keinen Zugriff auf die Daten. */
-export function AuthGate() {
+export function AuthGate({ onBack }: { onBack?: () => void }) {
   return (
-    <div className="flex h-full items-center justify-center p-4">
+    <div className="relative flex h-full items-center justify-center p-4">
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="absolute left-4 top-4 flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-sm font-medium text-stone-600 ring-1 ring-stone-200/70 backdrop-blur transition hover:bg-white"
+        >
+          <ArrowLeft size={15} /> Zurück
+        </button>
+      )}
       <div className="w-full max-w-sm rounded-3xl bg-white/80 p-6 shadow-xl ring-1 ring-stone-200/70 backdrop-blur">
         <div className="mb-5 flex flex-col items-center text-center">
           <Logo size={48} />
