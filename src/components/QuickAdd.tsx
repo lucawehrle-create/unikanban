@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { Plus, CornerDownLeft, Hash, AtSign, Calendar, Flag } from 'lucide-react'
+import { Plus, CornerDownLeft } from 'lucide-react'
 import type { Course } from '@/db/types'
 import { parseQuickAdd } from '@/lib/quickAdd'
 import { TASK_TYPES, TASK_TYPE_LIST } from '@/lib/taskTypes'
@@ -246,12 +246,12 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
         {/* Helfer: zeigt verfügbare Kürzel, wenn noch kein Trigger getippt */}
         {showHelper && (
           <div className="absolute left-0 right-0 top-full z-40 mt-1.5 flex flex-wrap items-center gap-1.5 rounded-2xl border border-stone-200 bg-white px-3 py-2.5 shadow-xl">
-            <span className="mr-1 text-[11px] font-medium text-stone-400">Kürzel:</span>
+            <span className="mr-1 text-[11px] font-medium text-stone-400">Tippe:</span>
             {[
-              { ch: '#', label: 'Kurs', Icon: Hash },
-              { ch: '@', label: 'Art', Icon: AtSign },
-              { ch: '!', label: 'Frist', Icon: Calendar },
-              { ch: 'p1', label: 'Priorität', Icon: Flag },
+              { ch: '#', label: 'Kurs' },
+              { ch: '@', label: 'Art' },
+              { ch: '!', label: 'Frist' },
+              { ch: 'p', label: 'Priorität' },
             ].map((h) => (
               <button
                 key={h.ch}
@@ -259,9 +259,12 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
                   e.preventDefault()
                   insertTrigger(h.ch)
                 }}
-                className="flex items-center gap-1.5 rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600 hover:bg-brand-100"
+                className="flex items-center gap-1.5 rounded-full bg-stone-100 py-1 pl-1 pr-2.5 text-xs font-medium text-stone-600 hover:bg-brand-100"
               >
-                <h.Icon size={12} /> {h.label}
+                <kbd className="rounded-md bg-white px-1.5 py-0.5 font-mono text-[11px] font-semibold text-stone-700 shadow-sm ring-1 ring-stone-200">
+                  {h.ch}
+                </kbd>
+                {h.label}
               </button>
             ))}
           </div>
