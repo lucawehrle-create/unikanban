@@ -13,6 +13,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import type { Course, Task } from '@/db/types'
 import { classifyDue, dueSortKey } from '@/lib/deadline'
 import { courseMap } from '@/lib/filter'
+import { staggerSeries } from '@/lib/series'
 import { useUI } from '@/store/ui'
 import { TaskCard } from './TaskCard'
 import { cn } from '@/lib/cn'
@@ -26,6 +27,8 @@ const cardGrid = 'grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(26
 
 export function WeekView({ tasks, courses }: WeekViewProps) {
   const editTask = useUI((s) => s.editTask)
+  const showAllSeries = useUI((s) => s.showAllSeries)
+  const setShowAllSeries = useUI((s) => s.setShowAllSeries)
   const byId = useMemo(() => courseMap(courses), [courses])
   const [showOverdue, setShowOverdue] = useState(true)
 
@@ -38,9 +41,12 @@ export function WeekView({ tasks, courses }: WeekViewProps) {
   })
 
   const dated = tasks.filter((t) => t.dueDate)
-  const overdue = dated
+  const overdueAll = dated
     .filter((t) => t.status !== 'erledigt' && classifyDue(t.dueDate) === 'overdue')
     .sort((a, b) => dueSortKey(a.dueDate) - dueSortKey(b.dueDate))
+  // Überfälligen Stapel pro Serie staffeln (sonst stehen alle alten Wochen drin)
+  const overdue = showAllSeries ? overdueAll : staggerSeries(overdueAll, 2)
+  const overdueHidden = overdueAll.length - overdue.length
 
   const renderCard = (t: Task) => (
     <TaskCard
@@ -59,20 +65,40 @@ export function WeekView({ tasks, courses }: WeekViewProps) {
   return (
     <div className="h-full overflow-y-auto px-5 pb-6">
       <div className="mx-auto max-w-6xl space-y-2.5">
-        {/* Überfällig – einklappbarer Aufhol-Stapel */}
-        {overdue.length > 0 && (
+        {/* Überfällig – einklappbarer Aufhol-Stapel (pro Serie gestaffelt) */}
+        {overdueAll.length > 0 && (
           <section className="rounded-2xl border border-red-200 bg-red-50/60 p-3">
             <button
               onClick={() => setShowOverdue((s) => !s)}
               className="flex w-full items-center gap-1.5 px-1 text-sm font-semibold text-red-600"
             >
               {showOverdue ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-              ⚠️ Überfällig ({overdue.length})
+              ⚠️ Überfällig ({overdueAll.length})
               {!showOverdue && (
                 <span className="ml-1 text-xs font-normal text-red-400">– zum Aufholen</span>
               )}
             </button>
-            {showOverdue && <div className={cn(cardGrid, 'mt-2')}>{overdue.map(renderCard)}</div>}
+            {showOverdue && (
+              <>
+                <div className={cn(cardGrid, 'mt-2')}>{overdue.map(renderCard)}</div>
+                {overdueHidden > 0 && (
+                  <button
+                    onClick={() => setShowAllSeries(true)}
+                    className="mt-2 px-1 text-xs font-medium text-red-500 underline-offset-2 hover:underline"
+                  >
+                    + {overdueHidden} weitere überfällige Serien-Aufgaben anzeigen
+                  </button>
+                )}
+                {showAllSeries && overdueAll.length > 4 && (
+                  <button
+                    onClick={() => setShowAllSeries(false)}
+                    className="mt-2 px-1 text-xs font-medium text-red-500 underline-offset-2 hover:underline"
+                  >
+                    Gestaffelt anzeigen
+                  </button>
+                )}
+              </>
+            )}
           </section>
         )}
 

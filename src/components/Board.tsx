@@ -16,6 +16,7 @@ import { TASK_TYPE_LIST } from '@/lib/taskTypes'
 import { classifyDue, dueSortKey } from '@/lib/deadline'
 import { priorityRank } from '@/lib/priority'
 import { courseMap } from '@/lib/filter'
+import { staggerSeries } from '@/lib/series'
 import { setTaskStatus } from '@/lib/actions'
 import { useUI, type GroupBy, type SortBy } from '@/store/ui'
 import { TaskCard } from './TaskCard'
@@ -68,28 +69,6 @@ function sortTasks(tasks: Task[], sortBy: SortBy): Task[] {
           a.order - b.order,
       )
   }
-}
-
-/**
- * Staffelt Serien-Aufgaben: pro Serie werden nur die nächsten `limit` noch
- * offenen Aufgaben gezeigt. Erledigte/begonnene und manuelle Aufgaben bleiben
- * immer sichtbar. So taucht nach dem Abhaken automatisch die nächste Woche auf.
- */
-function collapseSeries(tasks: Task[], limit: number): Task[] {
-  const openBySeries = new Map<string, Task[]>()
-  for (const t of tasks) {
-    if (t.recurringId && t.status === 'offen') {
-      const arr = openBySeries.get(t.recurringId) ?? []
-      arr.push(t)
-      openBySeries.set(t.recurringId, arr)
-    }
-  }
-  const allowed = new Set<string>()
-  for (const arr of openBySeries.values()) {
-    arr.sort((a, b) => dueSortKey(a.dueDate) - dueSortKey(b.dueDate))
-    for (const t of arr.slice(0, limit)) allowed.add(t.id)
-  }
-  return tasks.filter((t) => !(t.recurringId && t.status === 'offen') || allowed.has(t.id))
 }
 
 const PRIORITY_COLUMNS: ColumnDef[] = [
@@ -201,7 +180,7 @@ export function Board({ tasks, courses }: BoardProps) {
   const dndEnabled = groupBy === 'status'
 
   const shown = useMemo(
-    () => (showAllSeries ? tasks : collapseSeries(tasks, 2)),
+    () => (showAllSeries ? tasks : staggerSeries(tasks, 2)),
     [tasks, showAllSeries],
   )
   const hiddenCount = tasks.length - shown.length
