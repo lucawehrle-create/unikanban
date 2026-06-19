@@ -1,16 +1,9 @@
-import { Layers, Search, X } from 'lucide-react'
+import { Check, Filter, Layers, Search, SlidersHorizontal, X } from 'lucide-react'
 import type { Course } from '@/db/types'
 import { TASK_TYPE_LIST } from '@/lib/taskTypes'
 import { useUI, type GroupBy, type SortBy } from '@/store/ui'
-import { Select } from './ui/Select'
+import { Popover } from './ui/Popover'
 import { cn } from '@/lib/cn'
-
-const SORT_OPTIONS: { value: SortBy; label: string }[] = [
-  { value: 'deadline', label: 'Fälligkeit' },
-  { value: 'priority', label: 'Priorität' },
-  { value: 'title', label: 'Titel (A–Z)' },
-  { value: 'created', label: 'Zuletzt erstellt' },
-]
 
 const GROUP_OPTIONS: { id: GroupBy; label: string }[] = [
   { id: 'status', label: 'Status' },
@@ -19,14 +12,44 @@ const GROUP_OPTIONS: { id: GroupBy; label: string }[] = [
   { id: 'course', label: 'Kurs' },
   { id: 'type', label: 'Typ' },
 ]
+const SORT_OPTIONS: { id: SortBy; label: string }[] = [
+  { id: 'deadline', label: 'Fälligkeit' },
+  { id: 'priority', label: 'Priorität' },
+  { id: 'title', label: 'Titel (A–Z)' },
+  { id: 'created', label: 'Zuletzt erstellt' },
+]
+
+/** Eine Zeile im Menü (Radio-Auswahl). */
+function Option({
+  label,
+  active,
+  onClick,
+}: {
+  label: string
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        'flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-sm transition',
+        active ? 'bg-brand-100 font-medium text-stone-800' : 'text-stone-600 hover:bg-stone-100',
+      )}
+    >
+      {label}
+      {active && <Check size={14} className="text-brand-600" />}
+    </button>
+  )
+}
 
 export function FilterBar({ courses }: { courses: Course[] }) {
   const ui = useUI()
-  const hasFilters =
-    ui.search.trim() !== '' || ui.filterCourseIds.length > 0 || ui.filterTypes.length > 0
+  const activeFilters =
+    ui.filterCourseIds.length + ui.filterTypes.length + (ui.showDone ? 0 : 1)
 
   return (
-    <div className="flex flex-wrap items-center gap-2 px-5 py-2" data-tour="filter">
+    <div className="flex flex-wrap items-center gap-2 px-5 py-2">
       {/* Suche */}
       <div className="flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 shadow-sm ring-1 ring-stone-200/70 backdrop-blur focus-within:ring-2 focus-within:ring-brand-400">
         <Search size={14} className="text-stone-400" />
@@ -35,106 +58,145 @@ export function FilterBar({ courses }: { courses: Course[] }) {
           value={ui.search}
           onChange={(e) => ui.setSearch(e.target.value)}
           placeholder="Suchen…"
-          className="w-32 bg-transparent text-sm outline-none placeholder:text-stone-400"
+          className="w-36 bg-transparent text-sm outline-none placeholder:text-stone-400"
         />
+        {ui.search && (
+          <button onClick={() => ui.setSearch('')} className="text-stone-300 hover:text-stone-500">
+            <X size={13} />
+          </button>
+        )}
       </div>
 
-      <div className="h-5 w-px bg-stone-200" />
+      <div className="ml-auto flex items-center gap-2">
+        {/* Filter-Menü */}
+        <Popover label="Filter" icon={<Filter size={13} />} badge={activeFilters} width={280}>
+          <div className="space-y-3">
+            <div>
+              <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
+                Kurse
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {courses.map((c) => {
+                  const active = ui.filterCourseIds.includes(c.id)
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => ui.toggleCourseFilter(c.id)}
+                      className="rounded-full px-2.5 py-1 text-xs font-semibold transition"
+                      style={{
+                        backgroundColor: active ? c.color : c.color + '22',
+                        color: active ? '#fff' : c.color,
+                      }}
+                    >
+                      {c.short}
+                    </button>
+                  )
+                })}
+                {courses.length === 0 && <span className="text-xs text-stone-400">keine Kurse</span>}
+              </div>
+            </div>
 
-      {/* Kurs-Filter */}
-      {courses.map((c) => {
-        const active = ui.filterCourseIds.includes(c.id)
-        return (
-          <button
-            key={c.id}
-            onClick={() => ui.toggleCourseFilter(c.id)}
-            className={cn(
-              'rounded-full px-2.5 py-1 text-xs font-semibold transition',
-              active ? 'text-white' : 'text-stone-600',
-            )}
-            style={{
-              backgroundColor: active ? c.color : c.color + '22',
-              color: active ? '#fff' : c.color,
-            }}
-          >
-            {c.short}
-          </button>
-        )
-      })}
+            <div>
+              <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
+                Typen
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {TASK_TYPE_LIST.filter((t) => t.id !== 'sonstiges').map((t) => {
+                  const active = ui.filterTypes.includes(t.id)
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => ui.toggleTypeFilter(t.id)}
+                      className={cn(
+                        'rounded-full px-2 py-1 text-xs transition',
+                        active
+                          ? 'bg-stone-900 text-white'
+                          : 'bg-stone-100 text-stone-500 hover:bg-stone-200',
+                      )}
+                    >
+                      {t.emoji} {t.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
 
-      <div className="h-5 w-px bg-stone-200" />
-
-      {/* Typ-Filter */}
-      {TASK_TYPE_LIST.filter((t) => t.id !== 'sonstiges').map((t) => {
-        const active = ui.filterTypes.includes(t.id)
-        return (
-          <button
-            key={t.id}
-            onClick={() => ui.toggleTypeFilter(t.id)}
-            title={t.label}
-            className={cn(
-              'rounded-full px-2 py-1 text-xs shadow-sm ring-1 transition',
-              active
-                ? 'bg-stone-900 text-white ring-stone-900'
-                : 'bg-white/70 text-stone-500 ring-stone-200/70 hover:bg-white',
-            )}
-          >
-            {t.emoji}
-          </button>
-        )
-      })}
-
-      {hasFilters && (
-        <button
-          onClick={ui.clearFilters}
-          className="flex items-center gap-1 rounded-full bg-white/70 px-2.5 py-1 text-xs text-stone-500 shadow-sm ring-1 ring-stone-200/70 hover:bg-white"
-        >
-          <X size={12} /> Filter
-        </button>
-      )}
-
-      {/* Serien-Staffelung + Sortierung + Gruppierung (nur Board) */}
-      {ui.view === 'board' && (
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            onClick={() => ui.setShowAllSeries(!ui.showAllSeries)}
-            title="Pro Serie nur die nächsten Wochen zeigen (gestaffelt) – oder alle einblenden"
-            className={cn(
-              'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium shadow-sm ring-1 transition',
-              ui.showAllSeries
-                ? 'bg-white/70 text-stone-500 ring-stone-200/70 hover:bg-white'
-                : 'bg-stone-900 text-white ring-stone-900',
-            )}
-          >
-            <Layers size={13} /> {ui.showAllSeries ? 'Alle Wochen' : 'Gestaffelt'}
-          </button>
-          <span className="text-xs text-stone-400">Sortieren:</span>
-          <Select
-            value={ui.sortBy}
-            options={SORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
-            onChange={(v) => ui.setSortBy(v as SortBy)}
-            variant="pill"
-            className="w-36"
-          />
-          <span className="text-xs text-stone-400">Gruppieren:</span>
-          <div className="flex rounded-full bg-white/70 p-1 shadow-sm ring-1 ring-stone-200/70 backdrop-blur">
-            {GROUP_OPTIONS.map((g) => (
-              <button
-                key={g.id}
-                onClick={() => ui.setGroupBy(g.id)}
+            <button
+              onClick={() => ui.setShowDone(!ui.showDone)}
+              className="flex w-full items-center justify-between rounded-lg border-t border-stone-100 px-1 pt-2.5 text-sm text-stone-600"
+            >
+              Erledigte anzeigen
+              <span
                 className={cn(
-                  'rounded-full px-3 py-1 text-xs font-medium transition',
-                  ui.groupBy === g.id
-                    ? 'bg-stone-900 text-white shadow-sm'
-                    : 'text-stone-500 hover:text-stone-800',
+                  'flex h-4 w-4 items-center justify-center rounded',
+                  ui.showDone ? 'bg-brand-400 text-stone-900' : 'ring-1 ring-stone-300',
                 )}
               >
-                {g.label}
+                {ui.showDone && <Check size={12} strokeWidth={3} />}
+              </span>
+            </button>
+
+            {activeFilters > 0 && (
+              <button
+                onClick={ui.clearFilters}
+                className="flex w-full items-center justify-center gap-1 rounded-lg bg-stone-100 py-1.5 text-xs font-medium text-stone-500 hover:bg-stone-200"
+              >
+                <X size={12} /> Filter zurücksetzen
               </button>
-            ))}
+            )}
           </div>
-        </div>
-      )}
+        </Popover>
+
+        {/* Ansicht-Menü (nur Board) */}
+        {ui.view === 'board' && (
+          <Popover label="Ansicht" icon={<SlidersHorizontal size={13} />} width={220}>
+            <div className="space-y-3">
+              <div>
+                <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
+                  Gruppieren
+                </div>
+                {GROUP_OPTIONS.map((g) => (
+                  <Option
+                    key={g.id}
+                    label={g.label}
+                    active={ui.groupBy === g.id}
+                    onClick={() => ui.setGroupBy(g.id)}
+                  />
+                ))}
+              </div>
+              <div className="border-t border-stone-100 pt-2">
+                <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
+                  Sortieren
+                </div>
+                {SORT_OPTIONS.map((o) => (
+                  <Option
+                    key={o.id}
+                    label={o.label}
+                    active={ui.sortBy === o.id}
+                    onClick={() => ui.setSortBy(o.id)}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={() => ui.setShowAllSeries(!ui.showAllSeries)}
+                className="flex w-full items-center justify-between rounded-lg border-t border-stone-100 px-1 pt-2.5 text-sm text-stone-600"
+              >
+                <span className="flex items-center gap-1.5">
+                  <Layers size={13} /> Serien gestaffelt
+                </span>
+                <span
+                  className={cn(
+                    'flex h-4 w-4 items-center justify-center rounded',
+                    !ui.showAllSeries ? 'bg-brand-400 text-stone-900' : 'ring-1 ring-stone-300',
+                  )}
+                >
+                  {!ui.showAllSeries && <Check size={12} strokeWidth={3} />}
+                </span>
+              </button>
+            </div>
+          </Popover>
+        )}
+      </div>
     </div>
   )
 }
