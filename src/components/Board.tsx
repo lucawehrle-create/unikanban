@@ -16,7 +16,7 @@ import { classifyDue, dueSortKey } from '@/lib/deadline'
 import { priorityRank } from '@/lib/priority'
 import { courseMap } from '@/lib/filter'
 import { setTaskStatus } from '@/lib/actions'
-import { useUI, type GroupBy } from '@/store/ui'
+import { useUI, type GroupBy, type SortBy } from '@/store/ui'
 import { TaskCard } from './TaskCard'
 import { cn } from '@/lib/cn'
 
@@ -45,13 +45,28 @@ const DEADLINE_COLUMNS: ColumnDef[] = [
   { id: 'done', title: 'Erledigt', accent: '#10b981' },
 ]
 
-function sortTasks(tasks: Task[]): Task[] {
-  return [...tasks].sort(
-    (a, b) =>
-      dueSortKey(a.dueDate) - dueSortKey(b.dueDate) ||
-      priorityRank(b.priority) - priorityRank(a.priority) ||
-      a.order - b.order,
-  )
+function sortTasks(tasks: Task[], sortBy: SortBy): Task[] {
+  const arr = [...tasks]
+  switch (sortBy) {
+    case 'priority':
+      return arr.sort(
+        (a, b) =>
+          priorityRank(b.priority) - priorityRank(a.priority) ||
+          dueSortKey(a.dueDate) - dueSortKey(b.dueDate),
+      )
+    case 'title':
+      return arr.sort((a, b) => a.title.localeCompare(b.title, 'de'))
+    case 'created':
+      return arr.sort((a, b) => (b.createdAt ?? '').localeCompare(a.createdAt ?? ''))
+    case 'deadline':
+    default:
+      return arr.sort(
+        (a, b) =>
+          dueSortKey(a.dueDate) - dueSortKey(b.dueDate) ||
+          priorityRank(b.priority) - priorityRank(a.priority) ||
+          a.order - b.order,
+      )
+  }
 }
 
 const PRIORITY_COLUMNS: ColumnDef[] = [
@@ -151,6 +166,7 @@ function Draggable({
 
 export function Board({ tasks, courses }: BoardProps) {
   const groupBy = useUI((s) => s.groupBy)
+  const sortBy = useUI((s) => s.sortBy)
   const editTask = useUI((s) => s.editTask)
   const byId = useMemo(() => courseMap(courses), [courses])
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -179,7 +195,7 @@ export function Board({ tasks, courses }: BoardProps) {
   const grid = (
     <div className="flex h-full gap-4 overflow-x-auto px-5 pb-5">
       {columns.map((col) => {
-        const items = sortTasks(groups.get(col.id) ?? [])
+        const items = sortTasks(groups.get(col.id) ?? [], sortBy)
         return (
           <Droppable
             key={col.id}

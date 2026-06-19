@@ -1,8 +1,16 @@
-import { Search, X } from 'lucide-react'
+import { ArrowDownUp, Search, X } from 'lucide-react'
 import type { Course } from '@/db/types'
 import { TASK_TYPE_LIST } from '@/lib/taskTypes'
-import { useUI, type GroupBy } from '@/store/ui'
+import { useUI, type GroupBy, type SortBy } from '@/store/ui'
+import { Select } from './ui/Select'
 import { cn } from '@/lib/cn'
+
+const SORT_OPTIONS: { value: SortBy; label: string }[] = [
+  { value: 'deadline', label: 'Fälligkeit' },
+  { value: 'priority', label: 'Priorität' },
+  { value: 'title', label: 'Titel (A–Z)' },
+  { value: 'created', label: 'Zuletzt erstellt' },
+]
 
 const GROUP_OPTIONS: { id: GroupBy; label: string }[] = [
   { id: 'status', label: 'Status' },
@@ -85,9 +93,18 @@ export function FilterBar({ courses }: { courses: Course[] }) {
         </button>
       )}
 
-      {/* Gruppierung (nur Board) */}
+      {/* Sortierung + Gruppierung (nur Board) */}
       {ui.view === 'board' && (
-        <div className="ml-auto flex items-center gap-1.5">
+        <div className="ml-auto flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            <ArrowDownUp size={13} className="text-stone-400" />
+            <Select
+              value={ui.sortBy}
+              options={SORT_OPTIONS.map((o) => ({ value: o.value, label: o.label }))}
+              onChange={(v) => ui.setSortBy(v as SortBy)}
+              className="w-36"
+            />
+          </div>
           <span className="text-xs text-stone-400">Gruppieren:</span>
           <div className="flex rounded-full bg-white/70 p-1 shadow-sm ring-1 ring-stone-200/70 backdrop-blur">
             {GROUP_OPTIONS.map((g) => (

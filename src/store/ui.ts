@@ -3,10 +3,12 @@ import type { TaskTypeId } from '@/db/types'
 
 export type ViewId = 'board' | 'week' | 'schedule' | 'study'
 export type GroupBy = 'status' | 'deadline' | 'course' | 'type' | 'priority'
+export type SortBy = 'deadline' | 'priority' | 'title' | 'created'
 
 interface UIState {
   view: ViewId
   groupBy: GroupBy
+  sortBy: SortBy
   search: string
   filterCourseIds: string[]
   filterTypes: TaskTypeId[]
@@ -20,6 +22,7 @@ interface UIState {
 
   setView: (v: ViewId) => void
   setGroupBy: (g: GroupBy) => void
+  setSortBy: (s: SortBy) => void
   setSearch: (s: string) => void
   toggleCourseFilter: (id: string) => void
   toggleTypeFilter: (t: TaskTypeId) => void
@@ -36,6 +39,7 @@ interface UIState {
 export const useUI = create<UIState>((set) => ({
   view: 'board',
   groupBy: 'status',
+  sortBy: 'deadline',
   search: '',
   filterCourseIds: [],
   filterTypes: [],
@@ -49,6 +53,7 @@ export const useUI = create<UIState>((set) => ({
 
   setView: (view) => set({ view }),
   setGroupBy: (groupBy) => set({ groupBy }),
+  setSortBy: (sortBy) => set({ sortBy }),
   setSearch: (search) => set({ search }),
   toggleCourseFilter: (id) =>
     set((s) => ({
