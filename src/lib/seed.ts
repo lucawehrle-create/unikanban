@@ -1,7 +1,9 @@
+import { addDays, addWeeks, format, startOfWeek } from 'date-fns'
 import { db, uid } from '@/db/db'
-import type { Course, Program, Semester, Task } from '@/db/types'
+import type { Attendance, Course, Program, Semester, Task } from '@/db/types'
 import { makePhases } from './taskTypes'
 import { generateRecurringTasks } from './recurring'
+import { attendanceKey } from './actions'
 import { dateForWeekday, withTime } from './semester'
 
 // Dedupe gegen StrictMode-Doppelaufruf / parallele Aufrufe in derselben Session.
@@ -12,8 +14,23 @@ export function seedIfEmpty(): Promise<void> {
   return (seedPromise ??= doSeed())
 }
 
+const iso = (d: Date) => format(d, 'yyyy-MM-dd')
+
 async function doSeed(): Promise<void> {
   if ((await db.programs.count()) > 0) return
+
+  // Das Demo-Semester wird um HEUTE herum verankert, damit das Board beim
+  // ersten Öffnen lebendig wirkt: Woche 1 liegt hinter uns (= erledigt),
+  // diese Woche läuft, der Rest steht an.
+  const thisMonday = startOfWeek(new Date(), { weekStartsOn: 1 })
+  const start = addWeeks(thisMonday, -1) // heute landet in Woche 2
+  const lectureWeeks = 14
+
+  // Realistischen Semesternamen aus dem Startmonat ableiten (Apr–Sep = Sommer).
+  const m = start.getMonth() // 0=Jan … 11=Dez
+  const y = start.getFullYear()
+  const semName =
+    m >= 3 && m <= 8 ? `SoSe ${y}` : `WiSe ${m >= 9 ? y : y - 1}/${String((m >= 9 ? y + 1 : y) % 100).padStart(2, '0')}`
 
   // Quereinstieg-Szenario: schon 2 Semester (60 ECTS, Schnitt 2,1) absolviert.
   const program: Program = {
@@ -32,14 +49,24 @@ async function doSeed(): Promise<void> {
   const semester: Semester = {
     id: uid(),
     programId: program.id,
-    name: 'SoSe 2026',
-    startDate: '2026-04-13', // Montag, Woche 1
-    weeks: 14,
+    name: semName,
+    startDate: iso(start),
+    weeks: lectureWeeks,
     examPhases: [
-      { id: uid(), label: '1. Klausurenphase', start: '2026-07-20', end: '2026-08-01' },
-      { id: uid(), label: '2. Klausurenphase', start: '2026-09-21', end: '2026-09-26' },
+      {
+        id: uid(),
+        label: '1. Klausurenphase',
+        start: iso(addWeeks(start, lectureWeeks)),
+        end: iso(addDays(addWeeks(start, lectureWeeks), 12)),
+      },
+      {
+        id: uid(),
+        label: '2. Klausurenphase',
+        start: iso(addWeeks(start, lectureWeeks + 5)),
+        end: iso(addDays(addWeeks(start, lectureWeeks + 5), 5)),
+      },
     ],
-    endDate: '2026-09-30',
+    endDate: iso(addWeeks(start, lectureWeeks + 10)),
     active: true,
   }
 
@@ -81,7 +108,7 @@ async function doSeed(): Promise<void> {
         { id: uid(), kind: 'uebung', weekday: 3, start: '14:00', end: '16:00', room: 'SR 4' },
         { id: uid(), kind: 'tutorium', weekday: 5, start: '10:00', end: '12:00', room: 'SR 2' },
       ],
-      // Zwei Serien: Übungsblatt UND Tutoriumsblatt
+      // Zwei Serien: Übungsblatt UND Tutoriumsblatt (zeigt Mehrfach-Serien)
       recurring: [
         {
           id: uid(),
@@ -130,24 +157,31 @@ async function doSeed(): Promise<void> {
   ]
 
   const now = new Date().toISOString()
-  const ethik = courses[2]
   const ana = courses[0]
+  const theo = courses[1]
+  const ethik = courses[2]
+  const anaUbId = ana.recurring![0].id
 
+  // --- Serien-Aufgaben erzeugen und einen sinnvollen Anfangszustand setzen ---
+  // Woche 1 (letzte Woche) ist abgehakt, das aktuelle ANA2-Blatt liegt "in Arbeit".
+  const recurring = courses.flatMap((c) => generateRecurringTasks(c, semester))
+  for (const t of recurring) {
+    if (t.order === 1) {
+      // Erstes Blatt jeder Serie: erledigt → füllt die Spalte "Erledigt".
+      t.status = 'erledigt'
+      t.phases = t.phases.map((p) => ({ ...p, done: true }))
+      t.completedAt = t.dueDate ?? now
+      if (t.points?.max) t.points = { max: t.points.max, earned: Math.round(t.points.max * 0.85) }
+    } else if (t.recurringId === anaUbId && t.order === 2) {
+      // Aktuelles ANA2-Übungsblatt: angefangen → Spalte "Dran".
+      t.status = 'dran'
+      t.priority = 'hoch'
+      if (t.phases[0]) t.phases[0].done = true
+    }
+  }
+
+  // --- Einzelaufgaben (Hausarbeit, Referat, Klausur) ---
   const oneOff: Task[] = [
-    {
-      id: uid(),
-      semesterId: semester.id,
-      courseId: ethik.id,
-      type: 'hausarbeit',
-      title: 'Hausarbeit: Verantwortungsethik',
-      status: 'offen',
-      priority: 'hoch',
-      dueDate: withTime(dateForWeekday(semester, 14, 5), '23:59').toISOString(),
-      phases: makePhases('hausarbeit'),
-      notes: '15 Seiten, Thema mit Dozent abstimmen.',
-      order: 1,
-      createdAt: now,
-    },
     {
       id: uid(),
       semesterId: semester.id,
@@ -156,9 +190,24 @@ async function doSeed(): Promise<void> {
       title: 'Referat: Kant vs. Mill',
       status: 'dran',
       priority: 'mittel',
-      dueDate: withTime(dateForWeekday(semester, 11, 4), '16:00').toISOString(),
-      phases: makePhases('referat'),
+      dueDate: withTime(dateForWeekday(semester, 4, 4), '16:00').toISOString(),
+      phases: makePhases('referat').map((p, i) => (i < 2 ? { ...p, done: true } : p)),
+      notes: '20 Min. + Handout. Folien stehen, noch einmal durchgehen.',
       order: 1,
+      createdAt: now,
+    },
+    {
+      id: uid(),
+      semesterId: semester.id,
+      courseId: ethik.id,
+      type: 'hausarbeit',
+      title: 'Hausarbeit: Verantwortungsethik',
+      status: 'offen',
+      priority: 'hoch',
+      dueDate: withTime(dateForWeekday(semester, lectureWeeks, 5), '23:59').toISOString(),
+      phases: makePhases('hausarbeit'),
+      notes: '15 Seiten, Thema mit Dozent abstimmen.',
+      order: 2,
       createdAt: now,
     },
     {
@@ -169,21 +218,45 @@ async function doSeed(): Promise<void> {
       title: 'Klausur Analysis II',
       status: 'offen',
       priority: 'hoch',
-      dueDate: withTime(dateForWeekday(semester, 14, 2), '09:00').toISOString(),
+      dueDate: withTime(addWeeks(start, lectureWeeks), '09:00').toISOString(),
       phases: makePhases('klausur'),
-      order: 2,
+      notes: 'Hilfsmittel: ein A4-Blatt. Altklausuren im Moodle.',
+      order: 3,
       createdAt: now,
     },
   ]
 
-  const recurring = courses.flatMap((c) => generateRecurringTasks(c, semester))
+  // --- Ein paar Anwesenheiten, damit der Stundenplan nicht leer wirkt ---
+  // Sitzungen der vergangenen Woche 1 werden als besucht/vorbereitet markiert.
+  const att: Attendance[] = []
+  const mark = (slotId: string, week: number, weekday: number, markers: Attendance['markers']) => {
+    const date = iso(dateForWeekday(semester, week, weekday))
+    att.push({ id: attendanceKey(slotId, date), semesterId: semester.id, slotId, date, markers })
+  }
+  // Woche 1 (vergangen): als Historie.
+  mark(ana.slots[0].id, 1, 1, ['vorbereitet', 'besucht', 'nachbereitet']) // Mo ANA2-VL
+  mark(theo.slots[0].id, 1, 2, ['besucht']) // Di THEO-VL
+  mark(ana.slots[2].id, 1, 4, ['besucht', 'nachbereitet']) // Do ANA2-Übung
+  mark(ethik.slots[0].id, 1, 4, ['nicht_besucht']) // Do Ethik-Seminar verpasst
+  // Woche 2 (aktuell): damit der Stundenplan schon beim Öffnen Markierungen zeigt.
+  mark(ana.slots[0].id, 2, 1, ['vorbereitet', 'besucht']) // Mo ANA2-VL
+  mark(theo.slots[0].id, 2, 2, ['besucht']) // Di THEO-VL
 
-  await db.transaction('rw', db.programs, db.semesters, db.courses, db.tasks, async () => {
-    // atomare Doppel-Seed-Sicherung innerhalb der Transaktion
-    if ((await db.programs.count()) > 0) return
-    await db.programs.add(program)
-    await db.semesters.add(semester)
-    await db.courses.bulkAdd(courses)
-    await db.tasks.bulkAdd([...recurring, ...oneOff])
-  })
+  await db.transaction(
+    'rw',
+    db.programs,
+    db.semesters,
+    db.courses,
+    db.tasks,
+    db.attendance,
+    async () => {
+      // atomare Doppel-Seed-Sicherung innerhalb der Transaktion
+      if ((await db.programs.count()) > 0) return
+      await db.programs.add(program)
+      await db.semesters.add(semester)
+      await db.courses.bulkAdd(courses)
+      await db.tasks.bulkAdd([...recurring, ...oneOff])
+      await db.attendance.bulkAdd(att)
+    },
+  )
 }
