@@ -16,11 +16,11 @@ import { SemesterSwitcher } from './SemesterSwitcher'
 import { Popover } from './ui/Popover'
 import { cn } from '@/lib/cn'
 
-const VIEWS: { id: ViewId; label: string; icon: typeof LayoutGrid }[] = [
-  { id: 'board', label: 'Board', icon: LayoutGrid },
-  { id: 'week', label: 'Diese Woche', icon: CalendarDays },
-  { id: 'schedule', label: 'Stundenplan', icon: Clock },
-  { id: 'study', label: 'Studium', icon: Gauge },
+export const VIEWS: { id: ViewId; label: string; shortLabel: string; icon: LucideIcon }[] = [
+  { id: 'board', label: 'Board', shortLabel: 'Board', icon: LayoutGrid },
+  { id: 'week', label: 'Diese Woche', shortLabel: 'Woche', icon: CalendarDays },
+  { id: 'schedule', label: 'Stundenplan', shortLabel: 'Plan', icon: Clock },
+  { id: 'study', label: 'Studium', shortLabel: 'Studium', icon: Gauge },
 ]
 
 export function Header({ semester, program }: { semester?: Semester; program?: Program }) {
@@ -31,22 +31,22 @@ export function Header({ semester, program }: { semester?: Semester; program?: P
   const setTour = useUI((s) => s.setTour)
 
   return (
-    <header className="flex flex-wrap items-center gap-3 px-5 py-4">
+    <header className="flex items-center gap-3 px-4 py-3 sm:px-5 sm:py-4">
       {/* Logo */}
-      <div className="flex items-center gap-2.5">
-        <Logo size={38} className="shrink-0" />
-        <div className="leading-tight">
+      <div className="flex min-w-0 items-center gap-2.5">
+        <Logo size={36} className="shrink-0" />
+        <div className="min-w-0 leading-tight">
           <div className="text-[15px] font-bold tracking-tight" style={{ color: '#2a2a6e' }}>
             SemBan
           </div>
-          <div className="text-[11px] text-stone-400">{program?.name ?? 'Studium'}</div>
+          <div className="truncate text-[11px] text-stone-400">{program?.name ?? 'Studium'}</div>
         </div>
       </div>
 
-      {/* Zentrierte Pill-Navigation */}
+      {/* Zentrierte Pill-Navigation – nur Desktop; mobil via BottomNav */}
       <nav
         data-tour="nav"
-        className="mx-auto flex items-center gap-1 rounded-full bg-white/70 p-1 shadow-sm ring-1 ring-stone-200/70 backdrop-blur"
+        className="mx-auto hidden items-center gap-1 rounded-full bg-white/70 p-1 shadow-sm ring-1 ring-stone-200/70 backdrop-blur sm:flex"
       >
         {VIEWS.map((v) => {
           const Icon = v.icon

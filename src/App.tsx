@@ -5,6 +5,7 @@ import { filterTasks } from '@/lib/filter'
 import { useActiveProgram, useActiveSemester, useCourses, useTasks } from '@/hooks/data'
 import { useUI } from '@/store/ui'
 import { Header } from '@/components/Header'
+import { BottomNav } from '@/components/BottomNav'
 import { Onboarding } from '@/components/Onboarding'
 import { QuickAdd } from '@/components/QuickAdd'
 import { FilterBar } from '@/components/FilterBar'
@@ -103,6 +104,8 @@ export default function App() {
         )}
         {effectiveView === 'study' && <StudyView activeProgram={program} />}
       </main>
+
+      <BottomNav />
 
       <TaskEditor courses={courses} />
       {showCourseManager && semester && <CourseManager courses={courses} semester={semester} />}

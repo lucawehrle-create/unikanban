@@ -184,7 +184,18 @@ export function Board({ tasks, courses, hasTasks }: BoardProps) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
   const dndEnabled = groupBy === 'status'
 
+  const shown = useMemo(
+    () => (showAllSeries ? tasks : staggerSeries(tasks, 2)),
+    [tasks, showAllSeries],
+  )
+
+  const { columns, groups } = useMemo(
+    () => buildColumns(shown, courses, groupBy),
+    [shown, courses, groupBy],
+  )
+
   // Leerer Bildschirm – je nach Grund mit passender nächster Aktion.
+  // Hinweis: muss NACH allen Hooks stehen (sonst React-Hook-Order-Fehler).
   if (tasks.length === 0) {
     if (courses.length === 0) {
       return (
@@ -235,16 +246,6 @@ export function Board({ tasks, courses, hasTasks }: BoardProps) {
     )
   }
 
-  const shown = useMemo(
-    () => (showAllSeries ? tasks : staggerSeries(tasks, 2)),
-    [tasks, showAllSeries],
-  )
-
-  const { columns, groups } = useMemo(
-    () => buildColumns(shown, courses, groupBy),
-    [shown, courses, groupBy],
-  )
-
   const activeTask = activeId ? tasks.find((t) => t.id === activeId) : undefined
 
   function onDragStart(e: DragStartEvent) {
@@ -259,7 +260,7 @@ export function Board({ tasks, courses, hasTasks }: BoardProps) {
   }
 
   const grid = (
-    <div className="flex h-full gap-4 overflow-x-auto px-5 pb-5">
+    <div className="flex h-full snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-5 sm:gap-4 sm:px-5">
       {columns.map((col) => {
         const items = sortTasks(groups.get(col.id) ?? [], sortBy)
         return (
@@ -267,7 +268,7 @@ export function Board({ tasks, courses, hasTasks }: BoardProps) {
             key={col.id}
             id={col.id}
             enabled={dndEnabled}
-            className="flex max-h-full min-w-[280px] flex-1 flex-col rounded-3xl bg-white/40 p-2.5 ring-1 ring-stone-200/60 backdrop-blur"
+            className="flex max-h-full min-w-[82vw] flex-1 snap-start flex-col rounded-3xl bg-white/40 p-2.5 ring-1 ring-stone-200/60 backdrop-blur sm:min-w-[280px]"
           >
             <div className="flex items-center justify-between px-2 py-1.5">
               <div className="flex items-center gap-2">
