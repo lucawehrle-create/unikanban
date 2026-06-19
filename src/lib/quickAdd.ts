@@ -1,5 +1,5 @@
 import { addDays, parse as parseDate, isValid } from 'date-fns'
-import type { Course, TaskTypeId } from '@/db/types'
+import type { Course, Priority, TaskTypeId } from '@/db/types'
 import { matchTaskType } from './taskTypes'
 
 export interface QuickAddDraft {
@@ -7,6 +7,7 @@ export interface QuickAddDraft {
   courseId?: string
   type?: TaskTypeId
   dueDate?: string
+  priority?: Priority
 }
 
 const WEEKDAYS: Record<string, number> = {
@@ -99,6 +100,9 @@ export function parseQuickAdd(raw: string, courses: Course[]): QuickAddDraft {
         draft.dueDate = due
         continue
       }
+    } else if (/^p[1-3]$/i.test(word)) {
+      draft.priority = word.toLowerCase() === 'p1' ? 'hoch' : word.toLowerCase() === 'p2' ? 'mittel' : 'niedrig'
+      continue
     }
     titleParts.push(word)
   }

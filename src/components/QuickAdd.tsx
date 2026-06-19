@@ -4,6 +4,7 @@ import type { Course } from '@/db/types'
 import { parseQuickAdd } from '@/lib/quickAdd'
 import { TASK_TYPES } from '@/lib/taskTypes'
 import { formatDue } from '@/lib/deadline'
+import { priorityMeta } from '@/lib/priority'
 import { createTask } from '@/lib/actions'
 
 interface QuickAddProps {
@@ -15,6 +16,7 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
   const [value, setValue] = useState('')
   const draft = useMemo(() => parseQuickAdd(value, courses), [value, courses])
   const course = draft.courseId ? courses.find((c) => c.id === draft.courseId) : undefined
+  const prio = priorityMeta(draft.priority)
 
   async function submit() {
     const title = draft.title.trim()
@@ -25,6 +27,7 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
       type: draft.type ?? 'sonstiges',
       courseId: draft.courseId,
       dueDate: draft.dueDate,
+      priority: draft.priority,
     })
     setValue('')
   }
@@ -76,7 +79,15 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
               📅 {formatDue(draft.dueDate)}
             </span>
           )}
-          <span className="ml-auto text-stone-300"># Kurs · @ Art · ! Frist</span>
+          {prio && (
+            <span
+              className="rounded-full px-2 py-0.5 font-semibold"
+              style={{ backgroundColor: prio.color + '22', color: prio.color }}
+            >
+              ⚑ {prio.label}
+            </span>
+          )}
+          <span className="ml-auto text-stone-300"># Kurs · @ Art · ! Frist · p1/p2/p3 Priorität</span>
         </div>
       )}
     </div>

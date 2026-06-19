@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { TaskTypeId } from '@/db/types'
 
 export type ViewId = 'board' | 'week' | 'schedule' | 'study'
-export type GroupBy = 'status' | 'deadline' | 'course' | 'type'
+export type GroupBy = 'status' | 'deadline' | 'course' | 'type' | 'priority'
 
 interface UIState {
   view: ViewId

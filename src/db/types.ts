@@ -34,6 +34,9 @@ export type TaskTypeId =
 /** Spalten des Boards. */
 export type TaskStatus = 'offen' | 'dran' | 'erledigt'
 
+/** Priorität einer Aufgabe (undefined = keine). */
+export type Priority = 'hoch' | 'mittel' | 'niedrig'
+
 /** Ein Klausurenphasen-Zeitraum (eine Uni kann zwei haben). */
 export interface ExamPhase {
   id: string
@@ -111,6 +114,7 @@ export interface Task {
   type: TaskTypeId
   title: string
   status: TaskStatus
+  priority?: Priority
   /** ISO-Datum/-Zeit der Fälligkeit. */
   dueDate?: string
   notes?: string

@@ -1,5 +1,5 @@
 import { Trash2 } from 'lucide-react'
-import type { Course, Task, TaskStatus } from '@/db/types'
+import type { Course, Priority, Task, TaskStatus } from '@/db/types'
 import { TASK_TYPE_LIST, TASK_TYPES } from '@/lib/taskTypes'
 import { changeTaskType, deleteTask, togglePhase, updateTask } from '@/lib/actions'
 import { useTask } from '@/hooks/data'
@@ -13,6 +13,13 @@ const STATUS: { id: TaskStatus; label: string }[] = [
   { id: 'offen', label: 'Offen' },
   { id: 'dran', label: 'Dran' },
   { id: 'erledigt', label: 'Erledigt' },
+]
+
+const PRIO_SEG: { id: Priority | 'keine'; label: string; color?: string }[] = [
+  { id: 'keine', label: 'Keine' },
+  { id: 'niedrig', label: 'Niedrig', color: '#64748b' },
+  { id: 'mittel', label: 'Mittel', color: '#f59e0b' },
+  { id: 'hoch', label: 'Hoch', color: '#ef4444' },
 ]
 
 export function TaskEditor({ courses }: { courses: Course[] }) {
@@ -76,6 +83,32 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
               {s.label}
             </button>
           ))}
+        </div>
+
+        {/* Priorität */}
+        <div>
+          <span className="mb-1 block text-xs font-medium text-stone-500">Priorität</span>
+          <div className="flex rounded-lg bg-stone-100 p-0.5">
+            {PRIO_SEG.map((o) => {
+              const current = (task.priority ?? 'keine') === o.id
+              return (
+                <button
+                  key={o.id}
+                  onClick={() => patch({ priority: o.id === 'keine' ? undefined : (o.id as Priority) })}
+                  className={cn(
+                    'flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium transition',
+                    current ? 'bg-white shadow-sm' : 'text-stone-500',
+                  )}
+                  style={current && o.color ? { color: o.color } : undefined}
+                >
+                  {o.color && (
+                    <span className="h-2 w-2 rounded-full" style={{ backgroundColor: o.color }} />
+                  )}
+                  {o.label}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">

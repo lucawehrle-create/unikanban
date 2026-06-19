@@ -1,6 +1,8 @@
+import { Flag } from 'lucide-react'
 import type { Course, Task } from '@/db/types'
 import { TASK_TYPES } from '@/lib/taskTypes'
 import { classifyDue, DUE_META, formatDue } from '@/lib/deadline'
+import { priorityMeta } from '@/lib/priority'
 import { cn } from '@/lib/cn'
 
 interface TaskCardProps {
@@ -17,6 +19,7 @@ export function TaskCard({ task, course, onClick, dragging }: TaskCardProps) {
   const phasesDone = task.phases.filter((p) => p.done).length
   const phasesTotal = task.phases.length
   const done = task.status === 'erledigt'
+  const prio = priorityMeta(task.priority)
 
   return (
     <button
@@ -39,10 +42,20 @@ export function TaskCard({ task, course, onClick, dragging }: TaskCardProps) {
           {type.emoji}
         </span>
         <div className="min-w-0 flex-1">
-          <div
-            className={cn('text-sm font-medium text-stone-800', done && 'line-through')}
-          >
-            {task.title}
+          <div className="flex items-start gap-1.5">
+            <div
+              className={cn('flex-1 text-sm font-medium text-stone-800', done && 'line-through')}
+            >
+              {task.title}
+            </div>
+            {prio && !done && (
+              <Flag
+                size={13}
+                className="mt-0.5 shrink-0"
+                style={{ color: prio.color, fill: prio.color }}
+                aria-label={`Priorität ${prio.label}`}
+              />
+            )}
           </div>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">

@@ -13,6 +13,7 @@ import {
 import type { Course, Task, TaskStatus } from '@/db/types'
 import { TASK_TYPE_LIST } from '@/lib/taskTypes'
 import { classifyDue, dueSortKey } from '@/lib/deadline'
+import { priorityRank } from '@/lib/priority'
 import { courseMap } from '@/lib/filter'
 import { setTaskStatus } from '@/lib/actions'
 import { useUI, type GroupBy } from '@/store/ui'
@@ -45,8 +46,20 @@ const DEADLINE_COLUMNS: ColumnDef[] = [
 ]
 
 function sortTasks(tasks: Task[]): Task[] {
-  return [...tasks].sort((a, b) => dueSortKey(a.dueDate) - dueSortKey(b.dueDate) || a.order - b.order)
+  return [...tasks].sort(
+    (a, b) =>
+      dueSortKey(a.dueDate) - dueSortKey(b.dueDate) ||
+      priorityRank(b.priority) - priorityRank(a.priority) ||
+      a.order - b.order,
+  )
 }
+
+const PRIORITY_COLUMNS: ColumnDef[] = [
+  { id: 'hoch', title: 'Hoch', accent: '#ef4444' },
+  { id: 'mittel', title: 'Mittel', accent: '#f59e0b' },
+  { id: 'niedrig', title: 'Niedrig', accent: '#64748b' },
+  { id: '__none', title: 'Ohne Priorität' },
+]
 
 function buildColumns(tasks: Task[], courses: Course[], groupBy: GroupBy) {
   const groups = new Map<string, Task[]>()
@@ -73,6 +86,9 @@ function buildColumns(tasks: Task[], courses: Course[], groupBy: GroupBy) {
       else if (c === 'soon' || c === 'week') push('week', t)
       else push('later', t)
     }
+  } else if (groupBy === 'priority') {
+    columns = PRIORITY_COLUMNS
+    for (const t of tasks) push(t.priority ?? '__none', t)
   } else if (groupBy === 'course') {
     columns = courses.map((c) => ({ id: c.id, title: `${c.short} · ${c.name}`, accent: c.color }))
     columns.push({ id: '__none', title: 'Ohne Kurs' })

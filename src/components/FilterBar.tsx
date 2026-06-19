@@ -7,6 +7,7 @@ import { cn } from '@/lib/cn'
 const GROUP_OPTIONS: { id: GroupBy; label: string }[] = [
   { id: 'status', label: 'Status' },
   { id: 'deadline', label: 'Deadline' },
+  { id: 'priority', label: 'Priorität' },
   { id: 'course', label: 'Kurs' },
   { id: 'type', label: 'Typ' },
 ]

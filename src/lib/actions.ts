@@ -2,6 +2,7 @@ import { db, uid } from '@/db/db'
 import type {
   Course,
   Phase,
+  Priority,
   Program,
   ProgramType,
   Semester,
@@ -144,6 +145,7 @@ export async function createTask(input: {
   type: TaskTypeId
   courseId?: string
   dueDate?: string
+  priority?: Priority
 }): Promise<string> {
   const id = uid()
   const task: Task = {
@@ -153,6 +155,7 @@ export async function createTask(input: {
     type: input.type,
     title: input.title || 'Neue Aufgabe',
     status: 'offen',
+    priority: input.priority,
     dueDate: input.dueDate,
     phases: makePhases(input.type),
     order: Date.now(),
