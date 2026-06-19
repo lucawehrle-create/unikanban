@@ -53,6 +53,28 @@ Nach dem Login wird beim ersten Mal abgeglichen; danach pushen lokale Änderunge
 automatisch (entprellt) und beim App-Fokus wird geprüft, ob ein anderes Gerät
 neuer ist.
 
+## E-Mails hübsch machen (optional)
+Die Standard-Mails von Supabase sind schlicht. Im Repo liegen gebrandete
+HTML-Vorlagen unter [`supabase/email-templates/`](../supabase/email-templates/):
+
+| Datei | Supabase-Template | Betreff-Vorschlag |
+|---|---|---|
+| `confirm-signup.html` | **Confirm signup** | SemBan – bestätige deine E-Mail |
+| `reset-password.html` | **Reset Password** | SemBan – Passwort zurücksetzen |
+
+So einsetzen:
+1. Supabase → **Authentication → Emails → Templates**.
+2. Das jeweilige Template wählen, **„Source"/HTML** öffnen.
+3. Inhalt der passenden Datei reinkopieren, Betreff setzen, speichern.
+
+Der Platzhalter `{{ .ConfirmationURL }}` wird von Supabase automatisch durch den
+echten Link ersetzt – nicht ersetzen oder umbenennen.
+
+> Hinweis: Über Supabase' Standard-Versand gibt es ein striktes Rate-Limit
+> (wenige Mails/Stunde) und der Absender ist eine Supabase-Adresse. Für den
+> produktiven Betrieb unter eigener Absenderadresse später **Custom SMTP**
+> einrichten (Authentication → Emails → SMTP Settings).
+
 ## Wie der Sync funktioniert (Kurzfassung)
 - Gespeichert wird pro Konto **ein JSON-Dokument** (das bestehende Backup-Format)
   in `user_data`.
