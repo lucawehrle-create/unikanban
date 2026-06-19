@@ -30,6 +30,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        // Landing-Screenshots nicht vorab cachen (nur für ausgeloggte Besucher,
+        // würden sonst den App-Install unnötig aufblähen).
+        globIgnores: ['**/landing/**'],
         navigateFallback: '/index.html',
         cleanupOutdatedCaches: true,
         clientsClaim: true,

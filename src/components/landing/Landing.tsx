@@ -90,24 +90,55 @@ function ScrollBackground({ progress }: { progress: MotionValue<number> }) {
         <Pulse className="h-full w-full rounded-full blur-[120px]" style={{ backgroundColor: '#6366f140' }} />
       </motion.div>
 
-      {/* große Grafik-Szenen, die nacheinander durchscrollen */}
-      <BgLayer progress={progress} range={[0.06, 0.34]} parallax={70} drift={-12}>
-        <BoardGiant />
+      {/* echte Produkt-Screenshots als große, gekippte Panels, die durchscrollen */}
+      <BgLayer progress={progress} range={[0.06, 0.34]} parallax={80} drift={-10} tilt={-11}>
+        <ScreenPanel src="/landing/board.png" />
       </BgLayer>
-      <BgLayer progress={progress} range={[0.28, 0.54]} parallax={90} drift={14}>
-        <CalendarGiant />
+      <BgLayer progress={progress} range={[0.28, 0.54]} parallax={100} drift={12} tilt={10}>
+        <ScreenPanel src="/landing/schedule.png" />
       </BgLayer>
-      <BgLayer progress={progress} range={[0.5, 0.74]} parallax={70} drift={-14}>
-        <RingsGiant />
+      <BgLayer progress={progress} range={[0.5, 0.74]} parallax={80} drift={-12} tilt={-9}>
+        <ScreenPanel src="/landing/study.png" />
       </BgLayer>
-      <BgLayer progress={progress} range={[0.72, 0.96]} parallax={90} drift={12}>
-        <OrbitGiant />
+      <BgLayer progress={progress} range={[0.72, 0.96]} parallax={100} drift={12} tilt={11}>
+        <ScreenPanel src="/landing/week.png" />
       </BgLayer>
 
-      {/* nur Ränder leicht aufhellen, Mitte bleibt lebendig */}
-      <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-cream-50 to-transparent" />
-      <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-cream-50 to-transparent" />
+      {/* Grain für Premium-Textur */}
+      <Grain />
+
+      {/* Ränder aufhellen, damit Nav/Footer/Text lesbar bleiben */}
+      <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-cream-50 to-transparent" />
+      <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-cream-50 to-transparent" />
     </div>
+  )
+}
+
+/** Großes, gekipptes Produkt-Screenshot-Panel mit Tiefe. */
+function ScreenPanel({ src }: { src: string }) {
+  return (
+    <div style={{ perspective: 1600 }} className="flex items-center justify-center">
+      <img
+        src={src}
+        alt=""
+        aria-hidden
+        loading="lazy"
+        className="w-[128vmin] max-w-[96vw] rounded-2xl shadow-[0_40px_120px_-20px_rgba(42,42,110,0.45)] ring-1 ring-black/10"
+        style={{ transform: 'rotateX(7deg)' }}
+      />
+    </div>
+  )
+}
+
+/** Feine Körnung über allem – nimmt den „glatten/KI"-Look. */
+function Grain() {
+  const noise =
+    "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"
+  return (
+    <div
+      className="absolute inset-0 opacity-[0.22] mix-blend-soft-light"
+      style={{ backgroundImage: `url("${noise}")`, backgroundSize: '160px 160px' }}
+    />
   )
 }
 
@@ -122,118 +153,34 @@ function Pulse({ className, style }: { className?: string; style?: React.CSSProp
   )
 }
 
-/** Eine große Hintergrund-Grafik mit Opacity-Fenster + Zoom/Parallax. */
+/** Ein großes Hintergrund-Panel mit Opacity-Fenster + Zoom/Parallax/Neigung. */
 function BgLayer({
   progress,
   range: [s, e],
   parallax,
   drift = 0,
+  tilt = 0,
   children,
 }: {
   progress: MotionValue<number>
   range: [number, number]
   parallax: number
   drift?: number
+  tilt?: number
   children: React.ReactNode
 }) {
   const mid = (s + e) / 2
   const opacity = useTransform(progress, [s, (s + mid) / 2, (mid + e) / 2, e], [0, 1, 1, 0])
-  const scale = useTransform(progress, [s, e], [0.82, 1.22])
+  const scale = useTransform(progress, [s, e], [0.86, 1.16])
   const y = useTransform(progress, [s, e], [parallax, -parallax])
   const x = useTransform(progress, [s, e], [`${-drift}vmin`, `${drift}vmin`])
-  const rotate = useTransform(progress, [s, e], [-6, 6])
+  const rotate = useTransform(progress, [s, e], [tilt - 3, tilt + 3])
   return (
     <motion.div style={{ opacity }} className="absolute inset-0 flex items-center justify-center">
       <motion.div style={{ scale, y, x, rotate }} className="flex items-center justify-center">
         {children}
       </motion.div>
     </motion.div>
-  )
-}
-
-const GIANT = 'relative h-[96vmin] w-[96vmin]'
-
-function BoardGiant() {
-  return (
-    <div className={GIANT} style={{ opacity: 0.4 }}>
-      <div className="absolute inset-[12%] grid grid-cols-3 gap-[3vmin]">
-        {[0, 1, 2].map((c) => (
-          <div key={c} className="rounded-[4vmin] ring-[0.5vmin] ring-stone-400/40">
-            <div className="space-y-[2vmin] p-[2vmin]">
-              {Array.from({ length: c === 0 ? 4 : c === 1 ? 2 : 3 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="h-[6vmin] rounded-[2vmin]"
-                  style={{ backgroundColor: ['#6366f1', '#0ea5e9', '#10b981'][c] + '55' }}
-                />
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function CalendarGiant() {
-  return (
-    <div className={GIANT} style={{ opacity: 0.42 }}>
-      <div className="absolute inset-[10%] grid grid-cols-5 grid-rows-6">
-        {Array.from({ length: 30 }).map((_, i) => (
-          <div key={i} className="border-[0.3vmin] border-stone-400/30" />
-        ))}
-      </div>
-      {/* Termin-Blöcke */}
-      <div className="absolute left-[24%] top-[34%] h-[10vmin] w-[12vmin] rounded-[2vmin] bg-[#0ea5e9]/50" />
-      <div className="absolute left-[58%] top-[54%] h-[10vmin] w-[12vmin] rounded-[2vmin] bg-[#6366f1]/50" />
-      {/* „Jetzt"-Beam */}
-      <div className="absolute left-[10%] right-[10%] top-1/2 h-[0.6vmin] bg-rose-400/70" />
-    </div>
-  )
-}
-
-function RingsGiant() {
-  return (
-    <div className={`${GIANT} flex items-center justify-center`} style={{ opacity: 0.5 }}>
-      {[100, 74, 48].map((p, i) => (
-        <svg key={p} viewBox="0 0 100 100" className="absolute" style={{ width: `${p}%`, height: `${p}%` }}>
-          <circle cx="50" cy="50" r="46" fill="none" stroke="#cbd5e1" strokeWidth="3" />
-          <circle
-            cx="50"
-            cy="50"
-            r="46"
-            fill="none"
-            stroke={['#e9633c', '#f5c645', '#6366f1'][i]}
-            strokeWidth="3.5"
-            strokeLinecap="round"
-            strokeDasharray={`${[62, 40, 80][i] * 2.89} 1000`}
-            transform="rotate(-90 50 50)"
-          />
-        </svg>
-      ))}
-    </div>
-  )
-}
-
-function OrbitGiant() {
-  return (
-    <div className={`${GIANT} flex items-center justify-center`} style={{ opacity: 0.42 }}>
-      <div className="absolute h-[18vmin] w-[18vmin] rounded-full bg-[#10b981]/40" />
-      {[40, 64, 88].map((r, i) => (
-        <motion.div
-          key={r}
-          className="absolute rounded-full border-[0.4vmin] border-stone-400/30"
-          style={{ width: `${r}%`, height: `${r}%` }}
-          animate={{ rotate: 360 }}
-          transition={{ duration: 30 + i * 14, repeat: Infinity, ease: 'linear' }}
-        >
-          <span
-            className="absolute left-1/2 top-0 h-[4vmin] w-[4vmin] -translate-x-1/2 -translate-y-1/2 rounded-full"
-            style={{ backgroundColor: ['#6366f1', '#0ea5e9', '#f5c645'][i] + '99' }}
-          />
-        </motion.div>
-      ))}
-    </div>
   )
 }
 
@@ -356,7 +303,9 @@ function StorySection({ scene }: { scene: (typeof STORY)[number] }) {
   const Icon = scene.icon
   return (
     <section id="story" className="relative flex min-h-screen items-center justify-center px-5">
-      <Reveal className="mx-auto max-w-3xl text-center">
+      {/* weiche Aufhellung hinter dem Text, damit er über dem Screenshot pollt */}
+      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[60vmin] w-[150vmin] max-w-[96vw] -translate-x-1/2 -translate-y-1/2 rounded-[50%] bg-cream-50/70 blur-3xl" />
+      <Reveal className="relative mx-auto max-w-3xl text-center">
         <span
           className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm"
           style={{ backgroundColor: scene.color }}
