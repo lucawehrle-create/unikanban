@@ -180,6 +180,8 @@ export function Board({ tasks, courses, hasTasks }: BoardProps) {
   const setShowDone = useUI((s) => s.setShowDone)
   const byId = useMemo(() => courseMap(courses), [courses])
   const [activeId, setActiveId] = useState<string | null>(null)
+  // Auf dem Handy ist immer genau eine Spalte sichtbar (per Tab gewählt).
+  const [mobileCol, setMobileCol] = useState<string | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
   const dndEnabled = groupBy === 'status'
@@ -259,8 +261,9 @@ export function Board({ tasks, courses, hasTasks }: BoardProps) {
     if (task && task.status !== target) void setTaskStatus(task.id, target)
   }
 
-  const grid = (
-    <div className="flex h-full snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-5 sm:gap-4 sm:px-5">
+  // ---- Desktop: Spalten nebeneinander, Drag & Drop ----
+  const desktopGrid = (
+    <div className="flex h-full gap-4 overflow-x-auto px-5 pb-5">
       {columns.map((col) => {
         const items = sortTasks(groups.get(col.id) ?? [], sortBy)
         return (
@@ -268,15 +271,12 @@ export function Board({ tasks, courses, hasTasks }: BoardProps) {
             key={col.id}
             id={col.id}
             enabled={dndEnabled}
-            className="flex max-h-full min-w-[82vw] flex-1 snap-start flex-col rounded-3xl bg-white/40 p-2.5 ring-1 ring-stone-200/60 backdrop-blur sm:min-w-[280px]"
+            className="flex max-h-full min-w-[280px] flex-1 flex-col rounded-3xl bg-white/40 p-2.5 ring-1 ring-stone-200/60 backdrop-blur"
           >
             <div className="flex items-center justify-between px-2 py-1.5">
               <div className="flex items-center gap-2">
                 {col.accent && (
-                  <span
-                    className="h-2.5 w-2.5 rounded-full"
-                    style={{ backgroundColor: col.accent }}
-                  />
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: col.accent }} />
                 )}
                 <span className="text-sm font-semibold text-stone-700">{col.title}</span>
               </div>
@@ -306,21 +306,107 @@ export function Board({ tasks, courses, hasTasks }: BoardProps) {
     </div>
   )
 
-  if (!dndEnabled) return grid
+  // ---- Mobil: Spalten-Tabs + eine Spalte als vertikale Liste ----
+  const activeColId =
+    mobileCol && columns.some((c) => c.id === mobileCol) ? mobileCol : columns[0]?.id
+  const activeItems = activeColId ? sortTasks(groups.get(activeColId) ?? [], sortBy) : []
+
+  const mobileView = (
+    <div className="flex h-full flex-col sm:hidden">
+      <div className="flex gap-1.5 overflow-x-auto px-4 pb-2">
+        {columns.map((col) => {
+          const count = (groups.get(col.id) ?? []).length
+          const active = col.id === activeColId
+          return (
+            <button
+              key={col.id}
+              onClick={() => setMobileCol(col.id)}
+              className={cn(
+                'flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium transition',
+                active ? 'bg-stone-900 text-white' : 'bg-white/70 text-stone-500 ring-1 ring-stone-200/70',
+              )}
+            >
+              {col.accent && (
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: col.accent }} />
+              )}
+              {col.title}
+              <span
+                className={cn(
+                  'rounded-full px-1.5 text-xs',
+                  active ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-500',
+                )}
+              >
+                {count}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+
+      <div className="flex-1 space-y-2.5 overflow-y-auto px-4 pb-5">
+        {activeItems.map((t) => (
+          <div key={t.id} className="space-y-1">
+            <TaskCard
+              task={t}
+              course={t.courseId ? byId.get(t.courseId) : undefined}
+              onClick={() => editTask(t.id)}
+            />
+            {dndEnabled && <MobileMove task={t} />}
+          </div>
+        ))}
+        {activeItems.length === 0 && (
+          <div className="py-12 text-center text-sm text-stone-400">Nichts in dieser Spalte.</div>
+        )}
+      </div>
+    </div>
+  )
 
   return (
-    <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-      {grid}
-      <DragOverlay>
-        {activeTask && (
-          <div className="w-72">
-            <TaskCard
-              task={activeTask}
-              course={activeTask.courseId ? byId.get(activeTask.courseId) : undefined}
-            />
-          </div>
+    <>
+      {mobileView}
+      <div className="hidden h-full sm:block">
+        {dndEnabled ? (
+          <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
+            {desktopGrid}
+            <DragOverlay>
+              {activeTask && (
+                <div className="w-72">
+                  <TaskCard
+                    task={activeTask}
+                    course={activeTask.courseId ? byId.get(activeTask.courseId) : undefined}
+                  />
+                </div>
+              )}
+            </DragOverlay>
+          </DndContext>
+        ) : (
+          desktopGrid
         )}
-      </DragOverlay>
-    </DndContext>
+      </div>
+    </>
+  )
+}
+
+const STATUS_LABEL: Record<TaskStatus, string> = {
+  offen: 'Offen',
+  dran: 'Dran',
+  erledigt: 'Erledigt',
+}
+
+/** Schnelles Verschieben einer Aufgabe per Tipp (mobil, statt Drag&Drop). */
+function MobileMove({ task }: { task: Task }) {
+  const others = (['offen', 'dran', 'erledigt'] as TaskStatus[]).filter((s) => s !== task.status)
+  return (
+    <div className="flex gap-1.5 pl-1">
+      {others.map((s) => (
+        <button
+          key={s}
+          onClick={() => void setTaskStatus(task.id, s)}
+          className="rounded-full bg-white/60 px-2.5 py-1 text-[11px] font-medium text-stone-500 ring-1 ring-stone-200/70 transition active:bg-stone-100"
+        >
+          → {STATUS_LABEL[s]}
+        </button>
+      ))}
+    </div>
   )
 }
