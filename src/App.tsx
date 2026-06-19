@@ -22,6 +22,7 @@ import { AuthGate } from '@/components/AuthGate'
 import { Tour } from '@/components/Tour'
 import { initSync, useSync } from '@/lib/sync'
 import { isSyncConfigured } from '@/lib/supabase'
+import { hasSeenTour } from '@/lib/tour'
 
 export default function App() {
   const programCount = useLiveQuery(() => db.programs.count(), [])
@@ -47,12 +48,14 @@ export default function App() {
     initSync()
   }, [])
 
-  // Produkt-Tour einmalig für neue Nutzer automatisch starten
+  // Produkt-Tour einmalig pro Konto automatisch starten – sobald Inhalte da
+  // sind (Beispieldaten ODER eigenes Studium) und für dieses Konto noch nicht
+  // gesehen. Hängt an `user`, damit es direkt nach dem Login neu greift.
   useEffect(() => {
-    if (programCount && programCount > 0 && !localStorage.getItem('uk:tourSeen')) {
-      setTour(true)
-    }
-  }, [programCount, setTour])
+    if (!programCount) return
+    if (isSyncConfigured && !user) return // erst nach Login
+    if (!hasSeenTour()) setTour(true)
+  }, [programCount, user, setTour])
 
   // Tastatur-Kürzel: n = erfassen, / = suchen
   useEffect(() => {

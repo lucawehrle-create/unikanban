@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, ArrowRight, Check, X } from 'lucide-react'
 import { useUI, type ViewId } from '@/store/ui'
+import { markTourSeen } from '@/lib/tour'
 
 interface TourStep {
   target: string // data-tour="…"
@@ -92,7 +93,7 @@ export function Tour() {
   }, [active, i, setView])
 
   function finish() {
-    localStorage.setItem('uk:tourSeen', '1')
+    markTourSeen()
     setTour(false)
     setView('board')
     setI(0)
