@@ -60,6 +60,8 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
   const attendance = useAttendance(semesterId)
 
   const [weekOffset, setWeekOffset] = useState(0)
+  // Ausgewählter Wochentag (1=Mo) für die mobile Einzeltag-Ansicht.
+  const [selectedDay, setSelectedDay] = useState(() => ((new Date().getDay() + 6) % 7) + 1)
 
   // Live mitlaufende Uhrzeit für die "Jetzt"-Linie (minütlich)
   const [now, setNow] = useState(() => new Date())
@@ -140,6 +142,127 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
 
   const weekRange = `${format(weekStart, 'd.', { locale: de })}–${format(addDays(weekStart, 6), 'd. MMM', { locale: de })}`
 
+  const activeDay = days.includes(selectedDay) ? selectedDay : days[0]
+
+  const renderTaskChip = (t: Task) => {
+    const c = t.courseId ? byId.get(t.courseId) : undefined
+    return (
+      <button
+        key={t.id}
+        onClick={() => editTask(t.id)}
+        title={t.title}
+        className="flex max-w-full items-center gap-1 rounded-full bg-white px-1.5 py-0.5 text-[10px] font-medium text-stone-600 shadow-sm ring-1 ring-stone-200/80 hover:ring-stone-300"
+      >
+        <span
+          className="h-1.5 w-1.5 shrink-0 rounded-full"
+          style={{ backgroundColor: c?.color ?? '#a8a29e' }}
+        />
+        <span className="truncate">
+          {TASK_TYPES[t.type].emoji} {t.title}
+        </span>
+      </button>
+    )
+  }
+
+  const timeAxis = (
+    <div className="w-10 shrink-0 sm:w-12" style={{ height: gridHeight }}>
+      {hours.map((h) => (
+        <div key={h} className="relative" style={{ height: PX_PER_HOUR }}>
+          <span className="absolute -top-2 right-1 text-[10px] text-stone-400">{h}:00</span>
+        </div>
+      ))}
+    </div>
+  )
+
+  // Eine Tagesspalte mit Terminen + "Jetzt"-Linie (für Wochen- UND Tagesansicht).
+  const renderDayColumn = (wd: number) => {
+    const date = addDays(weekStart, wd - 1)
+    const dateStr = format(date, 'yyyy-MM-dd')
+    const daySlots = slots.filter((s) => s.weekday === wd)
+    return (
+      <div
+        key={wd}
+        className={cn(
+          'relative flex-1 rounded-xl border-l border-stone-200/70',
+          isToday(date) && 'bg-brand-50/50',
+        )}
+        style={{ height: gridHeight }}
+      >
+        {hours.map((h, i) => (
+          <div
+            key={h}
+            className="absolute inset-x-0 border-t border-stone-200/50"
+            style={{ top: i * PX_PER_HOUR }}
+          />
+        ))}
+
+        {daySlots.map((s) => {
+          const top = ((s.start - startHour * 60) / 60) * PX_PER_HOUR
+          const height = ((s.end - s.start) / 60) * PX_PER_HOUR
+          const markers = attendance[attendanceKey(s.id, dateStr)] ?? []
+          const tint = markers.includes('besucht')
+            ? ATT_META.besucht.color
+            : markers.includes('nicht_besucht')
+              ? ATT_META.nicht_besucht.color
+              : s.color
+          const notAttended = markers.includes('nicht_besucht')
+          return (
+            <button
+              key={s.id}
+              onClick={(e) => setMenu({ slotId: s.id, date: dateStr, x: e.clientX, y: e.clientY })}
+              className={cn(
+                'absolute inset-x-1 overflow-hidden rounded-lg px-2 py-1 text-left text-[11px] leading-tight shadow-sm transition hover:shadow-md',
+                notAttended && 'opacity-70',
+              )}
+              style={{
+                top,
+                height: Math.max(height - 2, 18),
+                backgroundColor: tint + '22',
+                borderLeft: `3px solid ${tint}`,
+              }}
+            >
+              {markers.length > 0 && (
+                <span className="absolute right-1 top-1 flex gap-0.5">
+                  {ATT_ORDER.filter((m) => markers.includes(m)).map((m) => {
+                    const mm = ATT_META[m]
+                    return (
+                      <span
+                        key={m}
+                        title={mm.label}
+                        className="flex h-4 w-4 items-center justify-center rounded-full text-white"
+                        style={{ backgroundColor: mm.color }}
+                      >
+                        <mm.Icon size={10} strokeWidth={3} />
+                      </span>
+                    )
+                  })}
+                </span>
+              )}
+              <div
+                className={cn('font-semibold', notAttended && 'line-through')}
+                style={{ color: s.color }}
+              >
+                {s.short}
+              </div>
+              <div className="text-stone-500">
+                {slotKindShort(s.kind)}
+                {s.room ? ` · ${s.room}` : ''}
+              </div>
+            </button>
+          )
+        })}
+
+        {isToday(date) && nowVisible && (
+          <div className="pointer-events-none absolute inset-x-0 z-20" style={{ top: nowTop }}>
+            <div className="relative h-px bg-rose-400/80">
+              <span className="absolute -left-[3px] top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-rose-400" />
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-full flex-col">
       {/* Wochen-Navigation + Legende */}
@@ -189,160 +312,85 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
           <p>Noch keine Termine. Füge im Kurs-Manager Vorlesungen, Übungen & Tutorien hinzu.</p>
         </div>
       ) : (
-        <div className="flex-1 overflow-auto px-5 pb-6">
-          <div className="mx-auto min-w-[640px] max-w-5xl">
-            {/* Kopfzeile: Tage + fällige Aufgaben */}
-            <div className="flex pb-2">
-              <div className="w-12 shrink-0" />
+        <>
+          {/* MOBIL: Einzeltag mit Tagesauswahl */}
+          <div className="flex flex-1 flex-col overflow-hidden sm:hidden">
+            <div className="flex gap-1 overflow-x-auto px-4 pb-2">
               {days.map((wd) => {
                 const date = addDays(weekStart, wd - 1)
-                const dayTasks = tasksByDay.get(wd) ?? []
+                const active = wd === activeDay
                 return (
-                  <div key={wd} className="flex-1 px-1">
-                    <div
-                      className={cn(
-                        'mb-1 flex items-baseline gap-1.5 rounded-xl px-2 py-1',
-                        isToday(date) ? 'bg-brand-300/60' : '',
-                      )}
-                    >
-                      <span className="text-sm font-semibold text-stone-700">
-                        {WEEKDAY_LABEL[wd - 1]}
-                      </span>
-                      <span className="text-[11px] text-stone-400">{format(date, 'd.M.')}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {dayTasks.map((t) => {
-                        const c = t.courseId ? byId.get(t.courseId) : undefined
-                        return (
-                          <button
-                            key={t.id}
-                            onClick={() => editTask(t.id)}
-                            title={t.title}
-                            className="flex max-w-full items-center gap-1 rounded-full bg-white px-1.5 py-0.5 text-[10px] font-medium text-stone-600 shadow-sm ring-1 ring-stone-200/80 hover:ring-stone-300"
-                          >
-                            <span
-                              className="h-1.5 w-1.5 shrink-0 rounded-full"
-                              style={{ backgroundColor: c?.color ?? '#a8a29e' }}
-                            />
-                            <span className="truncate">
-                              {TASK_TYPES[t.type].emoji} {t.title}
-                            </span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </div>
+                  <button
+                    key={wd}
+                    onClick={() => setSelectedDay(wd)}
+                    className={cn(
+                      'flex min-w-[44px] flex-1 flex-col items-center rounded-xl px-1 py-1.5 text-xs transition',
+                      active
+                        ? 'bg-stone-900 text-white'
+                        : isToday(date)
+                          ? 'bg-brand-300/60 text-stone-800'
+                          : 'text-stone-500 hover:bg-white',
+                    )}
+                  >
+                    <span className="font-semibold">{WEEKDAY_LABEL[wd - 1]}</span>
+                    <span className={cn('text-[10px]', active ? 'text-white/70' : 'text-stone-400')}>
+                      {format(date, 'd.M.')}
+                    </span>
+                  </button>
                 )
               })}
             </div>
 
-            {/* Raster */}
-            <div className="flex">
-              <div className="w-12 shrink-0" style={{ height: gridHeight }}>
-                {hours.map((h) => (
-                  <div key={h} className="relative" style={{ height: PX_PER_HOUR }}>
-                    <span className="absolute -top-2 right-1 text-[10px] text-stone-400">
-                      {h}:00
-                    </span>
-                  </div>
-                ))}
+            {(tasksByDay.get(activeDay) ?? []).length > 0 && (
+              <div className="flex flex-wrap gap-1 px-4 pb-2">
+                {(tasksByDay.get(activeDay) ?? []).map(renderTaskChip)}
               </div>
+            )}
 
-              {days.map((wd) => {
-                const date = addDays(weekStart, wd - 1)
-                const dateStr = format(date, 'yyyy-MM-dd')
-                const daySlots = slots.filter((s) => s.weekday === wd)
-                return (
-                  <div
-                    key={wd}
-                    className={cn(
-                      'relative flex-1 rounded-xl border-l border-stone-200/70',
-                      isToday(date) && 'bg-brand-50/50',
-                    )}
-                    style={{ height: gridHeight }}
-                  >
-                    {hours.map((h, i) => (
-                      <div
-                        key={h}
-                        className="absolute inset-x-0 border-t border-stone-200/50"
-                        style={{ top: i * PX_PER_HOUR }}
-                      />
-                    ))}
-
-                    {daySlots.map((s) => {
-                      const top = ((s.start - startHour * 60) / 60) * PX_PER_HOUR
-                      const height = ((s.end - s.start) / 60) * PX_PER_HOUR
-                      const markers = attendance[attendanceKey(s.id, dateStr)] ?? []
-                      // Flächen-Tönung nach Anwesenheit, sonst Kursfarbe
-                      const tint = markers.includes('besucht')
-                        ? ATT_META.besucht.color
-                        : markers.includes('nicht_besucht')
-                          ? ATT_META.nicht_besucht.color
-                          : s.color
-                      const notAttended = markers.includes('nicht_besucht')
-                      return (
-                        <button
-                          key={s.id}
-                          onClick={(e) => setMenu({ slotId: s.id, date: dateStr, x: e.clientX, y: e.clientY })}
-                          className={cn(
-                            'absolute inset-x-1 overflow-hidden rounded-lg px-2 py-1 text-left text-[11px] leading-tight shadow-sm transition hover:shadow-md',
-                            notAttended && 'opacity-70',
-                          )}
-                          style={{
-                            top,
-                            height: Math.max(height - 2, 18),
-                            backgroundColor: tint + '22',
-                            borderLeft: `3px solid ${tint}`,
-                          }}
-                        >
-                          {markers.length > 0 && (
-                            <span className="absolute right-1 top-1 flex gap-0.5">
-                              {ATT_ORDER.filter((m) => markers.includes(m)).map((m) => {
-                                const mm = ATT_META[m]
-                                return (
-                                  <span
-                                    key={m}
-                                    title={mm.label}
-                                    className="flex h-4 w-4 items-center justify-center rounded-full text-white"
-                                    style={{ backgroundColor: mm.color }}
-                                  >
-                                    <mm.Icon size={10} strokeWidth={3} />
-                                  </span>
-                                )
-                              })}
-                            </span>
-                          )}
-                          <div
-                            className={cn('font-semibold', notAttended && 'line-through')}
-                            style={{ color: s.color }}
-                          >
-                            {s.short}
-                          </div>
-                          <div className="text-stone-500">
-                            {slotKindShort(s.kind)}
-                            {s.room ? ` · ${s.room}` : ''}
-                          </div>
-                        </button>
-                      )
-                    })}
-
-                    {/* "Jetzt"-Linie */}
-                    {isToday(date) && nowVisible && (
-                      <div
-                        className="pointer-events-none absolute inset-x-0 z-20"
-                        style={{ top: nowTop }}
-                      >
-                        <div className="relative h-px bg-rose-400/80">
-                          <span className="absolute -left-[3px] top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-rose-400" />
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+            <div className="flex-1 overflow-auto px-4 pb-6">
+              <div className="flex">
+                {timeAxis}
+                {renderDayColumn(activeDay)}
+              </div>
             </div>
           </div>
-        </div>
+
+          {/* DESKTOP: ganze Woche */}
+          <div className="hidden flex-1 overflow-auto px-5 pb-6 sm:block">
+            <div className="mx-auto min-w-[640px] max-w-5xl">
+              {/* Kopfzeile: Tage + fällige Aufgaben */}
+              <div className="flex pb-2">
+                <div className="w-12 shrink-0" />
+                {days.map((wd) => {
+                  const date = addDays(weekStart, wd - 1)
+                  const dayTasks = tasksByDay.get(wd) ?? []
+                  return (
+                    <div key={wd} className="flex-1 px-1">
+                      <div
+                        className={cn(
+                          'mb-1 flex items-baseline gap-1.5 rounded-xl px-2 py-1',
+                          isToday(date) ? 'bg-brand-300/60' : '',
+                        )}
+                      >
+                        <span className="text-sm font-semibold text-stone-700">
+                          {WEEKDAY_LABEL[wd - 1]}
+                        </span>
+                        <span className="text-[11px] text-stone-400">{format(date, 'd.M.')}</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1">{dayTasks.map(renderTaskChip)}</div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Raster */}
+              <div className="flex">
+                {timeAxis}
+                {days.map(renderDayColumn)}
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Status-Menü */}
