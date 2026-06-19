@@ -14,10 +14,20 @@ interface SelectProps {
   className?: string
   placeholder?: string
   ariaLabel?: string
+  /** 'field' = umrandetes Feld (Formulare), 'pill' = runde Pill (Toolbars). */
+  variant?: 'field' | 'pill'
 }
 
 /** Gestyltes Dropdown im App-Stil (ersetzt native <select>). */
-export function Select({ value, options, onChange, className, placeholder, ariaLabel }: SelectProps) {
+export function Select({
+  value,
+  options,
+  onChange,
+  className,
+  placeholder,
+  ariaLabel,
+  variant = 'field',
+}: SelectProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const cur = options.find((o) => o.value === value)
@@ -43,8 +53,16 @@ export function Select({ value, options, onChange, className, placeholder, ariaL
         aria-label={ariaLabel}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          'flex w-full items-center justify-between gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 text-left text-sm transition',
-          open ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-stone-200 hover:border-stone-300',
+          'flex w-full items-center justify-between gap-1.5 text-left text-sm transition',
+          variant === 'pill'
+            ? cn(
+                'rounded-full bg-white/70 px-3 py-1.5 shadow-sm ring-1 backdrop-blur',
+                open ? 'ring-2 ring-brand-400' : 'ring-stone-200/70 hover:bg-white',
+              )
+            : cn(
+                'rounded-lg border bg-white px-2.5 py-1.5',
+                open ? 'border-brand-400 ring-2 ring-brand-400/30' : 'border-stone-200 hover:border-stone-300',
+              ),
         )}
       >
         <span className={cn('truncate', cur ? 'text-stone-800' : 'text-stone-400')}>
