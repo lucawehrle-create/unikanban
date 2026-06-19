@@ -93,7 +93,7 @@ export default function App() {
       <main className="min-h-0 flex-1 pt-1">
         {view === 'board' && <Board tasks={visible} courses={courses} />}
         {view === 'week' && <WeekView tasks={visible} courses={courses} />}
-        {view === 'schedule' && <Schedule tasks={visible} courses={courses} />}
+        {view === 'schedule' && <Schedule tasks={visible} courses={courses} semesterId={semester.id} />}
         {view === 'study' && program && <StudyView activeProgram={program} />}
       </main>
 

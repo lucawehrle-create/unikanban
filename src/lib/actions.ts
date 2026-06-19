@@ -1,5 +1,6 @@
 import { db, uid } from '@/db/db'
 import type {
+  AttendanceStatus,
   Course,
   Phase,
   Priority,
@@ -10,6 +11,23 @@ import type {
   TaskStatus,
   TaskTypeId,
 } from '@/db/types'
+
+/** Schlüssel einer Termin-Sitzung. */
+export function attendanceKey(slotId: string, date: string): string {
+  return `${slotId}|${date}`
+}
+
+/** Setzt/entfernt den Status einer Termin-Sitzung (slot an einem Datum). */
+export async function setAttendance(
+  semesterId: string,
+  slotId: string,
+  date: string,
+  status?: AttendanceStatus,
+): Promise<void> {
+  const id = attendanceKey(slotId, date)
+  if (!status) await db.attendance.delete(id)
+  else await db.attendance.put({ id, semesterId, slotId, date, status })
+}
 import { makePhases } from './taskTypes'
 import { generateRecurringTasks } from './recurring'
 

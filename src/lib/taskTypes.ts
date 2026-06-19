@@ -15,8 +15,15 @@ export const TASK_TYPES: Record<TaskTypeId, TaskTypeDef> = {
     id: 'uebung',
     label: 'Übungsblatt',
     emoji: '📄',
-    phases: ['Am Lösen', 'Abgegeben', 'Bewertet'],
-    keywords: ['uebung', 'übung', 'blatt', 'ub', 'sheet'],
+    phases: ['Bearbeitet', 'Abgegeben', 'Korrigiert', 'Verstanden'],
+    keywords: ['uebung', 'übung', 'blatt', 'ub', 'sheet', 'uebungsblatt', 'übungsblatt'],
+  },
+  tutoriumsblatt: {
+    id: 'tutoriumsblatt',
+    label: 'Tutoriumsblatt',
+    emoji: '📑',
+    phases: ['Bearbeitet', 'Abgegeben', 'Korrigiert', 'Verstanden'],
+    keywords: ['tutoriumsblatt', 'tutblatt', 'tut', 'tutorium'],
   },
   hausarbeit: {
     id: 'hausarbeit',
@@ -38,13 +45,6 @@ export const TASK_TYPES: Record<TaskTypeId, TaskTypeDef> = {
     emoji: '📖',
     phases: ['Gelesen'],
     keywords: ['lektuere', 'lektüre', 'reading', 'lesen', 'text'],
-  },
-  tutorium: {
-    id: 'tutorium',
-    label: 'Tutorium',
-    emoji: '🧑‍🏫',
-    phases: ['Vorbereitet', 'Besucht'],
-    keywords: ['tutorium', 'tut', 'tutorial', 'übungsgruppe', 'uebungsgruppe'],
   },
   klausur: {
     id: 'klausur',

@@ -1,6 +1,17 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '@/db/db'
-import type { Course, Program, Semester, Task } from '@/db/types'
+import type { AttendanceStatus, Course, Program, Semester, Task } from '@/db/types'
+
+/** Anwesenheits-Status je Termin-Sitzung als Map "slotId|date" → Status. */
+export function useAttendance(semesterId?: string): Record<string, AttendanceStatus> {
+  return (
+    useLiveQuery(async () => {
+      if (!semesterId) return {}
+      const rows = await db.attendance.where('semesterId').equals(semesterId).toArray()
+      return Object.fromEntries(rows.map((r) => [r.id, r.status]))
+    }, [semesterId]) ?? {}
+  )
+}
 
 export function usePrograms(): Program[] {
   return useLiveQuery(() => db.programs.orderBy('order').toArray(), []) ?? []

@@ -54,7 +54,7 @@ async function doSeed(): Promise<void> {
       slots: [
         { id: uid(), kind: 'vorlesung', weekday: 1, start: '10:00', end: '12:00', room: 'HS 1' },
         { id: uid(), kind: 'vorlesung', weekday: 3, start: '10:00', end: '12:00', room: 'HS 1' },
-        { id: uid(), kind: 'tutorium', weekday: 4, start: '14:00', end: '16:00', room: 'SR 7' },
+        { id: uid(), kind: 'uebung', weekday: 4, start: '14:00', end: '16:00', room: 'SR 7' },
       ],
       recurring: {
         enabled: true,
@@ -80,8 +80,8 @@ async function doSeed(): Promise<void> {
       ],
       recurring: {
         enabled: true,
-        type: 'uebung',
-        labelPrefix: 'Übung',
+        type: 'tutoriumsblatt',
+        labelPrefix: 'Tutoriumsblatt',
         weekday: 3, // Mittwoch
         time: '23:59',
         count: 12,

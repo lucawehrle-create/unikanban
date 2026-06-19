@@ -25,10 +25,10 @@ export interface Program {
 
 export type TaskTypeId =
   | 'uebung'
+  | 'tutoriumsblatt'
   | 'hausarbeit'
   | 'referat'
   | 'lektuere'
-  | 'tutorium'
   | 'klausur'
   | 'sonstiges'
 
@@ -62,7 +62,27 @@ export interface Semester {
 }
 
 /** Art eines Stundenplan-Termins. */
-export type SlotKind = 'vorlesung' | 'uebung' | 'tutorium' | 'repetitorium' | 'klausur'
+export type SlotKind =
+  | 'vorlesung'
+  | 'uebung'
+  | 'tutorium'
+  | 'seminar'
+  | 'praktikum'
+  | 'repetitorium'
+  | 'kolloquium'
+  | 'klausur'
+
+/** Anwesenheits-/Vorbereitungsstatus einer einzelnen Termin-Sitzung. */
+export type AttendanceStatus = 'vorbereitet' | 'besucht' | 'nicht_besucht'
+
+/** Status einer konkreten Termin-Sitzung (slot an einem Datum). */
+export interface Attendance {
+  id: string // `${slotId}|${yyyy-mm-dd}`
+  semesterId: string
+  slotId: string
+  date: string // yyyy-mm-dd
+  status: AttendanceStatus
+}
 
 export interface CourseSlot {
   id: string

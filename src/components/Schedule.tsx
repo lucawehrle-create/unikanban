@@ -1,20 +1,40 @@
-import { useMemo } from 'react'
-import { Clock } from 'lucide-react'
-import { addDays, format, isSameDay, isToday, parseISO, startOfWeek } from 'date-fns'
-import type { Course, SlotKind, Task } from '@/db/types'
+import { useMemo, useState } from 'react'
+import {
+  addDays,
+  addWeeks,
+  format,
+  getISOWeek,
+  isSameDay,
+  isToday,
+  parseISO,
+  startOfWeek,
+} from 'date-fns'
+import { de } from 'date-fns/locale'
+import { Check, ChevronLeft, ChevronRight, Clock, Pencil, X } from 'lucide-react'
+import type { AttendanceStatus, Course, SlotKind, Task } from '@/db/types'
 import { courseMap } from '@/lib/filter'
 import { slotKindShort } from '@/lib/slotKinds'
 import { TASK_TYPES } from '@/lib/taskTypes'
+import { attendanceKey, setAttendance } from '@/lib/actions'
+import { useAttendance } from '@/hooks/data'
 import { useUI } from '@/store/ui'
 import { cn } from '@/lib/cn'
 
 interface ScheduleProps {
   courses: Course[]
   tasks: Task[]
+  semesterId: string
 }
 
 const WEEKDAY_LABEL = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 const PX_PER_HOUR = 56
+
+const ATT_META: Record<AttendanceStatus, { label: string; color: string; Icon: typeof Check }> = {
+  vorbereitet: { label: 'Vorbereitet', color: '#f59e0b', Icon: Pencil },
+  besucht: { label: 'Besucht', color: '#10b981', Icon: Check },
+  nicht_besucht: { label: 'Nicht besucht', color: '#ef4444', Icon: X },
+}
+const ATT_ORDER: AttendanceStatus[] = ['vorbereitet', 'besucht', 'nicht_besucht']
 
 function toMin(time: string): number {
   const [h, m] = time.split(':').map(Number)
@@ -22,6 +42,7 @@ function toMin(time: string): number {
 }
 
 interface SlotView {
+  id: string
   courseId: string
   short: string
   color: string
@@ -32,14 +53,27 @@ interface SlotView {
   room?: string
 }
 
-export function Schedule({ courses, tasks }: ScheduleProps) {
+export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
   const editTask = useUI((s) => s.editTask)
   const byId = useMemo(() => courseMap(courses), [courses])
+  const attendance = useAttendance(semesterId)
+
+  const [weekOffset, setWeekOffset] = useState(0)
+  const weekStart = useMemo(
+    () => addWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), weekOffset),
+    [weekOffset],
+  )
+
+  // Menü zum Setzen des Anwesenheits-Status
+  const [menu, setMenu] = useState<{ slotId: string; date: string; x: number; y: number } | null>(
+    null,
+  )
 
   const slots = useMemo<SlotView[]>(
     () =>
       courses.flatMap((c) =>
         c.slots.map((s) => ({
+          id: s.id,
           courseId: c.id,
           short: c.short,
           color: c.color,
@@ -53,9 +87,6 @@ export function Schedule({ courses, tasks }: ScheduleProps) {
     [courses],
   )
 
-  const weekStart = useMemo(() => startOfWeek(new Date(), { weekStartsOn: 1 }), [])
-
-  // Aufgaben dieser Woche nach Wochentag
   const tasksByDay = useMemo(() => {
     const map = new Map<number, Task[]>()
     for (const t of tasks) {
@@ -71,7 +102,6 @@ export function Schedule({ courses, tasks }: ScheduleProps) {
     return map
   }, [tasks, weekStart])
 
-  // angezeigte Tage + Zeitfenster dynamisch aus den Daten
   const maxWeekday = Math.max(5, ...slots.map((s) => s.weekday), ...[...tasksByDay.keys()])
   const days = Array.from({ length: maxWeekday }, (_, i) => i + 1)
 
@@ -84,124 +114,232 @@ export function Schedule({ courses, tasks }: ScheduleProps) {
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i)
   const gridHeight = (endHour - startHour) * PX_PER_HOUR
 
-  if (slots.length === 0) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-sm text-stone-400">
-        <Clock />
-        <p>Noch keine Termine. Füge im Kurs-Manager Vorlesungen & Tutorien hinzu.</p>
-      </div>
-    )
+  function choose(status?: AttendanceStatus) {
+    if (menu) void setAttendance(semesterId, menu.slotId, menu.date, status)
+    setMenu(null)
   }
 
+  const weekRange = `${format(weekStart, 'd.', { locale: de })}–${format(addDays(weekStart, 6), 'd. MMM', { locale: de })}`
+
   return (
-    <div className="h-full overflow-auto px-5 pb-6">
-      <div className="mx-auto min-w-[640px] max-w-5xl">
-        {/* Kopfzeile: Tage + fällige Aufgaben */}
-        <div className="sticky top-0 z-10 flex pb-2">
-          <div className="w-12 shrink-0" />
-          {days.map((wd) => {
-            const date = addDays(weekStart, wd - 1)
-            const dayTasks = tasksByDay.get(wd) ?? []
-            return (
-              <div key={wd} className="flex-1 px-1">
-                <div
-                  className={cn(
-                    'mb-1 flex items-baseline gap-1.5 rounded-xl px-2 py-1',
-                    isToday(date) ? 'bg-brand-300/60' : '',
-                  )}
-                >
-                  <span className="text-sm font-semibold text-stone-700">{WEEKDAY_LABEL[wd - 1]}</span>
-                  <span className="text-[11px] text-stone-400">{format(date, 'd.M.')}</span>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  {dayTasks.map((t) => {
-                    const c = t.courseId ? byId.get(t.courseId) : undefined
-                    return (
-                      <button
-                        key={t.id}
-                        onClick={() => editTask(t.id)}
-                        title={t.title}
-                        className="flex max-w-full items-center gap-1 rounded-full bg-white px-1.5 py-0.5 text-[10px] font-medium text-stone-600 shadow-sm ring-1 ring-stone-200/80 hover:ring-stone-300"
-                      >
-                        <span
-                          className="h-1.5 w-1.5 shrink-0 rounded-full"
-                          style={{ backgroundColor: c?.color ?? '#a8a29e' }}
-                        />
-                        <span className="truncate">
-                          {TASK_TYPES[t.type].emoji} {t.title}
-                        </span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            )
-          })}
+    <div className="flex h-full flex-col">
+      {/* Wochen-Navigation + Legende */}
+      <div className="flex flex-wrap items-center gap-3 px-5 py-2">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setWeekOffset((w) => w - 1)}
+            className="rounded-full p-1.5 text-stone-500 hover:bg-white"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <span className="min-w-[120px] text-center text-sm font-semibold text-stone-700">
+            KW {getISOWeek(weekStart)} · {weekRange}
+          </span>
+          <button
+            onClick={() => setWeekOffset((w) => w + 1)}
+            className="rounded-full p-1.5 text-stone-500 hover:bg-white"
+          >
+            <ChevronRight size={16} />
+          </button>
+          {weekOffset !== 0 && (
+            <button
+              onClick={() => setWeekOffset(0)}
+              className="ml-1 rounded-full bg-white/70 px-2.5 py-1 text-xs font-medium text-stone-600 ring-1 ring-stone-200/70 hover:bg-white"
+            >
+              Heute
+            </button>
+          )}
         </div>
 
-        {/* Raster */}
-        <div className="flex">
-          {/* Zeitachse */}
-          <div className="w-12 shrink-0" style={{ height: gridHeight }}>
-            {hours.map((h) => (
-              <div key={h} className="relative" style={{ height: PX_PER_HOUR }}>
-                <span className="absolute -top-2 right-1 text-[10px] text-stone-400">{h}:00</span>
-              </div>
-            ))}
-          </div>
-
-          {/* Tagespalten */}
-          {days.map((wd) => {
-            const date = addDays(weekStart, wd - 1)
-            const daySlots = slots.filter((s) => s.weekday === wd)
+        <div className="ml-auto flex items-center gap-3 text-[11px] text-stone-500">
+          {ATT_ORDER.map((s) => {
+            const m = ATT_META[s]
             return (
-              <div
-                key={wd}
-                className={cn(
-                  'relative flex-1 rounded-xl border-l border-stone-200/70',
-                  isToday(date) && 'bg-brand-50/50',
-                )}
-                style={{ height: gridHeight }}
-              >
-                {/* Stundenlinien */}
-                {hours.map((h, i) => (
-                  <div
-                    key={h}
-                    className="absolute inset-x-0 border-t border-stone-200/50"
-                    style={{ top: i * PX_PER_HOUR }}
-                  />
-                ))}
-
-                {/* Slots */}
-                {daySlots.map((s, i) => {
-                  const top = ((s.start - startHour * 60) / 60) * PX_PER_HOUR
-                  const height = ((s.end - s.start) / 60) * PX_PER_HOUR
-                  return (
-                    <div
-                      key={i}
-                      className="absolute inset-x-1 overflow-hidden rounded-lg px-2 py-1 text-[11px] leading-tight shadow-sm"
-                      style={{
-                        top,
-                        height: Math.max(height - 2, 18),
-                        backgroundColor: s.color + '22',
-                        borderLeft: `3px solid ${s.color}`,
-                      }}
-                    >
-                      <div className="font-semibold" style={{ color: s.color }}>
-                        {s.short}
-                      </div>
-                      <div className="text-stone-500">
-                        {slotKindShort(s.kind)}
-                        {s.room ? ` · ${s.room}` : ''}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+              <span key={s} className="flex items-center gap-1">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: m.color }} />
+                {m.label}
+              </span>
             )
           })}
         </div>
       </div>
+
+      {slots.length === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 text-center text-sm text-stone-400">
+          <Clock />
+          <p>Noch keine Termine. Füge im Kurs-Manager Vorlesungen, Übungen & Tutorien hinzu.</p>
+        </div>
+      ) : (
+        <div className="flex-1 overflow-auto px-5 pb-6">
+          <div className="mx-auto min-w-[640px] max-w-5xl">
+            {/* Kopfzeile: Tage + fällige Aufgaben */}
+            <div className="flex pb-2">
+              <div className="w-12 shrink-0" />
+              {days.map((wd) => {
+                const date = addDays(weekStart, wd - 1)
+                const dayTasks = tasksByDay.get(wd) ?? []
+                return (
+                  <div key={wd} className="flex-1 px-1">
+                    <div
+                      className={cn(
+                        'mb-1 flex items-baseline gap-1.5 rounded-xl px-2 py-1',
+                        isToday(date) ? 'bg-brand-300/60' : '',
+                      )}
+                    >
+                      <span className="text-sm font-semibold text-stone-700">
+                        {WEEKDAY_LABEL[wd - 1]}
+                      </span>
+                      <span className="text-[11px] text-stone-400">{format(date, 'd.M.')}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {dayTasks.map((t) => {
+                        const c = t.courseId ? byId.get(t.courseId) : undefined
+                        return (
+                          <button
+                            key={t.id}
+                            onClick={() => editTask(t.id)}
+                            title={t.title}
+                            className="flex max-w-full items-center gap-1 rounded-full bg-white px-1.5 py-0.5 text-[10px] font-medium text-stone-600 shadow-sm ring-1 ring-stone-200/80 hover:ring-stone-300"
+                          >
+                            <span
+                              className="h-1.5 w-1.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: c?.color ?? '#a8a29e' }}
+                            />
+                            <span className="truncate">
+                              {TASK_TYPES[t.type].emoji} {t.title}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Raster */}
+            <div className="flex">
+              <div className="w-12 shrink-0" style={{ height: gridHeight }}>
+                {hours.map((h) => (
+                  <div key={h} className="relative" style={{ height: PX_PER_HOUR }}>
+                    <span className="absolute -top-2 right-1 text-[10px] text-stone-400">
+                      {h}:00
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {days.map((wd) => {
+                const date = addDays(weekStart, wd - 1)
+                const dateStr = format(date, 'yyyy-MM-dd')
+                const daySlots = slots.filter((s) => s.weekday === wd)
+                return (
+                  <div
+                    key={wd}
+                    className={cn(
+                      'relative flex-1 rounded-xl border-l border-stone-200/70',
+                      isToday(date) && 'bg-brand-50/50',
+                    )}
+                    style={{ height: gridHeight }}
+                  >
+                    {hours.map((h, i) => (
+                      <div
+                        key={h}
+                        className="absolute inset-x-0 border-t border-stone-200/50"
+                        style={{ top: i * PX_PER_HOUR }}
+                      />
+                    ))}
+
+                    {daySlots.map((s) => {
+                      const top = ((s.start - startHour * 60) / 60) * PX_PER_HOUR
+                      const height = ((s.end - s.start) / 60) * PX_PER_HOUR
+                      const status = attendance[attendanceKey(s.id, dateStr)]
+                      const meta = status ? ATT_META[status] : undefined
+                      return (
+                        <button
+                          key={s.id}
+                          onClick={(e) => setMenu({ slotId: s.id, date: dateStr, x: e.clientX, y: e.clientY })}
+                          className={cn(
+                            'absolute inset-x-1 overflow-hidden rounded-lg px-2 py-1 text-left text-[11px] leading-tight shadow-sm transition hover:shadow-md',
+                            status === 'nicht_besucht' && 'opacity-60',
+                          )}
+                          style={{
+                            top,
+                            height: Math.max(height - 2, 18),
+                            backgroundColor: (meta?.color ?? s.color) + '22',
+                            borderLeft: `3px solid ${meta?.color ?? s.color}`,
+                          }}
+                        >
+                          {meta && (
+                            <span
+                              className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full text-white"
+                              style={{ backgroundColor: meta.color }}
+                            >
+                              <meta.Icon size={10} strokeWidth={3} />
+                            </span>
+                          )}
+                          <div
+                            className={cn(
+                              'font-semibold',
+                              status === 'nicht_besucht' && 'line-through',
+                            )}
+                            style={{ color: s.color }}
+                          >
+                            {s.short}
+                          </div>
+                          <div className="text-stone-500">
+                            {slotKindShort(s.kind)}
+                            {s.room ? ` · ${s.room}` : ''}
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status-Menü */}
+      {menu && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setMenu(null)} />
+          <div
+            className="fixed z-50 w-44 rounded-xl border border-stone-200 bg-white p-1 shadow-xl"
+            style={{
+              top: Math.min(menu.y, window.innerHeight - 180),
+              left: Math.min(menu.x, window.innerWidth - 188),
+            }}
+          >
+            {ATT_ORDER.map((s) => {
+              const m = ATT_META[s]
+              return (
+                <button
+                  key={s}
+                  onClick={() => choose(s)}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-stone-700 hover:bg-stone-100"
+                >
+                  <span
+                    className="flex h-4 w-4 items-center justify-center rounded-full text-white"
+                    style={{ backgroundColor: m.color }}
+                  >
+                    <m.Icon size={10} strokeWidth={3} />
+                  </span>
+                  {m.label}
+                </button>
+              )
+            })}
+            <button
+              onClick={() => choose(undefined)}
+              className="mt-0.5 w-full rounded-lg px-2.5 py-1.5 text-left text-sm text-stone-400 hover:bg-stone-100"
+            >
+              Zurücksetzen
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }

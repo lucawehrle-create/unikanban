@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { Course, Program, Semester, Task } from './types'
+import type { Attendance, Course, Program, Semester, Task } from './types'
 
 export function uid(): string {
   return crypto.randomUUID()
@@ -12,6 +12,7 @@ export class UniKanbanDB extends Dexie {
   semesters!: Table<Semester, string>
   courses!: Table<Course, string>
   tasks!: Table<Task, string>
+  attendance!: Table<Attendance, string>
 
   constructor() {
     super('unikanban')
@@ -48,6 +49,32 @@ export class UniKanbanDB extends Dexie {
           .modify((s: Semester) => {
             s.programId = program.id
             if (!Array.isArray(s.examPhases)) s.examPhases = []
+          })
+      })
+
+    // v3: Anwesenheit pro Termin-Sitzung + Trennung Tutorium(stermin) vs.
+    // Tutoriumsblatt(-aufgabe). Alt-Aufgaben vom Typ 'tutorium' → 'tutoriumsblatt'.
+    this.version(3)
+      .stores({
+        programs: 'id, active, order',
+        semesters: 'id, programId, active',
+        courses: 'id, semesterId',
+        tasks: 'id, semesterId, courseId, status, type, dueDate',
+        attendance: 'id, semesterId, slotId',
+      })
+      .upgrade(async (tx) => {
+        await tx
+          .table('tasks')
+          .toCollection()
+          .modify((t: Task) => {
+            if ((t.type as string) === 'tutorium') t.type = 'tutoriumsblatt'
+          })
+        await tx
+          .table('courses')
+          .toCollection()
+          .modify((c: Course) => {
+            if (c.recurring && (c.recurring.type as string) === 'tutorium')
+              c.recurring.type = 'tutoriumsblatt'
           })
       })
   }

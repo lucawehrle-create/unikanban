@@ -10,7 +10,10 @@ export const SLOT_KINDS: SlotKindDef[] = [
   { id: 'vorlesung', label: 'Vorlesung', short: 'VL' },
   { id: 'uebung', label: 'Übung', short: 'Üb' },
   { id: 'tutorium', label: 'Tutorium', short: 'Tut' },
+  { id: 'seminar', label: 'Seminar', short: 'Sem' },
+  { id: 'praktikum', label: 'Praktikum', short: 'Prak' },
   { id: 'repetitorium', label: 'Repetitorium', short: 'Rep' },
+  { id: 'kolloquium', label: 'Kolloquium', short: 'Koll' },
   { id: 'klausur', label: 'Klausur', short: 'Klausur' },
 ]
 
