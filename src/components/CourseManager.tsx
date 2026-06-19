@@ -30,16 +30,20 @@ function emptyCourse(semesterId: string): Course {
     color: PALETTE[Math.floor(Math.random() * PALETTE.length)],
     ects: undefined,
     slots: [],
-    recurring: {
-      enabled: false,
-      type: 'uebung',
-      labelPrefix: 'Übungsblatt',
-      weekday: 5,
-      time: '12:00',
-      count: 12,
-      startWeek: 1,
-      maxPoints: undefined,
-    },
+    recurring: [],
+  }
+}
+
+function newSeries(): RecurringConfig {
+  return {
+    id: uid(),
+    type: 'uebung',
+    labelPrefix: 'Übungsblatt',
+    weekday: 5,
+    time: '12:00',
+    count: 12,
+    startWeek: 1,
+    maxPoints: undefined,
   }
 }
 
@@ -50,8 +54,15 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
 
   const set = <K extends keyof Course>(k: K, v: Course[K]) =>
     setDraft((d) => (d ? { ...d, [k]: v } : d))
-  const setRec = <K extends keyof RecurringConfig>(k: K, v: RecurringConfig[K]) =>
-    setDraft((d) => (d && d.recurring ? { ...d, recurring: { ...d.recurring, [k]: v } } : d))
+
+  const addSeries = () =>
+    setDraft((d) => (d ? { ...d, recurring: [...(d.recurring ?? []), newSeries()] } : d))
+  const updateSeries = (sid: string, patch: Partial<RecurringConfig>) =>
+    setDraft((d) =>
+      d ? { ...d, recurring: (d.recurring ?? []).map((r) => (r.id === sid ? { ...r, ...patch } : r)) } : d,
+    )
+  const removeSeries = (sid: string) =>
+    setDraft((d) => (d ? { ...d, recurring: (d.recurring ?? []).filter((r) => r.id !== sid) } : d))
 
   const addSlot = () =>
     setDraft((d) =>
@@ -77,7 +88,7 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
     if (!draft.short.trim()) draft.short = draft.name.slice(0, 5).toUpperCase()
     await saveCourse(draft)
     let msg = 'Kurs gespeichert.'
-    if (draft.recurring?.enabled) {
+    if (draft.recurring?.length) {
       const n = await regenerateRecurring(draft, semester)
       if (n > 0) msg = `Kurs gespeichert · ${n} Aufgaben erzeugt.`
     }
@@ -108,8 +119,8 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
                 <div className="text-xs text-stone-400">
                   {c.short}
                   {c.ects ? ` · ${c.ects} ECTS` : ''}
-                  {c.recurring?.enabled
-                    ? ` · ${c.recurring.count}× ${c.recurring.labelPrefix}`
+                  {c.recurring?.length
+                    ? ` · ${c.recurring.map((r) => r.labelPrefix).join(', ')}`
                     : ''}
                 </div>
               </div>
@@ -185,74 +196,84 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
             </label>
           </div>
 
-          {/* Wochenrhythmus */}
+          {/* Wochen-Serien (mehrere möglich: z.B. Übungsblatt UND Tutoriumsblatt) */}
           <div className="rounded-xl bg-stone-50 p-3">
-            <label className="flex cursor-pointer items-center gap-2 text-sm font-medium text-stone-700">
-              <input
-                type="checkbox"
-                checked={draft.recurring?.enabled ?? false}
-                onChange={(e) => setRec('enabled', e.target.checked)}
-                className="h-4 w-4 rounded accent-brand-500"
-              />
+            <div className="flex items-center gap-2 text-sm font-medium text-stone-700">
               <Sparkles size={15} className="text-brand-500" />
-              Wöchentliche Aufgaben automatisch erzeugen
-            </label>
+              Automatische Wochen-Serien
+            </div>
 
-            {draft.recurring?.enabled && (
-              <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-                <label className="block">
-                  <span className="mb-1 block text-xs text-stone-500">Bezeichnung</span>
-                  <input
-                    value={draft.recurring.labelPrefix}
-                    onChange={(e) => setRec('labelPrefix', e.target.value)}
-                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs text-stone-500">Typ</span>
-                  <Select
-                    value={draft.recurring.type}
-                    options={TYPE_OPTS_REC(TASK_TYPE_LIST)}
-                    onChange={(v) => setRec('type', v as RecurringConfig['type'])}
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs text-stone-500">Abgabetag</span>
-                  <Select
-                    value={String(draft.recurring.weekday)}
-                    options={WEEKDAY_OPTS}
-                    onChange={(v) => setRec('weekday', Number(v))}
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs text-stone-500">Uhrzeit</span>
-                  <TimeField
-                    value={draft.recurring.time ?? '12:00'}
-                    onChange={(v) => setRec('time', v)}
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs text-stone-500">Anzahl</span>
-                  <input
-                    type="number"
-                    value={draft.recurring.count}
-                    onChange={(e) => setRec('count', Number(e.target.value))}
-                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5"
-                  />
-                </label>
-                <label className="block">
-                  <span className="mb-1 block text-xs text-stone-500">Punkte/Blatt</span>
-                  <input
-                    type="number"
-                    value={draft.recurring.maxPoints ?? ''}
-                    onChange={(e) =>
-                      setRec('maxPoints', e.target.value ? Number(e.target.value) : undefined)
-                    }
-                    className="w-full rounded-lg border border-stone-200 px-2 py-1.5"
-                  />
-                </label>
-              </div>
-            )}
+            <div className="mt-2 space-y-2">
+              {(draft.recurring ?? []).map((r) => (
+                <div key={r.id} className="rounded-lg bg-white p-2.5 ring-1 ring-stone-200">
+                  <div className="mb-2 flex items-center gap-2">
+                    <input
+                      value={r.labelPrefix}
+                      onChange={(e) => updateSeries(r.id, { labelPrefix: e.target.value })}
+                      placeholder="z.B. Übungsblatt"
+                      className="flex-1 rounded-lg border border-stone-200 px-2 py-1.5 text-sm font-medium"
+                    />
+                    <button
+                      onClick={() => removeSeries(r.id)}
+                      className="rounded-lg p-1.5 text-stone-400 hover:bg-red-50 hover:text-red-500"
+                      title="Serie entfernen"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <label className="block">
+                      <span className="mb-1 block text-xs text-stone-500">Typ</span>
+                      <Select
+                        value={r.type}
+                        options={TYPE_OPTS_REC(TASK_TYPE_LIST)}
+                        onChange={(v) => updateSeries(r.id, { type: v as RecurringConfig['type'] })}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs text-stone-500">Abgabetag</span>
+                      <Select
+                        value={String(r.weekday)}
+                        options={WEEKDAY_OPTS}
+                        onChange={(v) => updateSeries(r.id, { weekday: Number(v) })}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs text-stone-500">Uhrzeit</span>
+                      <TimeField value={r.time ?? '12:00'} onChange={(v) => updateSeries(r.id, { time: v })} />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs text-stone-500">Anzahl</span>
+                      <input
+                        type="number"
+                        value={r.count}
+                        onChange={(e) => updateSeries(r.id, { count: Number(e.target.value) })}
+                        className="w-full rounded-lg border border-stone-200 px-2 py-1.5"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs text-stone-500">Punkte/Blatt</span>
+                      <input
+                        type="number"
+                        value={r.maxPoints ?? ''}
+                        onChange={(e) =>
+                          updateSeries(r.id, {
+                            maxPoints: e.target.value ? Number(e.target.value) : undefined,
+                          })
+                        }
+                        className="w-full rounded-lg border border-stone-200 px-2 py-1.5"
+                      />
+                    </label>
+                  </div>
+                </div>
+              ))}
+              <button
+                onClick={addSeries}
+                className="flex items-center gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-stone-500 hover:text-brand-600"
+              >
+                <Plus size={13} /> Serie hinzufügen
+              </button>
+            </div>
           </div>
 
           {/* Termine (Stundenplan) */}

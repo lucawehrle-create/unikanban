@@ -56,16 +56,18 @@ async function doSeed(): Promise<void> {
         { id: uid(), kind: 'vorlesung', weekday: 3, start: '10:00', end: '12:00', room: 'HS 1' },
         { id: uid(), kind: 'uebung', weekday: 4, start: '14:00', end: '16:00', room: 'SR 7' },
       ],
-      recurring: {
-        enabled: true,
-        type: 'uebung',
-        labelPrefix: 'Übungsblatt',
-        weekday: 5, // Freitag
-        time: '12:00',
-        count: 12,
-        startWeek: 1,
-        maxPoints: 40,
-      },
+      recurring: [
+        {
+          id: uid(),
+          type: 'uebung',
+          labelPrefix: 'Übungsblatt',
+          weekday: 5, // Freitag
+          time: '12:00',
+          count: 12,
+          startWeek: 1,
+          maxPoints: 40,
+        },
+      ],
     },
     {
       id: uid(),
@@ -76,18 +78,32 @@ async function doSeed(): Promise<void> {
       ects: 6,
       slots: [
         { id: uid(), kind: 'vorlesung', weekday: 2, start: '08:00', end: '10:00', room: 'HS 3' },
+        { id: uid(), kind: 'uebung', weekday: 3, start: '14:00', end: '16:00', room: 'SR 4' },
         { id: uid(), kind: 'tutorium', weekday: 5, start: '10:00', end: '12:00', room: 'SR 2' },
       ],
-      recurring: {
-        enabled: true,
-        type: 'tutoriumsblatt',
-        labelPrefix: 'Tutoriumsblatt',
-        weekday: 3, // Mittwoch
-        time: '23:59',
-        count: 12,
-        startWeek: 1,
-        maxPoints: 20,
-      },
+      // Zwei Serien: Übungsblatt UND Tutoriumsblatt
+      recurring: [
+        {
+          id: uid(),
+          type: 'uebung',
+          labelPrefix: 'Übungsblatt',
+          weekday: 3, // Mittwoch
+          time: '14:00',
+          count: 12,
+          startWeek: 1,
+          maxPoints: 20,
+        },
+        {
+          id: uid(),
+          type: 'tutoriumsblatt',
+          labelPrefix: 'Tutoriumsblatt',
+          weekday: 5, // Freitag
+          time: '10:00',
+          count: 12,
+          startWeek: 1,
+          maxPoints: 10,
+        },
+      ],
     },
     {
       id: uid(),
@@ -99,15 +115,17 @@ async function doSeed(): Promise<void> {
       slots: [
         { id: uid(), kind: 'vorlesung', weekday: 4, start: '16:00', end: '18:00', room: 'SR 12' },
       ],
-      recurring: {
-        enabled: true,
-        type: 'lektuere',
-        labelPrefix: 'Lektüre Woche',
-        weekday: 4, // Donnerstag (zur Sitzung)
-        time: '16:00',
-        count: 12,
-        startWeek: 1,
-      },
+      recurring: [
+        {
+          id: uid(),
+          type: 'lektuere',
+          labelPrefix: 'Lektüre Woche',
+          weekday: 4, // Donnerstag (zur Sitzung)
+          time: '16:00',
+          count: 12,
+          startWeek: 1,
+        },
+      ],
     },
   ]
 
