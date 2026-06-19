@@ -76,8 +76,7 @@ export default function Landing({ onStart }: { onStart: () => void }) {
       <div className="relative z-10">
         <Nav onStart={onStart} />
         <Hero onStart={onStart} progress={scrollYProgress} />
-        <StickyShowcase container={scrollRef} />
-        <Features />
+        <StoryShowcase container={scrollRef} />
         <Steps />
         <FinalCTA onStart={onStart} />
         <Footer />
@@ -310,188 +309,148 @@ function BoardMock() {
   )
 }
 
-const SCENES = [
+const STORY = [
   {
-    tag: 'Superkraft 1',
-    title: 'Das ganze Semester\nauf einen Schlag.',
-    body: 'Blatt-Serien einmal definieren – SemBan erzeugt jede Woche automatisch.',
+    icon: Repeat2,
+    tag: 'Automatik',
+    title: 'Das ganze Semester,\nschon angelegt.',
+    body: 'Definiere deine Blatt-Serien einmal – SemBan erzeugt automatisch jede Woche und zeigt dir gestaffelt nur die nächsten Abgaben.',
     color: '#6366f1',
   },
   {
-    tag: 'Superkraft 2',
-    title: 'Wo stehst du\ngerade?',
-    body: 'Stundenplan mit Anwesenheit und einer „Jetzt"-Linie durch den Tag.',
+    icon: CalendarClock,
+    tag: 'Rhythmus',
+    title: 'Immer wissen,\nwo du stehst.',
+    body: 'Dein Stundenplan mit Anwesenheits-Markierungen und einer „Jetzt"-Linie, die quer durch den Tag mitläuft.',
     color: '#0ea5e9',
   },
   {
-    tag: 'Superkraft 3',
+    icon: GraduationCap,
+    tag: 'Fortschritt',
     title: 'Note für Note\nzum Abschluss.',
-    body: 'ECTS und Schnitt – kumuliert über dein ganzes Studium.',
+    body: 'Trag Noten ein – Schnitt und ECTS rechnen sich automatisch, kumuliert über dein ganzes Studium.',
     color: '#e9633c',
+  },
+  {
+    icon: Smartphone,
+    tag: 'Überall',
+    title: 'Deine Daten,\nauf jedem Gerät.',
+    body: 'Blitzschnell lokal und offline nutzbar – und mit einem Konto synchron auf Handy und Laptop.',
+    color: '#10b981',
   },
 ]
 
 /**
- * Gepinnte Scroll-Sektion: Während man durch sie scrollt, „scrubbt" der
- * Fortschritt die Animation – das Board dreht/skaliert und drei Szenen-Texte
- * blenden nacheinander durch (alethia-Stil).
+ * Gepinnte Scrollytelling-Sektion: pro Szene ein eigenes Visual im sauberen
+ * Split-Layout (Text | Visual). Beim Scrollen blenden die Szenen nacheinander
+ * durch – kein Überlappen, klare Story.
  */
-function StickyShowcase({ container }: { container: React.RefObject<HTMLDivElement | null> }) {
+function StoryShowcase({ container }: { container: React.RefObject<HTMLDivElement | null> }) {
   const ref = useRef<HTMLDivElement>(null)
   const { scrollYProgress } = useScroll({
     container,
     target: ref,
     offset: ['start start', 'end end'],
   })
-
-  const rotate = useTransform(scrollYProgress, [0, 1], [-8, 8])
-  const scale = useTransform(scrollYProgress, [0, 0.5, 1], [0.85, 1.05, 0.9])
-  const glow = useTransform(
-    scrollYProgress,
-    [0, 0.33, 0.66, 1],
-    ['#6366f1', '#0ea5e9', '#e9633c', '#6366f1'],
-  )
+  const n = STORY.length
 
   return (
-    <section ref={ref} className="relative" style={{ height: '300vh' }}>
-      <div className="sticky top-0 flex h-screen items-center justify-center overflow-hidden px-5">
-        {/* mitlaufender Glow hinter dem Board */}
-        <motion.div
-          style={{ backgroundColor: glow, scale }}
-          className="absolute h-[60vh] w-[60vh] rounded-full opacity-25 blur-[100px]"
-        />
-
-        {/* das Board scrubbt durch */}
-        <motion.div style={{ rotate, scale }} className="relative z-10 w-full max-w-md">
-          <BoardMock />
-        </motion.div>
-
-        {/* drei Szenen-Texte, je nach Fortschritt eingeblendet */}
-        {SCENES.map((s, i) => (
-          <Scene key={i} scene={s} index={i} progress={scrollYProgress} />
-        ))}
+    <section ref={ref} id="features" className="relative" style={{ height: `${n * 100}vh` }}>
+      <div className="sticky top-0 flex h-screen flex-col overflow-hidden">
+        <div className="relative flex-1">
+          {STORY.map((s, i) => (
+            <StoryScene key={i} scene={s} index={i} n={n} progress={scrollYProgress} />
+          ))}
+        </div>
+        <StoryDots n={n} progress={scrollYProgress} />
       </div>
     </section>
   )
 }
 
-function Scene({
+function StoryScene({
   scene,
   index,
+  n,
   progress,
 }: {
-  scene: (typeof SCENES)[number]
+  scene: (typeof STORY)[number]
   index: number
+  n: number
   progress: MotionValue<number>
 }) {
-  // Jede Szene hat ein Fenster im Scroll-Verlauf (0–.33, .33–.66, .66–1)
-  const start = index / SCENES.length
-  const end = (index + 1) / SCENES.length
-  const mid = (start + end) / 2
-  const opacity = useTransform(progress, [start, mid - 0.04, mid + 0.04, end], [0, 1, 1, 0])
-  const y = useTransform(progress, [start, end], [40, -40])
+  const span = 1 / n
+  const a = index * span
+  const d = a + span
+  // Eine saubere Bell-Kurve pro Szene; Offsets strikt in [0,1] und aufsteigend
+  // (Pflicht für die native ScrollTimeline, an die framer-motion bindet).
+  const opacity = useTransform(
+    progress,
+    [a, a + 0.25 * span, d - 0.25 * span, d],
+    [0, 1, 1, 0],
+  )
+  const y = useTransform(progress, [a, d], [28, -28])
+  const Icon = scene.icon
 
   return (
-    <motion.div
-      style={{ opacity, y }}
-      className="pointer-events-none absolute inset-x-0 top-[12%] mx-auto max-w-xl px-6 text-center"
-    >
-      <span
-        className="inline-block rounded-full px-3 py-1 text-xs font-semibold text-white"
-        style={{ backgroundColor: scene.color }}
+    <motion.div style={{ opacity }} className="absolute inset-0 flex items-center justify-center px-5">
+      <motion.div
+        style={{ y }}
+        className="grid w-full max-w-5xl items-center gap-8 lg:grid-cols-2 lg:gap-14"
       >
-        {scene.tag}
-      </span>
-      <h3
-        className="mt-4 whitespace-pre-line text-3xl font-extrabold leading-tight tracking-tight sm:text-5xl"
-        style={{ color: NAVY }}
-      >
-        {scene.title}
-      </h3>
-      <p className="mx-auto mt-3 max-w-sm text-base text-stone-600">{scene.body}</p>
+        {/* Text */}
+        <div className="text-center lg:text-left">
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-white"
+            style={{ backgroundColor: scene.color }}
+          >
+            <Icon size={13} /> {scene.tag}
+          </span>
+          <h3
+            className="mt-4 whitespace-pre-line text-3xl font-extrabold leading-[1.08] tracking-tight sm:text-5xl"
+            style={{ color: NAVY }}
+          >
+            {scene.title}
+          </h3>
+          <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-stone-600 lg:mx-0 lg:text-lg">
+            {scene.body}
+          </p>
+        </div>
+
+        {/* Visual */}
+        <div className="mx-auto w-full max-w-sm">
+          <FeatureVisual index={index} color={scene.color} />
+        </div>
+      </motion.div>
     </motion.div>
   )
 }
 
-const FEATURES = [
-  {
-    icon: Repeat2,
-    title: 'Nie wieder ein Blatt vergessen',
-    body: 'Definiere deine Übungs- und Tutoriumsblätter einmal – SemBan erzeugt automatisch alle Termine fürs ganze Semester und zeigt dir gestaffelt immer nur die nächsten.',
-    color: '#6366f1',
-  },
-  {
-    icon: CalendarClock,
-    title: 'Dein Stundenplan, lebendig',
-    body: 'Vorlesungen, Übungen, Tutorien – mit Anwesenheits-Markierungen und einer „Jetzt"-Linie, die zeigt, wo du im Tag gerade stehst.',
-    color: '#0ea5e9',
-  },
-  {
-    icon: GraduationCap,
-    title: 'Noten & ECTS immer im Blick',
-    body: 'Trag Noten ein, SemBan rechnet Schnitt und Fortschritt – kumuliert über alle Semester, Bachelor und Master sauber getrennt.',
-    color: '#e9633c',
-  },
-  {
-    icon: Smartphone,
-    title: 'Lokal-first, überall dabei',
-    body: 'Alles liegt blitzschnell auf deinem Gerät und funktioniert offline – mit einem Konto synchron auf Handy und Laptop.',
-    color: '#10b981',
-  },
-]
-
-function Features() {
+function StoryDots({ n, progress }: { n: number; progress: MotionValue<number> }) {
   return (
-    <section id="features" className="px-5 py-20 sm:py-28">
-      <div className="mx-auto max-w-6xl">
-        <Reveal className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl" style={{ color: NAVY }}>
-            Gebaut für den Uni-Alltag
-          </h2>
-          <p className="mt-4 text-lg text-stone-600">
-            Kein generisches To-do-Tool. SemBan denkt in Semestern, Kursen und Abgaben – so wie du.
-          </p>
-        </Reveal>
-
-        <div className="mt-16 space-y-20">
-          {FEATURES.map((f, i) => (
-            <FeatureRow key={f.title} feature={f} flip={i % 2 === 1} index={i} />
-          ))}
-        </div>
-      </div>
-    </section>
+    <div className="flex justify-center gap-2 pb-8 pt-2">
+      {Array.from({ length: n }).map((_, i) => (
+        <StoryDot key={i} index={i} n={n} progress={progress} />
+      ))}
+    </div>
   )
 }
 
-function FeatureRow({
-  feature,
-  flip,
-  index,
-}: {
-  feature: (typeof FEATURES)[number]
-  flip: boolean
-  index: number
-}) {
-  const Icon = feature.icon
+function StoryDot({ index, n, progress }: { index: number; n: number; progress: MotionValue<number> }) {
+  const span = 1 / n
+  const a = index * span
+  const d = a + span
+  // Eingabebereich strikt innerhalb [0,1] halten – framer-motion bindet
+  // scroll-abhängige Werte an eine native ScrollTimeline, deren Offsets
+  // zwingend in [0,1] und aufsteigend liegen müssen.
+  const range = [a, a + 0.001, d - 0.001, d]
+  const scaleX = useTransform(progress, range, [1, 3, 3, 1])
+  const opacity = useTransform(progress, range, [0.25, 1, 1, 0.25])
   return (
-    <div className="grid items-center gap-8 lg:grid-cols-2">
-      <Reveal y={40} className={flip ? 'lg:order-2' : ''}>
-        <div
-          className="flex h-12 w-12 items-center justify-center rounded-2xl text-white shadow-sm"
-          style={{ backgroundColor: feature.color }}
-        >
-          <Icon size={24} />
-        </div>
-        <h3 className="mt-5 text-2xl font-bold tracking-tight" style={{ color: NAVY }}>
-          {feature.title}
-        </h3>
-        <p className="mt-3 max-w-md text-base leading-relaxed text-stone-600">{feature.body}</p>
-      </Reveal>
-
-      <Reveal y={50} delay={0.1} className={flip ? 'lg:order-1' : ''}>
-        <FeatureVisual index={index} color={feature.color} />
-      </Reveal>
-    </div>
+    <motion.span
+      style={{ scaleX, opacity, backgroundColor: NAVY }}
+      className="h-1.5 w-2.5 origin-center rounded-full"
+    />
   )
 }
 
