@@ -15,6 +15,8 @@ interface SyncState {
   status: SyncStatus
   lastSyncAt: string | null
   error: string | null
+  /** Fehler aus einem OAuth-Redirect (Google/Apple), für den Login-Screen. */
+  authError: string | null
   /** Erstes Verknüpfen, wenn lokal UND Cloud Daten haben → Nutzer entscheidet. */
   conflict: { remoteUpdatedAt: string } | null
 }
@@ -25,6 +27,7 @@ export const useSync = create<SyncState>(() => ({
   status: 'idle',
   lastSyncAt: null,
   error: null,
+  authError: null,
   conflict: null,
 }))
 
@@ -49,6 +52,7 @@ async function pullRemote(uid: string): Promise<{ data: Backup; updatedAt: strin
     .from(TABLE)
     .select('data, updated_at')
     .eq('user_id', uid)
+    .abortSignal(AbortSignal.timeout(12_000))
     .maybeSingle()
   if (error) throw error
   return data ? { data: data.data as Backup, updatedAt: data.updated_at as string } : null
@@ -64,6 +68,7 @@ async function push() {
     const { error } = await supabase
       .from(TABLE)
       .upsert({ user_id: user.id, data, updated_at: updatedAt })
+      .abortSignal(AbortSignal.timeout(12_000))
     if (error) throw error
     setLastSync(user.id, updatedAt)
     set({ status: 'synced' })
@@ -160,6 +165,19 @@ let inited = false
 export function initSync() {
   if (inited || !supabase) return
   inited = true
+
+  // Fehler aus einem OAuth-Redirect aufgreifen (z.B. abgebrochen/abgelehnt)
+  // und die URL aufräumen, damit nichts „hängen" bleibt.
+  try {
+    const params = new URLSearchParams(location.hash.replace(/^#/, '') || location.search)
+    const desc = params.get('error_description') || params.get('error')
+    if (desc) {
+      useSync.setState({ authError: decodeURIComponent(desc.replace(/\+/g, ' ')) })
+      history.replaceState(null, '', location.pathname)
+    }
+  } catch {
+    /* ignore */
+  }
 
   // Jede lokale Änderung (egal woher) stößt einen entprellten Push an.
   const onWrite = () => schedulePush()

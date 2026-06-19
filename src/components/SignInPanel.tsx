@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check } from 'lucide-react'
+import { Check, Loader2 } from 'lucide-react'
 import {
   resetPassword,
   signInWithApple,
@@ -7,6 +7,7 @@ import {
   signInWithGoogle,
   signUpWithEmail,
 } from '@/lib/auth'
+import { useSync } from '@/lib/sync'
 
 type Mode = 'signin' | 'signup'
 
@@ -16,14 +17,35 @@ export function SignInPanel() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
+  const [redirecting, setRedirecting] = useState<'google' | 'apple' | null>(null)
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
+  // Fehler aus einem vorherigen OAuth-Redirect (Google/Apple).
+  const authError = useSync((s) => s.authError)
+
+  function clearMessages() {
+    setErr('')
+    setMsg('')
+    if (useSync.getState().authError) useSync.setState({ authError: null })
+  }
+
+  async function oauth(provider: 'google' | 'apple') {
+    clearMessages()
+    setRedirecting(provider)
+    try {
+      if (provider === 'google') await signInWithGoogle()
+      else await signInWithApple()
+      // Bei Erfolg verlässt der Browser die Seite – sonst kam ein Fehler.
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Anmeldung fehlgeschlagen.')
+      setRedirecting(null)
+    }
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setBusy(true)
-    setErr('')
-    setMsg('')
+    clearMessages()
     try {
       if (mode === 'signup') {
         const { needsConfirm } = await signUpWithEmail(email, password)
@@ -32,7 +54,10 @@ export function SignInPanel() {
         await signInWithEmail(email, password)
       }
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Anmeldung fehlgeschlagen.')
+      const m = e instanceof Error ? e.message : 'Anmeldung fehlgeschlagen.'
+      setErr(m)
+      // Bei „Konto existiert schon" direkt zum Anmelden wechseln.
+      if (mode === 'signup' && m.includes('schon ein Konto')) setMode('signin')
     } finally {
       setBusy(false)
     }
@@ -43,7 +68,7 @@ export function SignInPanel() {
       setErr('Bitte zuerst deine E-Mail eintragen.')
       return
     }
-    setErr('')
+    clearMessages()
     try {
       await resetPassword(email)
       setMsg('Link zum Zurücksetzen verschickt.')
@@ -52,20 +77,26 @@ export function SignInPanel() {
     }
   }
 
+  const shownErr = err || authError
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 gap-2">
         <button
-          onClick={() => void signInWithGoogle()}
-          className="flex items-center justify-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-medium text-stone-700 ring-1 ring-stone-200 hover:bg-stone-50"
+          onClick={() => void oauth('google')}
+          disabled={!!redirecting}
+          className="flex items-center justify-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-medium text-stone-700 ring-1 ring-stone-200 hover:bg-stone-50 disabled:opacity-60"
         >
-          <GoogleIcon /> Weiter mit Google
+          {redirecting === 'google' ? <Loader2 size={16} className="animate-spin" /> : <GoogleIcon />}
+          Weiter mit Google
         </button>
         <button
-          onClick={() => void signInWithApple()}
-          className="flex items-center justify-center gap-2 rounded-full bg-black px-4 py-2.5 text-sm font-medium text-white hover:bg-stone-800"
+          onClick={() => void oauth('apple')}
+          disabled={!!redirecting}
+          className="flex items-center justify-center gap-2 rounded-full bg-black px-4 py-2.5 text-sm font-medium text-white hover:bg-stone-800 disabled:opacity-60"
         >
-          <AppleIcon /> Weiter mit Apple
+          {redirecting === 'apple' ? <Loader2 size={16} className="animate-spin" /> : <AppleIcon />}
+          Weiter mit Apple
         </button>
       </div>
 
@@ -91,7 +122,9 @@ export function SignInPanel() {
           placeholder="Passwort"
           className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-400"
         />
-        {err && <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{err}</div>}
+        {shownErr && (
+          <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{shownErr}</div>
+        )}
         {msg && (
           <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
             <Check size={13} /> {msg}

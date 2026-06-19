@@ -19,6 +19,7 @@ import { CourseManager } from '@/components/CourseManager'
 import { CalendarModal } from '@/components/CalendarModal'
 import { AccountModal } from '@/components/AccountModal'
 import { AuthGate } from '@/components/AuthGate'
+import { SyncLoading } from '@/components/SyncLoading'
 import { Tour } from '@/components/Tour'
 import { initSync, useSync } from '@/lib/sync'
 import { isSyncConfigured } from '@/lib/supabase'
@@ -93,14 +94,12 @@ export default function App() {
   }
   // Konto-basiert: Ist Sync konfiguriert, gibt es ohne Login keinen Zugriff.
   if (isSyncConfigured && !user) return <AuthGate />
-  // Frisch eingeloggt und Cloud-Daten werden noch geladen → kurz warten,
-  // statt fälschlich das Onboarding zu zeigen.
-  if (isSyncConfigured && user && programCount === 0 && syncStatus === 'syncing') {
-    return (
-      <div className="flex h-full items-center justify-center text-sm text-stone-400">
-        Daten werden geladen…
-      </div>
-    )
+  // Eingeloggt, aber lokal noch keine Daten: erst warten, bis der Sync wirklich
+  // bestätigt hat, dass es nichts gibt ('synced'). Bei langsamer/fehlender
+  // Verbindung zeigt der Ladescreen Optionen statt fälschlich das Onboarding
+  // (sonst sähe es aus, als wären die Daten weg).
+  if (isSyncConfigured && user && programCount === 0 && syncStatus !== 'synced') {
+    return <SyncLoading />
   }
   if (programCount === 0) return <Onboarding />
   if (!program) {
