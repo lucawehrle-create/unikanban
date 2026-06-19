@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { Download, Upload, RotateCcw, Check, ShieldAlert, AlertTriangle } from 'lucide-react'
 import { downloadBackup, importBackup, resetAll } from '@/lib/backup'
+import { useUI } from '@/store/ui'
 import { Modal } from './Modal'
 
 const CONFIRM_WORD = 'LÖSCHEN'
@@ -101,6 +102,7 @@ export function DataSection() {
               <button
                 disabled={!canDelete}
                 onClick={() => {
+                  useUI.getState().setDemo(false)
                   void resetAll()
                   setConfirmOpen(false)
                 }}

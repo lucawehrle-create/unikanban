@@ -6,6 +6,7 @@ import type { ProgramType } from '@/db/types'
 import { db, uid } from '@/db/db'
 import { createProgram, createSemester } from '@/lib/actions'
 import { seedIfEmpty } from '@/lib/seed'
+import { useUI } from '@/store/ui'
 import { DatePicker } from './DatePicker'
 import { Select } from './ui/Select'
 import { cn } from '@/lib/cn'
@@ -67,6 +68,7 @@ export function Onboarding() {
     setBusy(true)
     try {
       await seedIfEmpty()
+      useUI.getState().setDemo(true)
     } finally {
       setBusy(false)
     }
@@ -83,6 +85,7 @@ export function Onboarding() {
   }
 
   async function doFinish() {
+    useUI.getState().setDemo(false)
     const pid = await createProgram({
       name: name.trim() || 'Mein Studium',
       type,

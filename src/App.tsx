@@ -6,6 +6,7 @@ import { useActiveProgram, useActiveSemester, useCourses, useTasks } from '@/hoo
 import { useUI } from '@/store/ui'
 import { Header } from '@/components/Header'
 import { BottomNav } from '@/components/BottomNav'
+import { DemoBanner } from '@/components/DemoBanner'
 import { Onboarding } from '@/components/Onboarding'
 import { QuickAdd } from '@/components/QuickAdd'
 import { FilterBar } from '@/components/FilterBar'
@@ -34,6 +35,7 @@ export default function App() {
   const showCourseManager = useUI((s) => s.showCourseManager)
   const showCalendar = useUI((s) => s.showCalendar)
   const showAccount = useUI((s) => s.showAccount)
+  const isDemo = useUI((s) => s.isDemo)
   const setTour = useUI((s) => s.setTour)
 
   const user = useSync((s) => s.user)
@@ -112,6 +114,7 @@ export default function App() {
   return (
     <div className="flex h-full flex-col text-stone-900">
       <Header semester={semester} program={program} />
+      {isDemo && <DemoBanner />}
       {!isStudy && semester && (
         <>
           <QuickAdd semesterId={semester.id} courses={courses} />
