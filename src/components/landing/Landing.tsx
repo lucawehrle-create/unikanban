@@ -1,15 +1,49 @@
-import { useRef } from 'react'
-import { motion, useScroll, useTransform, type MotionValue, type Variants } from 'framer-motion'
-import { ArrowRight, Repeat2, CalendarClock, GraduationCap, Smartphone, Sparkles, Coffee } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import {
+  motion,
+  useScroll,
+  useTransform,
+  MotionConfig,
+  type MotionValue,
+  type Variants,
+} from 'framer-motion'
+import Lenis from 'lenis'
+import {
+  ArrowRight,
+  Repeat2,
+  CalendarClock,
+  GraduationCap,
+  Sparkles,
+  ShieldCheck,
+  WifiOff,
+  Coffee,
+  Plus,
+  Minus,
+} from 'lucide-react'
 import { Logo } from '../Logo'
+import { MeshGradient } from './MeshGradient'
 
 const NAVY = '#2a2a6e'
 const ease = [0.22, 1, 0.36, 1] as const
 
+/* ---------------- helpers ---------------- */
+
+function useIsDesktop() {
+  const [d, setD] = useState(false)
+  useEffect(() => {
+    const m = window.matchMedia('(min-width: 1024px)')
+    const f = () => setD(m.matches)
+    f()
+    m.addEventListener('change', f)
+    return () => m.removeEventListener('change', f)
+  }, [])
+  return d
+}
+
 function Reveal({
   children,
   delay = 0,
-  y = 36,
+  y = 28,
   className,
 }: {
   children: React.ReactNode
@@ -22,7 +56,7 @@ function Reveal({
       className={className}
       initial={{ opacity: 0, y }}
       whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-80px' }}
+      viewport={{ once: true, margin: '-12% 0px' }}
       transition={{ duration: 0.7, delay, ease }}
     >
       {children}
@@ -31,161 +65,136 @@ function Reveal({
 }
 
 const stagger: Variants = { hidden: {}, show: { transition: { staggerChildren: 0.08, delayChildren: 0.05 } } }
-const item: Variants = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: { duration: 0.6, ease } } }
+const item: Variants = { hidden: { opacity: 0, y: 22 }, show: { opacity: 1, y: 0, transition: { duration: 0.6, ease } } }
+
+const btnPrimary =
+  'group inline-flex items-center justify-center gap-2 rounded-full bg-brand-400 px-7 py-3.5 text-sm font-semibold text-stone-900 shadow-[0_10px_28px_-8px_rgba(247,201,72,0.6)] transition hover:bg-brand-300 active:scale-[.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:ring-offset-cream-50'
+const btnSecondary =
+  'inline-flex items-center justify-center gap-2 rounded-full bg-white/70 px-7 py-3.5 text-sm font-medium text-stone-700 ring-1 ring-stone-200 backdrop-blur transition hover:bg-white active:scale-[.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500'
+
+const eyebrowCls = 'text-xs font-semibold uppercase tracking-[0.12em] text-stone-500'
+
+/* ---------------- root ---------------- */
 
 export default function Landing({ onStart }: { onStart: () => void }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const { scrollYProgress } = useScroll({ container: scrollRef })
 
+  // Lenis Smooth-Scroll auf dem Container (reduced-motion respektieren)
+  useEffect(() => {
+    const wrapper = scrollRef.current
+    if (!wrapper) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    let lenis: Lenis | null = null
+    let raf = 0
+    try {
+      lenis = new Lenis({
+        wrapper,
+        content: (wrapper.firstElementChild as HTMLElement) ?? undefined,
+        duration: 1.05,
+        easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+        smoothWheel: true,
+        syncTouch: false,
+      })
+      const loop = (t: number) => {
+        lenis?.raf(t)
+        raf = requestAnimationFrame(loop)
+      }
+      raf = requestAnimationFrame(loop)
+    } catch {
+      /* fällt auf natives Scrollen zurück */
+    }
+    return () => {
+      cancelAnimationFrame(raf)
+      lenis?.destroy()
+    }
+  }, [])
+
   return (
-    <div ref={scrollRef} className="relative h-full overflow-y-auto overflow-x-hidden bg-cream-50 text-stone-800">
-      {/* DER STAR: vollflächiger, mitscrollender Hintergrund */}
-      <ScrollBackground progress={scrollYProgress} />
+    <MotionConfig reducedMotion="user">
+      <div
+        ref={scrollRef}
+        className="relative h-full overflow-y-auto overflow-x-hidden text-stone-800"
+        style={{
+          background:
+            'radial-gradient(120% 120% at 85% 10%, #f7ecc9 0%, rgba(247,236,201,0) 55%), linear-gradient(135deg,#fdfcf7 0%,#faf6ec 55%,#f6eed6 100%)',
+        }}
+      >
+        {/* mitscrollender, animierter Hintergrund */}
+        <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+          <MeshGradient scroll={scrollYProgress} />
+          <div className="absolute inset-0 bg-cream-50/20" />
+          <Grain />
+          <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-cream-50 to-transparent" />
+          <div className="absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-cream-50 to-transparent" />
+        </div>
 
-      <motion.div
-        style={{ scaleX: scrollYProgress }}
-        className="fixed inset-x-0 top-0 z-50 h-0.5 origin-left bg-brand-400"
-      />
+        <motion.div
+          style={{ scaleX: scrollYProgress }}
+          className="fixed inset-x-0 top-0 z-50 h-0.5 origin-left bg-brand-400"
+        />
 
-      <div className="relative z-10">
-        <Nav onStart={onStart} />
-        <Hero onStart={onStart} progress={scrollYProgress} />
-        {STORY.map((s, i) => (
-          <StorySection key={i} scene={s} />
-        ))}
-        <Steps />
-        <FinalCTA onStart={onStart} />
-        <Footer />
+        <div className="relative z-10">
+          <Nav onStart={onStart} />
+          <Hero onStart={onStart} progress={scrollYProgress} />
+          <Problem />
+          <Showcase container={scrollRef} />
+          <Trust />
+          <Steps />
+          <FAQ />
+          <FinalCTA onStart={onStart} />
+          <Footer />
+        </div>
       </div>
-    </div>
+    </MotionConfig>
   )
 }
 
-/* ------------------------------------------------------------------ */
-/* Hintergrund                                                         */
-/* ------------------------------------------------------------------ */
-
-/**
- * Fixer Vollbild-Hintergrund. Beim Scrollen wandern große Farbflächen und
- * es werden nacheinander große Grafik-Szenen ein- und ausgeblendet
- * (Board → Stundenplan → Noten → Sync). Alle Offsets liegen in [0,1].
- */
-function ScrollBackground({ progress }: { progress: MotionValue<number> }) {
-  // Video langsam mitzoomen, damit es lebendig statt statisch wirkt
-  const vidScale = useTransform(progress, [0, 1], [1.08, 1.24])
-
-  return (
-    <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
-      {/* Cinematic Loop-Video als Basis */}
-      <motion.div style={{ scale: vidScale }} className="absolute inset-0">
-        <video autoPlay muted loop playsInline className="h-full w-full object-cover">
-          <source src="/landing/aurora.mp4" type="video/mp4" />
-        </video>
-      </motion.div>
-      {/* Cream-Schleier: dämpft die Sättigung, hält Text & Panels lesbar */}
-      <div className="absolute inset-0 bg-cream-50/40" />
-
-      {/* echte Produkt-Screenshots als große, gekippte Panels, die durchscrollen */}
-      <BgLayer progress={progress} range={[0.06, 0.34]} parallax={80} drift={-10} tilt={-11}>
-        <ScreenPanel src="/landing/board.png" />
-      </BgLayer>
-      <BgLayer progress={progress} range={[0.28, 0.54]} parallax={100} drift={12} tilt={10}>
-        <ScreenPanel src="/landing/schedule.png" />
-      </BgLayer>
-      <BgLayer progress={progress} range={[0.5, 0.74]} parallax={80} drift={-12} tilt={-9}>
-        <ScreenPanel src="/landing/study.png" />
-      </BgLayer>
-      <BgLayer progress={progress} range={[0.72, 0.96]} parallax={100} drift={12} tilt={11}>
-        <ScreenPanel src="/landing/week.png" />
-      </BgLayer>
-
-      {/* Grain für Premium-Textur */}
-      <Grain />
-
-      {/* Ränder aufhellen, damit Nav/Footer/Text lesbar bleiben */}
-      <div className="absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-cream-50 to-transparent" />
-      <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-cream-50 to-transparent" />
-    </div>
-  )
-}
-
-/** Großes, gekipptes Produkt-Screenshot-Panel mit Tiefe. */
-function ScreenPanel({ src }: { src: string }) {
-  return (
-    <div style={{ perspective: 1600 }} className="flex items-center justify-center">
-      <img
-        src={src}
-        alt=""
-        aria-hidden
-        loading="lazy"
-        className="w-[128vmin] max-w-[96vw] rounded-2xl shadow-[0_40px_120px_-20px_rgba(42,42,110,0.45)] ring-1 ring-black/10"
-        style={{ transform: 'rotateX(7deg)' }}
-      />
-    </div>
-  )
-}
-
-/** Feine Körnung über allem – nimmt den „glatten/KI"-Look. */
 function Grain() {
   const noise =
     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"
   return (
     <div
-      className="absolute inset-0 opacity-[0.22] mix-blend-soft-light"
+      className="absolute inset-0 opacity-[0.18] mix-blend-soft-light"
       style={{ backgroundImage: `url("${noise}")`, backgroundSize: '160px 160px' }}
     />
   )
 }
 
-/** Ein großes Hintergrund-Panel mit Opacity-Fenster + Zoom/Parallax/Neigung. */
-function BgLayer({
-  progress,
-  range: [s, e],
-  parallax,
-  drift = 0,
-  tilt = 0,
-  children,
-}: {
-  progress: MotionValue<number>
-  range: [number, number]
-  parallax: number
-  drift?: number
-  tilt?: number
-  children: React.ReactNode
-}) {
-  const mid = (s + e) / 2
-  const opacity = useTransform(progress, [s, (s + mid) / 2, (mid + e) / 2, e], [0, 1, 1, 0])
-  const scale = useTransform(progress, [s, e], [0.86, 1.16])
-  const y = useTransform(progress, [s, e], [parallax, -parallax])
-  const x = useTransform(progress, [s, e], [`${-drift}vmin`, `${drift}vmin`])
-  const rotate = useTransform(progress, [s, e], [tilt - 3, tilt + 3])
+/* ---------------- chrome ---------------- */
+
+function BrowserFrame({ src, className }: { src: string; className?: string }) {
   return (
-    <motion.div style={{ opacity }} className="absolute inset-0 flex items-center justify-center">
-      <motion.div style={{ scale, y, x, rotate }} className="flex items-center justify-center">
-        {children}
-      </motion.div>
-    </motion.div>
+    <div
+      className={
+        'overflow-hidden rounded-2xl bg-white ring-1 ring-black/10 shadow-[var(--shadow-float)] ' +
+        (className ?? '')
+      }
+    >
+      <div className="flex items-center gap-1.5 border-b border-stone-200/70 bg-stone-50/90 px-3 py-2">
+        <span className="h-2.5 w-2.5 rounded-full bg-red-300" />
+        <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
+        <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
+        <span className="ml-3 hidden rounded-full bg-white px-3 py-0.5 text-[11px] text-stone-400 ring-1 ring-stone-200 sm:inline">
+          semban.de
+        </span>
+      </div>
+      <img src={src} alt="" aria-hidden loading="lazy" className="block w-full" />
+    </div>
   )
 }
 
-/* ------------------------------------------------------------------ */
-/* Vordergrund                                                         */
-/* ------------------------------------------------------------------ */
-
 function Nav({ onStart }: { onStart: () => void }) {
   return (
-    <header className="sticky top-0 z-40 bg-cream-50/40 backdrop-blur-md">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3">
+    <header className="sticky top-0 z-40 bg-cream-50/50 backdrop-blur-md">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3 sm:px-6">
         <div className="flex items-center gap-2.5">
           <Logo size={32} />
           <span className="text-base font-bold tracking-tight" style={{ color: NAVY }}>
             SemBan
           </span>
         </div>
-        <button
-          onClick={onStart}
-          className="rounded-full bg-stone-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-stone-700"
-        >
+        <button onClick={onStart} className="rounded-full bg-stone-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-stone-700 active:scale-[.98]">
           Anmelden
         </button>
       </div>
@@ -193,149 +202,307 @@ function Nav({ onStart }: { onStart: () => void }) {
   )
 }
 
+/* ---------------- hero ---------------- */
+
 function Hero({ onStart, progress }: { onStart: () => void; progress: MotionValue<number> }) {
-  const yText = useTransform(progress, [0, 0.18], [0, -50])
-  const fade = useTransform(progress, [0, 0.14], [1, 0])
+  const y = useTransform(progress, [0, 0.16], [0, -50])
+  const opacity = useTransform(progress, [0, 0.13], [1, 0])
 
   return (
-    <section className="relative flex min-h-screen items-center px-5">
-      {/* weiche Aufhellung hinter dem Hero-Text (über dem Video) */}
-      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[55vmin] w-[150vmin] max-w-[96vw] -translate-x-1/2 -translate-y-1/2 rounded-[50%] bg-cream-50/60 blur-3xl" />
-      <motion.div style={{ y: yText, opacity: fade }} className="relative mx-auto w-full max-w-3xl text-center">
+    <section className="relative px-5 pb-20 pt-14 sm:px-6 sm:pt-20">
+      <motion.div style={{ y, opacity }} className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[1.05fr_1fr]">
         <motion.div variants={stagger} initial="hidden" animate="show">
-          <motion.div
-            variants={item}
-            className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-stone-500 shadow-sm ring-1 ring-stone-200/70 backdrop-blur"
-          >
-            <Sparkles size={13} className="text-brand-500" /> Dein Semester-Kanban
+          <motion.div variants={item} className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-stone-500 shadow-[var(--shadow-soft)] ring-1 ring-stone-200/70 backdrop-blur">
+            <Sparkles size={13} className="text-brand-500" /> Dein Semester. Endlich sortiert.
           </motion.div>
           <motion.h1
             variants={item}
-            className="mt-6 text-5xl font-extrabold leading-[1.02] tracking-tight sm:text-7xl"
+            className="mt-5 text-[clamp(2.6rem,6vw,4.5rem)] font-extrabold leading-[1.02] tracking-[-0.02em] text-balance"
             style={{ color: NAVY }}
           >
-            Behalte dein
-            <br />
-            Studium im Griff.
+            Schluss mit Übungsblatt-Chaos.
           </motion.h1>
-          <motion.p variants={item} className="mx-auto mt-6 max-w-xl text-lg leading-relaxed text-stone-600 sm:text-xl">
-            Automatische Wochenblätter, Stundenplan, Noten & ECTS – SemBan kennt deinen Uni-Rhythmus.
-            Blitzschnell lokal und auf allen Geräten synchron.
+          <motion.p variants={item} className="mt-6 max-w-xl text-lg leading-relaxed text-stone-600 sm:text-xl text-pretty">
+            SemBan baut dir aus einem einzigen Setup automatisch alle Wochenblätter fürs ganze
+            Semester – und zeigt dir nur, was als Nächstes dran ist. Stundenplan, Noten und ECTS
+            gleich mit dabei.
           </motion.p>
-          <motion.div variants={item} className="mt-9 flex flex-wrap items-center justify-center gap-3">
-            <button
-              onClick={onStart}
-              className="group flex items-center gap-2 rounded-full bg-brand-400 px-7 py-3.5 text-sm font-semibold text-stone-900 shadow-lg shadow-brand-400/30 transition hover:bg-brand-500"
-            >
-              Kostenlos starten
+          <motion.div variants={item} className="mt-8 flex flex-wrap items-center gap-3">
+            <button onClick={onStart} className={btnPrimary}>
+              Kostenlos loslegen
               <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
             </button>
-            <a
-              href="#story"
-              className="rounded-full bg-white/70 px-7 py-3.5 text-sm font-medium text-stone-600 ring-1 ring-stone-200 backdrop-blur transition hover:bg-white"
-            >
-              Wie es funktioniert
+            <a href="#features" className={btnSecondary}>
+              Wie's funktioniert
             </a>
           </motion.div>
+          <motion.p variants={item} className="mt-4 text-xs text-stone-400">
+            Kostenlos · Kein Konto nötig · Daten bleiben auf deinem Gerät
+          </motion.p>
         </motion.div>
-      </motion.div>
 
-      <motion.div style={{ opacity: fade }} className="absolute inset-x-0 bottom-8 flex justify-center">
         <motion.div
-          animate={{ y: [0, 8, 0] }}
-          transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
-          className="flex h-9 w-6 items-start justify-center rounded-full p-1.5 ring-2 ring-stone-300/70"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, ease, delay: 0.15 }}
+          style={{ perspective: 1600 }}
+          className="relative"
         >
-          <span className="h-1.5 w-1 rounded-full bg-stone-400" />
+          <div style={{ transform: 'rotateX(6deg) rotateY(-9deg)' }}>
+            <BrowserFrame src="/landing/board.png" />
+          </div>
         </motion.div>
       </motion.div>
     </section>
   )
 }
 
-const STORY = [
+/* ---------------- problem ---------------- */
+
+function Problem() {
+  const points = [
+    'Abgabe war doch erst nächste Woche, oder?',
+    'Welches Blatt war nochmal dran?',
+    'Wie steht mein Schnitt eigentlich gerade?',
+  ]
+  return (
+    <section className="px-5 py-24 sm:px-6 sm:py-32">
+      <div className="mx-auto max-w-3xl text-center">
+        <Reveal>
+          <p className={eyebrowCls}>Kommt dir bekannt vor?</p>
+          <h2 className="mt-3 text-4xl font-bold leading-[1.07] tracking-[-0.02em] sm:text-5xl text-balance" style={{ color: NAVY }}>
+            Drei Tools, sieben Tabs, null Überblick.
+          </h2>
+          <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-stone-600">
+            Übungsblätter im Mail-Postfach, der Stundenplan irgendwo im PDF, die Noten in einer
+            Excel, die du seit März nicht mehr geöffnet hast. Studium ist schon anstrengend genug.
+          </p>
+        </Reveal>
+        <div className="mt-10 grid gap-3 sm:grid-cols-3">
+          {points.map((p, i) => (
+            <Reveal key={p} delay={i * 0.08}>
+              <div className="rounded-2xl bg-white/70 px-4 py-4 text-sm font-medium text-stone-600 shadow-[var(--shadow-soft)] ring-1 ring-stone-200/70 backdrop-blur">
+                „{p}"
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ---------------- showcase (pinned) ---------------- */
+
+const SUPERPOWERS = [
   {
+    eyebrow: 'Superkraft 01',
     icon: Repeat2,
-    tag: 'Automatik',
-    title: 'Das ganze Semester,\nschon angelegt.',
-    body: 'Definiere deine Blatt-Serien einmal – SemBan erzeugt automatisch jede Woche und zeigt dir gestaffelt nur die nächsten Abgaben.',
+    title: 'Einmal einrichten.\nGanzes Semester erledigt.',
+    body: 'Du legst eine Serie an – „Analysis I, Blatt 1–12, jeden Montag fällig" – und SemBan generiert alle Wochenblätter mit den richtigen Fristen. Du siehst immer nur die nächsten.',
+    src: '/landing/board.png',
     color: '#6366f1',
   },
   {
+    eyebrow: 'Superkraft 02',
     icon: CalendarClock,
-    tag: 'Rhythmus',
-    title: 'Immer wissen,\nwo du stehst.',
-    body: 'Dein Stundenplan mit Anwesenheit und einer „Jetzt"-Linie, die quer durch den Tag mitläuft.',
+    title: 'Dein Stundenplan,\nder mitdenkt.',
+    body: 'Alle Veranstaltungen auf einen Blick, mit einer Live-Linie, die zeigt, wo du gerade im Tag stehst. Pro Termin hakst du ab: vorbereitet, besucht, nachbereitet.',
+    src: '/landing/schedule.png',
     color: '#0ea5e9',
   },
   {
+    eyebrow: 'Superkraft 03',
     icon: GraduationCap,
-    tag: 'Fortschritt',
-    title: 'Note für Note\nzum Abschluss.',
-    body: 'Trag Noten ein – Schnitt und ECTS rechnen sich automatisch, kumuliert über dein ganzes Studium.',
+    title: 'Dein Schnitt.\nImmer aktuell.',
+    body: 'Trag Noten und ECTS ein – SemBan rechnet deinen Durchschnitt fortlaufend übers ganze Studium. Bachelor und Master sauber getrennt. Keine bösen Überraschungen vorm Abschluss.',
+    src: '/landing/study.png',
     color: '#e9633c',
-  },
-  {
-    icon: Smartphone,
-    tag: 'Überall',
-    title: 'Deine Daten,\nauf jedem Gerät.',
-    body: 'Blitzschnell lokal und offline nutzbar – und mit einem Konto synchron auf Handy und Laptop.',
-    color: '#10b981',
   },
 ]
 
-/** Große, ruhige Text-Szene – schwebt über dem animierten Hintergrund. */
-function StorySection({ scene }: { scene: (typeof STORY)[number] }) {
-  const Icon = scene.icon
+const WINDOWS: [number, number, number, number][] = [
+  [0.0, 0.08, 0.28, 0.34],
+  [0.34, 0.4, 0.6, 0.66],
+  [0.66, 0.72, 0.92, 1.0],
+]
+
+function Showcase({ container }: { container: React.RefObject<HTMLDivElement | null> }) {
+  const isDesktop = useIsDesktop()
+  if (!isDesktop) return <ShowcaseStacked />
+  return <ShowcasePinned container={container} />
+}
+
+function ShowcasePinned({ container }: { container: React.RefObject<HTMLDivElement | null> }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const { scrollYProgress } = useScroll({ target: ref, container, offset: ['start start', 'end end'] })
+
   return (
-    <section id="story" className="relative flex min-h-screen items-center justify-center px-5">
-      {/* weiche Aufhellung hinter dem Text, damit er über dem Screenshot pollt */}
-      <div className="pointer-events-none absolute left-1/2 top-1/2 h-[60vmin] w-[150vmin] max-w-[96vw] -translate-x-1/2 -translate-y-1/2 rounded-[50%] bg-cream-50/70 blur-3xl" />
-      <Reveal className="relative mx-auto max-w-3xl text-center">
-        <span
-          className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm"
-          style={{ backgroundColor: scene.color }}
-        >
-          <Icon size={13} /> {scene.tag}
-        </span>
-        <h2
-          className="mt-5 whitespace-pre-line text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl"
-          style={{ color: NAVY }}
-        >
-          {scene.title}
-        </h2>
-        <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-stone-600 sm:text-xl">{scene.body}</p>
-      </Reveal>
+    <section id="features" ref={ref} className="relative" style={{ height: '320vh' }}>
+      <div className="sticky top-0 flex h-screen items-center overflow-hidden">
+        <div className="mx-auto grid w-full max-w-6xl items-center gap-12 px-6 lg:grid-cols-2">
+          {/* Copy – absolut gestapelt, überblendet */}
+          <div className="relative min-h-[18rem]">
+            {SUPERPOWERS.map((s, i) => (
+              <ShowcaseCopy key={i} sp={s} win={WINDOWS[i]} progress={scrollYProgress} />
+            ))}
+          </div>
+          {/* Device – feststehender Rahmen, Screen überblendet */}
+          <div style={{ perspective: 1800 }} className="relative">
+            <div className="relative" style={{ transform: 'rotateX(5deg) rotateY(-8deg)' }}>
+              {SUPERPOWERS.map((s, i) => (
+                <ShowcaseDevice key={i} src={s.src} win={WINDOWS[i]} progress={scrollYProgress} first={i === 0} />
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
   )
 }
 
+function ShowcaseCopy({
+  sp,
+  win,
+  progress,
+}: {
+  sp: (typeof SUPERPOWERS)[number]
+  win: [number, number, number, number]
+  progress: MotionValue<number>
+}) {
+  const opacity = useTransform(progress, win, [0, 1, 1, 0])
+  const y = useTransform(progress, win, [26, 0, 0, -26])
+  const Icon = sp.icon
+  return (
+    <motion.div style={{ opacity, y }} className="absolute inset-0">
+      <span
+        className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-white"
+        style={{ backgroundColor: sp.color }}
+      >
+        <Icon size={13} /> {sp.eyebrow}
+      </span>
+      <h2 className="mt-4 whitespace-pre-line text-4xl font-bold leading-[1.06] tracking-[-0.02em] sm:text-5xl" style={{ color: NAVY }}>
+        {sp.title}
+      </h2>
+      <p className="mt-5 max-w-md text-lg leading-relaxed text-stone-600">{sp.body}</p>
+    </motion.div>
+  )
+}
+
+function ShowcaseDevice({
+  src,
+  win,
+  progress,
+  first,
+}: {
+  src: string
+  win: [number, number, number, number]
+  progress: MotionValue<number>
+  first: boolean
+}) {
+  const opacity = useTransform(progress, win, [0, 1, 1, 0])
+  return (
+    <motion.div style={{ opacity }} className={first ? '' : 'absolute inset-0'}>
+      <BrowserFrame src={src} />
+    </motion.div>
+  )
+}
+
+/** Mobile/Tablet: einfache gestapelte Variante (kein Pinning). */
+function ShowcaseStacked() {
+  return (
+    <section id="features" className="space-y-24 px-5 py-24 sm:px-6">
+      {SUPERPOWERS.map((s) => {
+        const Icon = s.icon
+        return (
+          <Reveal key={s.eyebrow} className="mx-auto max-w-md text-center">
+            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-white" style={{ backgroundColor: s.color }}>
+              <Icon size={13} /> {s.eyebrow}
+            </span>
+            <h2 className="mt-4 whitespace-pre-line text-3xl font-bold leading-[1.08] tracking-[-0.02em]" style={{ color: NAVY }}>
+              {s.title}
+            </h2>
+            <p className="mx-auto mt-4 max-w-sm text-base leading-relaxed text-stone-600">{s.body}</p>
+            <div className="mt-7">
+              <BrowserFrame src={s.src} />
+            </div>
+          </Reveal>
+        )
+      })}
+    </section>
+  )
+}
+
+/* ---------------- trust ---------------- */
+
+function Trust() {
+  const items = [
+    { icon: ShieldCheck, title: 'Local-first', body: 'Deine Daten liegen auf deinem Gerät – nicht auf irgendeinem Server.' },
+    { icon: WifiOff, title: 'Offline-tauglich', body: 'In der Bib ohne WLAN oder im Zug ohne Empfang: läuft trotzdem.' },
+    { icon: Sparkles, title: 'Kostenlos', body: 'Kein Abo, kein Kleingedrucktes. Sync über Geräte ist optional & gratis.' },
+  ]
+  return (
+    <section className="px-5 py-24 sm:px-6 sm:py-32">
+      <div className="mx-auto max-w-6xl">
+        <Reveal className="mx-auto max-w-2xl text-center">
+          <p className={eyebrowCls}>Kein Haken</p>
+          <h2 className="mt-3 text-4xl font-bold leading-[1.07] tracking-[-0.02em] sm:text-5xl text-balance" style={{ color: NAVY }}>
+            Deine Daten bleiben deine.
+          </h2>
+          <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-stone-600">
+            SemBan läuft local-first – das macht die App blitzschnell und offline-tauglich. Deine
+            Notenliste ist niemandes Geschäftsmodell.
+          </p>
+        </Reveal>
+        <div className="mt-12 grid gap-5 md:grid-cols-3">
+          {items.map((it, i) => {
+            const Icon = it.icon
+            return (
+              <Reveal key={it.title} delay={i * 0.08}>
+                <div className="h-full rounded-3xl bg-white/75 p-6 shadow-[var(--shadow-card)] ring-1 ring-stone-200/70 backdrop-blur">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cream-100 text-stone-700 ring-1 ring-stone-200/70">
+                    <Icon size={20} />
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold tracking-tight" style={{ color: NAVY }}>
+                    {it.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-stone-600">{it.body}</p>
+                </div>
+              </Reveal>
+            )
+          })}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ---------------- steps ---------------- */
+
 const STEPS = [
-  { n: '1', title: 'Studium einrichten', body: 'Studiengang, Semester, Startbilanz – in 30 Sekunden.' },
-  { n: '2', title: 'Kurse anlegen', body: 'Mit Stundenplan und Blatt-Serien. Den Rest macht SemBan.' },
-  { n: '3', title: 'Loslegen', body: 'Board, Woche, Stundenplan, Noten – dein Semester sortiert sich.' },
+  { n: '1', title: 'Semester anlegen', body: 'Kurse, Übungsblatt-Serien und deinen Stundenplan eintragen.' },
+  { n: '2', title: 'SemBan rechnet', body: 'Alle Wochenblätter und Fristen werden automatisch generiert.' },
+  { n: '3', title: 'Loslegen', body: 'Nur das Nächste im Blick – Woche für Woche durchs Semester.' },
 ]
 
 function Steps() {
   return (
-    <section className="relative px-5 py-24">
+    <section className="px-5 py-20 sm:px-6 sm:py-24">
       <div className="mx-auto max-w-6xl">
         <Reveal className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl" style={{ color: NAVY }}>
-            In drei Schritten startklar
+          <p className={eyebrowCls}>In 3 Minuten startklar</p>
+          <h2 className="mt-3 text-4xl font-bold tracking-[-0.02em] sm:text-5xl" style={{ color: NAVY }}>
+            So einfach geht's.
           </h2>
         </Reveal>
         <div className="mt-14 grid gap-6 md:grid-cols-3">
           {STEPS.map((s, i) => (
             <Reveal key={s.n} delay={i * 0.1}>
-              <div className="h-full rounded-3xl bg-white/80 p-6 shadow-sm ring-1 ring-stone-200/70 backdrop-blur">
-                <div
-                  className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-stone-900"
-                  style={{ backgroundColor: '#f5c645' }}
-                >
+              <div className="h-full rounded-3xl bg-white/80 p-6 shadow-[var(--shadow-card)] ring-1 ring-stone-200/70 backdrop-blur">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-400 text-sm font-bold text-stone-900">
                   {s.n}
                 </div>
-                <h3 className="mt-4 text-lg font-bold" style={{ color: NAVY }}>
+                <h3 className="mt-4 text-lg font-semibold" style={{ color: NAVY }}>
                   {s.title}
                 </h3>
                 <p className="mt-2 text-sm leading-relaxed text-stone-500">{s.body}</p>
@@ -348,11 +515,71 @@ function Steps() {
   )
 }
 
+/* ---------------- faq ---------------- */
+
+const FAQS = [
+  { q: 'Ist SemBan kostenlos?', a: 'Ja, komplett. Kein Abo, keine Testphase, die plötzlich Geld kostet, kein „Premium" hinter der nächsten Tür.' },
+  { q: 'Brauche ich ein Konto?', a: 'Nein. Du kannst sofort ohne Anmeldung loslegen – deine Daten liegen auf deinem Gerät. Ein kostenloses Konto brauchst du nur, wenn du zwischen Handy und Laptop syncen willst.' },
+  { q: 'Sind meine Daten sicher? Wo werden sie gespeichert?', a: 'Standardmäßig bleiben deine Daten lokal auf deinem Gerät (local-first), nicht auf unseren Servern. Nur wenn du den optionalen Sync nutzt, werden sie zwischen deinen Geräten abgeglichen.' },
+  { q: 'Funktioniert das offline?', a: 'Ja, komplett. Weil SemBan local-first ist, läuft alles direkt auf deinem Gerät – im Funkloch der Bib genauso wie im Zug.' },
+  { q: 'Kann ich Handy und Laptop nutzen?', a: 'Klar. Mit dem optionalen, kostenlosen Konto hältst du beide Geräte im Gleichstand.' },
+  { q: 'Für welche Studiengänge eignet sich SemBan?', a: 'Für fast alle – besonders stark, wenn dein Studium auf wöchentlichen Übungs- oder Tutoriumsblättern läuft (Mathe, Informatik, Physik, Ingenieurwesen, BWL …). Stundenplan, Noten und ECTS helfen in jedem Fach.' },
+  { q: 'Wie schnell ist das eingerichtet?', a: 'In ein paar Minuten. Du tippst einmal das Gerüst deines Semesters ein – SemBan generiert den Rest.' },
+]
+
+function FAQ() {
+  return (
+    <section className="px-5 py-24 sm:px-6 sm:py-32">
+      <div className="mx-auto max-w-3xl">
+        <Reveal className="text-center">
+          <p className={eyebrowCls}>Häufige Fragen</p>
+          <h2 className="mt-3 text-4xl font-bold tracking-[-0.02em] sm:text-5xl" style={{ color: NAVY }}>
+            Gut zu wissen.
+          </h2>
+        </Reveal>
+        <div className="mt-10 space-y-3">
+          {FAQS.map((f, i) => (
+            <Reveal key={f.q} delay={Math.min(i, 4) * 0.05}>
+              <FaqItem q={f.q} a={f.a} />
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function FaqItem({ q, a }: { q: string; a: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="overflow-hidden rounded-2xl bg-white/75 ring-1 ring-stone-200/70 backdrop-blur">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left text-base font-semibold text-stone-800"
+        aria-expanded={open}
+      >
+        {q}
+        <span className="shrink-0 text-stone-400">{open ? <Minus size={18} /> : <Plus size={18} />}</span>
+      </button>
+      <motion.div
+        initial={false}
+        animate={{ height: open ? 'auto' : 0, opacity: open ? 1 : 0 }}
+        transition={{ duration: 0.3, ease }}
+        className="overflow-hidden"
+      >
+        <p className="px-5 pb-5 text-sm leading-relaxed text-stone-600">{a}</p>
+      </motion.div>
+    </div>
+  )
+}
+
+/* ---------------- final cta ---------------- */
+
 function FinalCTA({ onStart }: { onStart: () => void }) {
   return (
-    <section className="relative px-5 py-24">
+    <section className="px-5 py-20 sm:px-6 sm:py-28">
       <Reveal className="mx-auto max-w-4xl">
-        <div className="relative overflow-hidden rounded-[2rem] px-8 py-16 text-center shadow-xl" style={{ backgroundColor: NAVY }}>
+        <div className="relative overflow-hidden rounded-[2rem] px-8 py-16 text-center shadow-[var(--shadow-float)]" style={{ backgroundColor: NAVY }}>
           <motion.div
             animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
             transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
@@ -363,17 +590,18 @@ function FinalCTA({ onStart }: { onStart: () => void }) {
             transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
             className="pointer-events-none absolute -bottom-16 -left-16 h-64 w-64 rounded-full bg-[#e9633c]/25 blur-3xl"
           />
-          <h2 className="relative text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
-            Bereit fürs nächste Semester?
+          <p className="relative text-xs font-semibold uppercase tracking-[0.12em] text-indigo-300">
+            Bereit fürs sortierte Semester?
+          </p>
+          <h2 className="relative mt-3 text-4xl font-extrabold tracking-[-0.02em] text-white sm:text-5xl text-balance">
+            Hol dir dein Semester zurück.
           </h2>
           <p className="relative mx-auto mt-4 max-w-md text-base text-indigo-200">
-            Richte SemBan in einer Minute ein und starte sortiert ins Semester.
+            Einmal einrichten, das ganze Semester profitieren. Kostenlos, sofort – und das Konto ist
+            optional.
           </p>
-          <button
-            onClick={onStart}
-            className="relative mt-8 inline-flex items-center gap-2 rounded-full bg-brand-400 px-7 py-3.5 text-sm font-semibold text-stone-900 transition hover:bg-brand-300"
-          >
-            Jetzt kostenlos starten <ArrowRight size={16} />
+          <button onClick={onStart} className={btnPrimary + ' relative mt-8'}>
+            Kostenlos loslegen <ArrowRight size={16} />
           </button>
         </div>
       </Reveal>
@@ -383,7 +611,7 @@ function FinalCTA({ onStart }: { onStart: () => void }) {
 
 function Footer() {
   return (
-    <footer className="relative px-5 py-10">
+    <footer className="px-5 py-10 sm:px-6">
       <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 sm:flex-row">
         <div className="flex items-center gap-2">
           <Logo size={26} />
@@ -392,7 +620,7 @@ function Footer() {
           </span>
         </div>
         <p className="flex items-center gap-1.5 text-xs text-stone-400">
-          Mit <Coffee size={13} className="text-stone-400" /> für Studierende gebaut · {new Date().getFullYear()}
+          Von Studis für Studis · mit <Coffee size={13} /> gebaut · {new Date().getFullYear()}
         </p>
       </div>
     </footer>

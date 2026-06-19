@@ -10,8 +10,79 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="SemBan" />
-    <title>SemBan – Semester-Kanban</title>
+
+    <title>SemBan: Stundenplan & Semesterplaner App fürs Studium</title>
+    <meta
+      name="description"
+      content="SemBan ist die kostenlose Semesterplaner-App: Stundenplan, Übungsblätter, Noten & ECTS an einem Ort. Offline nutzbar, ohne Anmeldung. Jetzt starten!"
+    />
+    <link rel="canonical" href="https://semban.de/" />
+    <meta name="robots" content="index, follow" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SemBan" />
+    <meta property="og:locale" content="de_DE" />
+    <meta property="og:title" content="SemBan: Stundenplan & Semesterplaner App fürs Studium" />
+    <meta
+      property="og:description"
+      content="Kostenlose Semesterplaner-App: Stundenplan, Übungsblätter, Noten & ECTS an einem Ort. Offline nutzbar, ohne Anmeldung."
+    />
+    <meta property="og:url" content="https://semban.de/" />
+    <meta property="og:image" content="https://semban.de/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="SemBan – Semesterplaner mit Stundenplan, Noten und ECTS" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="SemBan: Stundenplan & Semesterplaner App fürs Studium" />
+    <meta
+      name="twitter:description"
+      content="Kostenlose Semesterplaner-App: Stundenplan, Übungsblätter, Noten & ECTS. Offline nutzbar, ohne Anmeldung."
+    />
+    <meta name="twitter:image" content="https://semban.de/og-image.png" />
+
+    <!-- Structured data -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "SemBan",
+        "alternateName": "Semester-Kanban",
+        "description": "Kostenlose Semesterplaner-App für Studierende: Stundenplan mit Live-Jetzt-Linie und Anwesenheit, automatische Übungsblatt-Serien, Aufgaben-Kanban sowie Noten- und ECTS-Tracking über das ganze Studium. Local-first, offline nutzbar, mit optionaler Cloud-Synchronisation.",
+        "url": "https://semban.de",
+        "applicationCategory": "EducationApplication",
+        "operatingSystem": "Web, iOS, Android (PWA)",
+        "inLanguage": "de",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR", "availability": "https://schema.org/InStock" },
+        "featureList": [
+          "Stundenplan mit Live-Jetzt-Linie und Anwesenheitsmarkern",
+          "Automatisch generierte Übungsblatt- und Tutoriumsblatt-Serien",
+          "Aufgabenverwaltung als Semester-Kanban",
+          "Noten verwalten und Notendurchschnitt berechnen",
+          "ECTS kumulativ über Bachelor und Master tracken",
+          "Local-first, offline nutzbar",
+          "Optionale Cloud-Synchronisation über Account"
+        ],
+        "publisher": { "@type": "Organization", "name": "SemBan", "url": "https://semban.de" }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          { "@type": "Question", "name": "Ist SemBan kostenlos?", "acceptedAnswer": { "@type": "Answer", "text": "Ja, SemBan ist vollständig kostenlos – kein Abo, kein Premium. Du kannst Stundenplan, Übungsblätter, Aufgaben sowie Noten und ECTS ohne Bezahlung nutzen." } },
+          { "@type": "Question", "name": "Funktioniert SemBan auch offline?", "acceptedAnswer": { "@type": "Answer", "text": "Ja. SemBan ist local-first und speichert deine Daten direkt auf deinem Gerät. Die App funktioniert offline und lässt sich als PWA installieren. Eine Cloud-Synchronisation ist optional mit Account möglich." } },
+          { "@type": "Question", "name": "Kann ich SemBan ohne Anmeldung nutzen?", "acceptedAnswer": { "@type": "Answer", "text": "Ja, du kannst sofort ohne Registrierung loslegen. Alle Daten bleiben lokal auf deinem Gerät. Ein Account ist nur nötig, wenn du über mehrere Geräte synchronisieren möchtest." } },
+          { "@type": "Question", "name": "Wie berechnet SemBan Notendurchschnitt und ECTS?", "acceptedAnswer": { "@type": "Answer", "text": "SemBan berechnet deinen Notendurchschnitt automatisch und summiert deine ECTS kumulativ über das gesamte Studium – Bachelor und Master getrennt. So siehst du jederzeit deinen Fortschritt zum Abschluss." } },
+          { "@type": "Question", "name": "Kann ich SemBan auf dem Handy installieren?", "acceptedAnswer": { "@type": "Answer", "text": "Ja. SemBan ist eine Progressive Web App (PWA) und lässt sich über den Browser direkt auf iPhone, Android oder Desktop installieren – ganz ohne App Store." } }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
