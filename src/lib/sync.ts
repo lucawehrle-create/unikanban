@@ -146,6 +146,15 @@ function schedulePush() {
   pushTimer = setTimeout(() => void push(), 1500)
 }
 
+/** Ausstehende Änderungen sofort hochladen (z.B. vor dem Abmelden). */
+export async function flushPush() {
+  if (pushTimer) {
+    clearTimeout(pushTimer)
+    pushTimer = null
+  }
+  if (useSync.getState().user) await push()
+}
+
 let inited = false
 /** Einmalig: Session laden, Auth-Listener + lokale Schreib-Hooks aufsetzen. */
 export function initSync() {

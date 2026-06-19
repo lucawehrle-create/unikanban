@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
-import { useSync } from './sync'
+import { useSync, flushPush } from './sync'
+import { resetAll } from './backup'
 
 const redirectTo = typeof location !== 'undefined' ? location.origin : undefined
 
@@ -33,6 +34,12 @@ export async function resetPassword(email: string) {
 }
 
 export async function signOut() {
-  await supabase!.auth.signOut()
+  // 1. Letzte Änderungen noch sichern (solange wir noch angemeldet sind).
+  await flushPush().catch(() => {})
+  // 2. Sofort als abgemeldet markieren – verhindert, dass das Leeren der
+  //    lokalen DB einen Push auslöst.
   useSync.setState({ user: null, status: 'idle', lastSyncAt: null, conflict: null })
+  await supabase!.auth.signOut()
+  // 3. Lokale Daten entfernen: abgemeldet = keine Daten auf dem Gerät.
+  await resetAll()
 }

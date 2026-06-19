@@ -17,8 +17,10 @@ import { TaskEditor } from '@/components/TaskEditor'
 import { CourseManager } from '@/components/CourseManager'
 import { CalendarModal } from '@/components/CalendarModal'
 import { AccountModal } from '@/components/AccountModal'
+import { AuthGate } from '@/components/AuthGate'
 import { Tour } from '@/components/Tour'
-import { initSync } from '@/lib/sync'
+import { initSync, useSync } from '@/lib/sync'
+import { isSyncConfigured } from '@/lib/supabase'
 
 export default function App() {
   const programCount = useLiveQuery(() => db.programs.count(), [])
@@ -33,6 +35,10 @@ export default function App() {
   const showCalendar = useUI((s) => s.showCalendar)
   const showAccount = useUI((s) => s.showAccount)
   const setTour = useUI((s) => s.setTour)
+
+  const user = useSync((s) => s.user)
+  const syncStatus = useSync((s) => s.status)
+  const conflict = useSync((s) => s.conflict)
 
   // Cloud-Sync (no-op, falls nicht konfiguriert) einmalig initialisieren.
   useEffect(() => {
@@ -80,6 +86,17 @@ export default function App() {
       <div className="flex h-full items-center justify-center text-sm text-stone-400">Lädt…</div>
     )
   }
+  // Konto-basiert: Ist Sync konfiguriert, gibt es ohne Login keinen Zugriff.
+  if (isSyncConfigured && !user) return <AuthGate />
+  // Frisch eingeloggt und Cloud-Daten werden noch geladen → kurz warten,
+  // statt fälschlich das Onboarding zu zeigen.
+  if (isSyncConfigured && user && programCount === 0 && syncStatus === 'syncing') {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-stone-400">
+        Daten werden geladen…
+      </div>
+    )
+  }
   if (programCount === 0) return <Onboarding />
   if (!program) {
     return (
@@ -118,7 +135,7 @@ export default function App() {
       <TaskEditor courses={courses} />
       {showCourseManager && semester && <CourseManager courses={courses} semester={semester} />}
       {showCalendar && semester && <CalendarModal semester={semester} courses={courses} tasks={tasks} />}
-      {showAccount && <AccountModal />}
+      {(showAccount || conflict) && <AccountModal />}
       <Tour />
     </div>
   )
