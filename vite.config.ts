@@ -11,7 +11,7 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['icon.svg', 'apple-touch-icon.png', 'favicon-16.png', 'favicon-32.png'],
+      includeAssets: ['favicon.ico', 'icon.svg', 'apple-touch-icon.png', 'favicon-16.png', 'favicon-32.png'],
       manifest: {
         name: 'SemBan – Semester-Kanban',
         short_name: 'SemBan',
@@ -29,7 +29,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
         navigateFallback: '/index.html',
       },
     }),
