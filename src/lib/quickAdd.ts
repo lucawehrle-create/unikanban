@@ -46,15 +46,9 @@ function parseDateToken(tokenRaw: string): string | undefined {
     return endOfDay(nextWeekday(WEEKDAYS[token])).toISOString()
   }
 
-  // dd.mm oder dd.mm.yyyy
-  for (const fmt of ['dd.MM.yyyy', 'dd.MM.']) {
-    const d = parseDate(token, fmt, new Date())
-    if (isValid(d)) return endOfDay(d).toISOString()
-  }
-  // dd.mm ohne Jahr
-  const m = token.match(/^(\d{1,2})\.(\d{1,2})\.?$/)
-  if (m) {
-    const d = new Date(today.getFullYear(), Number(m[2]) - 1, Number(m[1]))
+  // Datumsformate – date-fns validiert streng (kein stilles Überrollen wie 29.2.)
+  for (const fmt of ['d.M.yyyy', 'd.M.', 'd.M']) {
+    const d = parseDate(token, fmt, today)
     if (isValid(d)) return endOfDay(d).toISOString()
   }
   return undefined

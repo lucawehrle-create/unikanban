@@ -72,18 +72,21 @@ export default function App() {
     )
   }
   if (programCount === 0) return <Onboarding />
-  if (!semester || !program) {
+  if (!program) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-stone-400">Lädt…</div>
     )
   }
 
-  const isStudy = view === 'study'
+  // Hat der aktive Studiengang (noch) kein Semester, erzwingen wir die Studium-
+  // Ansicht (dort kann man ein Semester anlegen) statt in "Lädt…" zu hängen.
+  const effectiveView = semester ? view : 'study'
+  const isStudy = effectiveView === 'study'
 
   return (
     <div className="flex h-full flex-col text-stone-900">
       <Header semester={semester} program={program} />
-      {!isStudy && (
+      {!isStudy && semester && (
         <>
           <QuickAdd semesterId={semester.id} courses={courses} />
           <FilterBar courses={courses} />
@@ -91,15 +94,17 @@ export default function App() {
       )}
 
       <main className="min-h-0 flex-1 pt-1">
-        {view === 'board' && <Board tasks={visible} courses={courses} />}
-        {view === 'week' && <WeekView tasks={visible} courses={courses} />}
-        {view === 'schedule' && <Schedule tasks={visible} courses={courses} semesterId={semester.id} />}
-        {view === 'study' && program && <StudyView activeProgram={program} />}
+        {semester && effectiveView === 'board' && <Board tasks={visible} courses={courses} />}
+        {semester && effectiveView === 'week' && <WeekView tasks={visible} courses={courses} />}
+        {semester && effectiveView === 'schedule' && (
+          <Schedule tasks={visible} courses={courses} semesterId={semester.id} />
+        )}
+        {effectiveView === 'study' && <StudyView activeProgram={program} />}
       </main>
 
       <TaskEditor courses={courses} />
-      {showCourseManager && <CourseManager courses={courses} semester={semester} />}
-      {showCalendar && <CalendarModal semester={semester} courses={courses} tasks={tasks} />}
+      {showCourseManager && semester && <CourseManager courses={courses} semester={semester} />}
+      {showCalendar && semester && <CalendarModal semester={semester} courses={courses} tasks={tasks} />}
       <Tour />
     </div>
   )

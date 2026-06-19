@@ -107,7 +107,8 @@ function buildColumns(tasks: Task[], courses: Course[], groupBy: GroupBy) {
   } else if (groupBy === 'course') {
     columns = courses.map((c) => ({ id: c.id, title: `${c.short} · ${c.name}`, accent: c.color }))
     columns.push({ id: '__none', title: 'Ohne Kurs' })
-    for (const t of tasks) push(t.courseId ?? '__none', t)
+    const known = new Set(courses.map((c) => c.id))
+    for (const t of tasks) push(t.courseId && known.has(t.courseId) ? t.courseId : '__none', t)
   } else {
     const present = new Set(tasks.map((t) => t.type))
     columns = TASK_TYPE_LIST.filter((d) => present.has(d.id)).map((d) => ({

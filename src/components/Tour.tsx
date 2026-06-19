@@ -67,6 +67,7 @@ export function Tour() {
     if (!active) return
     const step = STEPS[i]
     if (step.view) setView(step.view)
+    setRect(null) // beim Schrittwechsel zurücksetzen (kein veraltetes Spotlight)
 
     let raf = 0
     let tries = 0
@@ -97,50 +98,18 @@ export function Tour() {
     setI(0)
   }
 
-  if (!active || !rect) return null
+  if (!active) return null
 
   const step = STEPS[i]
   const last = i === STEPS.length - 1
-  const top = rect.top - PAD
-  const left = rect.left - PAD
-  const w = rect.width + PAD * 2
-  const h = rect.height + PAD * 2
 
-  // Tooltip-Platzierung: bevorzugt unter dem Ziel, sonst darüber
-  const ttWidth = 320
-  const below = top + h + 12 + 170 < window.innerHeight
-  const ttTop = below ? top + h + 12 : top - 12
-  let ttLeft = left
-  ttLeft = Math.max(12, Math.min(ttLeft, window.innerWidth - ttWidth - 12))
-
-  return (
-    <div className="fixed inset-0 z-[100]">
-      {/* Spotlight (Loch via großem Schatten) */}
-      <div
-        className="pointer-events-none absolute rounded-xl ring-2 ring-brand-400/70 transition-all duration-300"
-        style={{
-          top,
-          left,
-          width: w,
-          height: h,
-          boxShadow: '0 0 0 9999px rgba(28,25,23,0.55)',
-        }}
-      />
-      {/* Klick-Blocker (überspringt bei Klick außerhalb des Tooltips) */}
-      <div className="absolute inset-0" onClick={finish} />
-
-      {/* Tooltip */}
-      <div
-        className="pointer-events-auto absolute rounded-2xl bg-white p-4 shadow-xl ring-1 ring-stone-200"
-        style={{
-          top: ttTop,
-          left: ttLeft,
-          width: ttWidth,
-          transform: below ? undefined : 'translateY(-100%)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-1 flex items-start justify-between gap-2">
+  const panel = (
+    <div
+      className="pointer-events-auto rounded-2xl bg-white p-4 shadow-xl ring-1 ring-stone-200"
+      style={{ width: 320, maxWidth: '90vw' }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="mb-1 flex items-start justify-between gap-2">
           <h3 className="text-sm font-bold text-stone-800">{step.title}</h3>
           <button
             onClick={finish}
@@ -199,6 +168,41 @@ export function Tour() {
             Tour überspringen
           </button>
         )}
+    </div>
+  )
+
+  // Ziel (noch) nicht gefunden → zentrierter Fallback, damit die Tour nie
+  // unsichtbar, aber aktiv ("tot") ist.
+  if (!rect) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-stone-900/45" onClick={finish} />
+        <div className="relative">{panel}</div>
+      </div>
+    )
+  }
+
+  // Spotlight + positioniertes Tooltip
+  const top = rect.top - PAD
+  const left = rect.left - PAD
+  const w = rect.width + PAD * 2
+  const h = rect.height + PAD * 2
+  const below = top + h + 12 + 190 < window.innerHeight
+  const ttTop = Math.max(12, below ? top + h + 12 : top - 12)
+  const ttLeft = Math.max(12, Math.min(left, window.innerWidth - 332))
+
+  return (
+    <div className="fixed inset-0 z-[100]">
+      <div
+        className="pointer-events-none absolute rounded-xl ring-2 ring-brand-400/70 transition-all duration-300"
+        style={{ top, left, width: w, height: h, boxShadow: '0 0 0 9999px rgba(28,25,23,0.55)' }}
+      />
+      <div className="absolute inset-0" onClick={finish} />
+      <div
+        className="absolute"
+        style={{ top: ttTop, left: ttLeft, transform: below ? undefined : 'translateY(-100%)' }}
+      >
+        {panel}
       </div>
     </div>
   )

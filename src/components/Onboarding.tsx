@@ -62,12 +62,26 @@ export function Onboarding() {
   }
 
   async function loadDemo() {
+    if (busy) return
     setBusy(true)
-    await seedIfEmpty()
+    try {
+      await seedIfEmpty()
+    } finally {
+      setBusy(false)
+    }
   }
 
   async function finish() {
+    if (busy) return
     setBusy(true)
+    try {
+      await doFinish()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function doFinish() {
     const pid = await createProgram({
       name: name.trim() || 'Mein Studium',
       type,

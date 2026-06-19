@@ -22,9 +22,21 @@ const PRIO_SEG: { id: Priority | 'keine'; label: string; color?: string }[] = [
   { id: 'hoch', label: 'Hoch', color: '#ef4444' },
 ]
 
+/** Robustes Parsen eines Zahlen-Feldwerts (leer/ungültig → undefined). */
+function parseNum(v: string): number | undefined {
+  if (v.trim() === '') return undefined
+  const n = Number(v)
+  return Number.isFinite(n) ? n : undefined
+}
+
 export function TaskEditor({ courses }: { courses: Course[] }) {
   const id = useUI((s) => s.editingTaskId)
-  const close = () => useUI.getState().editTask(null)
+  // Schließen: vorher das aktive Feld blurren, damit ungespeicherte (onBlur-)
+  // Eingaben in Titel/Notizen sicher persistiert werden.
+  const close = () => {
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    useUI.getState().editTask(null)
+  }
   const task = useTask(id)
 
   if (!id || !task) return null
@@ -55,7 +67,7 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
         </>
       }
     >
-      <div className="space-y-4">
+      <div className="space-y-4" key={task.id}>
         <input
           defaultValue={task.title}
           onBlur={(e) => patch({ title: e.target.value })}
@@ -149,12 +161,7 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
               defaultValue={task.points?.earned ?? ''}
               placeholder="erreicht"
               onBlur={(e) =>
-                patch({
-                  points: {
-                    ...task.points,
-                    earned: e.target.value === '' ? undefined : Number(e.target.value),
-                  },
-                })
+                patch({ points: { ...task.points, earned: parseNum(e.target.value) } })
               }
               className="w-20 rounded-lg border border-stone-200 px-2 py-1 text-sm"
             />
@@ -163,14 +170,7 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
               type="number"
               defaultValue={task.points?.max ?? ''}
               placeholder="max"
-              onBlur={(e) =>
-                patch({
-                  points: {
-                    ...task.points,
-                    max: e.target.value === '' ? undefined : Number(e.target.value),
-                  },
-                })
-              }
+              onBlur={(e) => patch({ points: { ...task.points, max: parseNum(e.target.value) } })}
               className="w-20 rounded-lg border border-stone-200 px-2 py-1 text-sm"
             />
           </div>
@@ -183,7 +183,7 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
             <div className="space-y-1">
               {task.phases.map((p, i) => (
                 <label
-                  key={i}
+                  key={p.label}
                   className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-stone-50"
                 >
                   <input

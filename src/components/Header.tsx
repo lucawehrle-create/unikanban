@@ -20,7 +20,7 @@ const VIEWS: { id: ViewId; label: string; icon: typeof LayoutGrid }[] = [
   { id: 'study', label: 'Studium', icon: Gauge },
 ]
 
-export function Header({ semester, program }: { semester: Semester; program?: Program }) {
+export function Header({ semester, program }: { semester?: Semester; program?: Program }) {
   const view = useUI((s) => s.view)
   const setView = useUI((s) => s.setView)
   const setShowCourseManager = useUI((s) => s.setShowCourseManager)
@@ -66,7 +66,7 @@ export function Header({ semester, program }: { semester: Semester; program?: Pr
       </nav>
 
       <div className="ml-auto flex items-center gap-2">
-        <SemesterSwitcher semester={semester} />
+        {semester && <SemesterSwitcher semester={semester} />}
 
         <button
           onClick={() => setShowCalendar(true)}

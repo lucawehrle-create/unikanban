@@ -68,7 +68,7 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
   const prio = priorityMeta(draft.priority)
 
   // Aktiver Trigger + Vorschläge
-  const { token, start } = useMemo(() => tokenAt(value, caret), [value, caret])
+  const { token } = useMemo(() => tokenAt(value, caret), [value, caret])
   const trigger: TriggerKind | null = useMemo(() => {
     if (token.startsWith('#')) return '#'
     if (token.startsWith('@')) return '@'
@@ -106,28 +106,34 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
   const showHelper = focused && !dismissed && trigger == null && value.trim() === ''
 
   function accept(s: Suggestion) {
-    const newLeft = value.slice(0, start) + s.insert + ' '
-    const next = newLeft + value.slice(caret)
+    // Cursorposition live aus dem Input lesen (State kann nach Maus-Drag veralten)
+    const el = inputRef.current
+    const c = el?.selectionStart ?? caret
+    const { start: st } = tokenAt(value, c)
+    const newLeft = value.slice(0, st) + s.insert + ' '
+    const next = newLeft + value.slice(c)
     setValue(next)
     setDismissed(false)
     requestAnimationFrame(() => {
       const pos = newLeft.length
-      inputRef.current?.focus()
-      inputRef.current?.setSelectionRange(pos, pos)
+      el?.focus()
+      el?.setSelectionRange(pos, pos)
       setCaret(pos)
     })
   }
 
   /** Fügt ein Trigger-Zeichen am Cursor ein (Helfer-Chips). */
   function insertTrigger(ch: string) {
-    const needSpace = start > 0 && !/\s$/.test(value.slice(0, caret))
+    const el = inputRef.current
+    const c = el?.selectionStart ?? caret
+    const needSpace = c > 0 && !/\s$/.test(value.slice(0, c))
     const ins = (needSpace ? ' ' : '') + ch
-    const newLeft = value.slice(0, caret) + ins
-    setValue(newLeft + value.slice(caret))
+    const newLeft = value.slice(0, c) + ins
+    setValue(newLeft + value.slice(c))
     requestAnimationFrame(() => {
       const pos = newLeft.length
-      inputRef.current?.focus()
-      inputRef.current?.setSelectionRange(pos, pos)
+      el?.focus()
+      el?.setSelectionRange(pos, pos)
       setCaret(pos)
     })
   }
@@ -163,7 +169,10 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
         setSel((s) => (s - 1 + suggestions.length) % suggestions.length)
         return
       }
-      if (e.key === 'Enter' || e.key === 'Tab') {
+      // Bei bloßem "p" (ohne Ziffer) NICHT kapern – sonst würde z.B. "Praktikum"
+      // beim Enter zu Priorität p1. Erst ab "p1"/"p2"/"p3" übernehmen.
+      const canAccept = trigger !== 'p' || /\d/.test(token)
+      if ((e.key === 'Enter' || e.key === 'Tab') && canAccept) {
         e.preventDefault()
         accept(suggestions[Math.min(sel, suggestions.length - 1)])
         return

@@ -22,9 +22,11 @@ export function computeProgramStats(program: Program, courses: Course[]): Progra
   let doneEcts = program.priorEcts ?? 0
   let runningEcts = 0
 
-  // gewichteter Schnitt: Startbilanz als Basis
-  let gradeNum = (program.priorGradeAvg ?? 0) * (program.priorGradedEcts ?? 0)
-  let gradeDen = program.priorGradedEcts ?? 0
+  // gewichteter Schnitt: Startbilanz nur einbeziehen, wenn auch ein Schnitt angegeben
+  // wurde (sonst würde ein 0er-Schnitt fälschlich als 0,0 erscheinen).
+  const hasPrior = program.priorGradeAvg != null && (program.priorGradedEcts ?? 0) > 0
+  let gradeNum = hasPrior ? program.priorGradeAvg! * program.priorGradedEcts! : 0
+  let gradeDen = hasPrior ? program.priorGradedEcts! : 0
   let gradedCourses = 0
 
   for (const c of courses) {

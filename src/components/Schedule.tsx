@@ -114,11 +114,12 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
   const maxWeekday = Math.max(5, ...slots.map((s) => s.weekday), ...[...tasksByDay.keys()])
   const days = Array.from({ length: maxWeekday }, (_, i) => i + 1)
 
+  // Zeitfenster aus den echten Terminen ableiten (damit nichts negativ/abgeschnitten ist)
   const startHour = slots.length
-    ? Math.max(6, Math.floor(Math.min(...slots.map((s) => s.start)) / 60) - 1)
+    ? Math.max(0, Math.floor(Math.min(...slots.map((s) => s.start)) / 60))
     : 8
   const endHour = slots.length
-    ? Math.min(22, Math.ceil(Math.max(...slots.map((s) => s.end)) / 60) + 1)
+    ? Math.min(24, Math.ceil(Math.max(...slots.map((s) => s.end)) / 60))
     : 18
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i)
   const gridHeight = (endHour - startHour) * PX_PER_HOUR
@@ -351,8 +352,8 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
           <div
             className="fixed z-50 w-52 rounded-xl border border-stone-200 bg-white p-1 shadow-xl"
             style={{
-              top: Math.min(menu.y, window.innerHeight - 230),
-              left: Math.min(menu.x, window.innerWidth - 220),
+              top: Math.max(8, Math.min(menu.y, window.innerHeight - 230)),
+              left: Math.max(8, Math.min(menu.x, window.innerWidth - 220)),
             }}
           >
             <div className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium text-stone-400">

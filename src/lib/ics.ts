@@ -1,4 +1,4 @@
-import type { Course, Semester, Task } from '@/db/types'
+import type { Course, SlotKind, Semester, Task } from '@/db/types'
 import { uid } from '@/db/db'
 import { dateForWeekday, withTime } from './semester'
 import { slotKindLabel } from './slotKinds'
@@ -20,6 +20,36 @@ function fmtUTC(d: Date): string {
     `T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`
   )
 }
+
+/** Date → lokale Wandzeit (ohne Z) für TZID-gebundene Termine. */
+function fmtLocal(d: Date): string {
+  return (
+    `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}` +
+    `T${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+  )
+}
+
+// VTIMEZONE für Europe/Berlin – damit wöchentliche Termine über die Sommer-/
+// Winterzeit-Grenze die korrekte Wanduhrzeit behalten (RRULE in lokaler Zeit).
+const VTIMEZONE_BERLIN = [
+  'BEGIN:VTIMEZONE',
+  'TZID:Europe/Berlin',
+  'BEGIN:DAYLIGHT',
+  'TZOFFSETFROM:+0100',
+  'TZOFFSETTO:+0200',
+  'TZNAME:CEST',
+  'DTSTART:19700329T020000',
+  'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU',
+  'END:DAYLIGHT',
+  'BEGIN:STANDARD',
+  'TZOFFSETFROM:+0200',
+  'TZOFFSETTO:+0100',
+  'TZNAME:CET',
+  'DTSTART:19701025T030000',
+  'RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU',
+  'END:STANDARD',
+  'END:VTIMEZONE',
+]
 
 function esc(text: string): string {
   return text.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n')
@@ -48,7 +78,9 @@ export function buildICS(
     'X-WR-TIMEZONE:Europe/Berlin',
   ]
 
-  // Stundenplan: wöchentlich wiederkehrende Termine
+  if (opts.schedule) lines.push(...VTIMEZONE_BERLIN)
+
+  // Stundenplan: wöchentlich wiederkehrende Termine (lokale Zeit, DST-sicher)
   if (opts.schedule) {
     for (const course of courses) {
       for (const slot of course.slots) {
@@ -58,8 +90,8 @@ export function buildICS(
           'BEGIN:VEVENT',
           `UID:${course.id}-${slot.id}@unikanban`,
           `DTSTAMP:${now}`,
-          `DTSTART:${fmtUTC(start)}`,
-          `DTEND:${fmtUTC(end)}`,
+          `DTSTART;TZID=Europe/Berlin:${fmtLocal(start)}`,
+          `DTEND;TZID=Europe/Berlin:${fmtLocal(end)}`,
           `RRULE:FREQ=WEEKLY;COUNT=${semester.weeks}`,
           `SUMMARY:${esc(`${course.short} – ${slotKindLabel(slot.kind)}`)}`,
           ...(slot.room ? [`LOCATION:${esc(slot.room)}`] : []),
@@ -129,6 +161,19 @@ function jsToWeekday(d: Date): number {
   return ((d.getDay() + 6) % 7) + 1
 }
 
+/** Heuristik: Veranstaltungsart aus dem Titel ableiten. */
+function classifyKind(summary: string): SlotKind {
+  const t = summary.toLowerCase()
+  if (/tutor/.test(t)) return 'tutorium'
+  if (/übung|uebung|ubung|exercise/.test(t)) return 'uebung'
+  if (/seminar/.test(t)) return 'seminar'
+  if (/praktik|practical|\blab\b/.test(t)) return 'praktikum'
+  if (/repetitor/.test(t)) return 'repetitorium'
+  if (/kolloqu/.test(t)) return 'kolloquium'
+  if (/klausur|prüfung|pruefung|\bexam\b/.test(t)) return 'klausur'
+  return 'vorlesung'
+}
+
 /** Parst "20260413T100000" / "...Z" / mit TZID in ein lokales Date. */
 function parseDt(value: string): Date | null {
   const m = value.match(/(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?)?(Z)?/)
@@ -156,7 +201,9 @@ export function parseICS(text: string): ParsedEvent[] {
         const dtEnd = cur['DTEND']
         const start = dtStart ? parseDt(dtStart) : null
         const end = dtEnd ? parseDt(dtEnd) : null
-        if (start) {
+        // Ganztagstermine (VALUE=DATE, ohne Uhrzeit) sind keine Stundenplan-Slots → überspringen
+        const hasTime = !!dtStart && /T\d{2}/.test(dtStart)
+        if (start && hasTime) {
           events.push({
             summary: (cur['SUMMARY'] ?? 'Termin').replace(/\\,/g, ',').replace(/\\;/g, ';'),
             weekday: jsToWeekday(start),
@@ -209,7 +256,7 @@ export function eventsToCourses(events: ParsedEvent[], semesterId: string): Cour
       color: PALETTE[i % PALETTE.length],
       slots: evs.map((e) => ({
         id: uid(),
-        kind: /tut|übung|ubung|practice/i.test(e.summary) ? 'tutorium' : 'vorlesung',
+        kind: classifyKind(e.summary),
         weekday: e.weekday,
         start: e.start,
         end: e.end,

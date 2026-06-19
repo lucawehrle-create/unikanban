@@ -29,14 +29,13 @@ export function WeekView({ tasks, courses }: WeekViewProps) {
   const byId = useMemo(() => courseMap(courses), [courses])
   const [showOverdue, setShowOverdue] = useState(true)
 
-  // Nur heute … Sonntag (vergangene Wochentage sind reiner Ballast)
-  const days = useMemo(() => {
-    const now = new Date()
-    return eachDayOfInterval({
-      start: startOfDay(now),
-      end: endOfWeek(now, { weekStartsOn: 1 }),
-    })
-  }, [])
+  // Nur heute … Sonntag (vergangene Wochentage sind reiner Ballast).
+  // Bewusst ohne useMemo, damit "heute" bei Re-Renders aktuell bleibt.
+  const now = new Date()
+  const days = eachDayOfInterval({
+    start: startOfDay(now),
+    end: endOfWeek(now, { weekStartsOn: 1 }),
+  })
 
   const dated = tasks.filter((t) => t.dueDate)
   const overdue = dated
