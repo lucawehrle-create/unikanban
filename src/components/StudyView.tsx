@@ -14,6 +14,7 @@ import {
 import { usePrograms, useProgramCourses, useSemesters } from '@/hooks/data'
 import { computeProgramStats, fmtGrade, PROGRAM_TYPE_LABEL } from '@/lib/study'
 import { Modal } from './Modal'
+import { DataSection } from './DataSection'
 import { DatePicker } from './DatePicker'
 import { Select } from './ui/Select'
 import { cn } from '@/lib/cn'
@@ -189,6 +190,8 @@ export function StudyView({ activeProgram }: { activeProgram: Program }) {
             )
           })}
         </div>
+
+        <DataSection />
       </div>
 
       {editProgram && (
