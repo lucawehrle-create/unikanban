@@ -11,7 +11,6 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core'
 import type { Course, Task, TaskStatus } from '@/db/types'
-import { Layers } from 'lucide-react'
 import { TASK_TYPE_LIST } from '@/lib/taskTypes'
 import { classifyDue, dueSortKey } from '@/lib/deadline'
 import { priorityRank } from '@/lib/priority'
@@ -171,7 +170,6 @@ export function Board({ tasks, courses }: BoardProps) {
   const groupBy = useUI((s) => s.groupBy)
   const sortBy = useUI((s) => s.sortBy)
   const showAllSeries = useUI((s) => s.showAllSeries)
-  const setShowAllSeries = useUI((s) => s.setShowAllSeries)
   const editTask = useUI((s) => s.editTask)
   const byId = useMemo(() => courseMap(courses), [courses])
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -183,7 +181,6 @@ export function Board({ tasks, courses }: BoardProps) {
     () => (showAllSeries ? tasks : staggerSeries(tasks, 2)),
     [tasks, showAllSeries],
   )
-  const hiddenCount = tasks.length - shown.length
 
   const { columns, groups } = useMemo(
     () => buildColumns(shown, courses, groupBy),
@@ -203,26 +200,8 @@ export function Board({ tasks, courses }: BoardProps) {
     if (task && task.status !== target) void setTaskStatus(task.id, target)
   }
 
-  const hint =
-    hiddenCount > 0 || showAllSeries ? (
-      <div className="flex items-center gap-2 px-5 pt-1 text-xs text-stone-400">
-        <Layers size={13} />
-        {showAllSeries ? (
-          <span>Alle Wochen sichtbar.</span>
-        ) : (
-          <span>{hiddenCount} kommende Serien-Aufgaben gestaffelt ausgeblendet.</span>
-        )}
-        <button
-          onClick={() => setShowAllSeries(!showAllSeries)}
-          className="font-medium text-stone-500 underline-offset-2 hover:text-brand-600 hover:underline"
-        >
-          {showAllSeries ? 'Gestaffelt anzeigen' : 'Alle anzeigen'}
-        </button>
-      </div>
-    ) : null
-
   const grid = (
-    <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto px-5 pb-5">
+    <div className="flex h-full gap-4 overflow-x-auto px-5 pb-5">
       {columns.map((col) => {
         const items = sortTasks(groups.get(col.id) ?? [], sortBy)
         return (
@@ -268,18 +247,11 @@ export function Board({ tasks, courses }: BoardProps) {
     </div>
   )
 
-  const board = (
-    <div className="flex h-full flex-col">
-      {hint}
-      {grid}
-    </div>
-  )
-
-  if (!dndEnabled) return board
+  if (!dndEnabled) return grid
 
   return (
     <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
-      {board}
+      {grid}
       <DragOverlay>
         {activeTask && (
           <div className="w-72">

@@ -1,4 +1,4 @@
-import { Search, X } from 'lucide-react'
+import { Layers, Search, X } from 'lucide-react'
 import type { Course } from '@/db/types'
 import { TASK_TYPE_LIST } from '@/lib/taskTypes'
 import { useUI, type GroupBy, type SortBy } from '@/store/ui'
@@ -93,9 +93,21 @@ export function FilterBar({ courses }: { courses: Course[] }) {
         </button>
       )}
 
-      {/* Sortierung + Gruppierung (nur Board) */}
+      {/* Serien-Staffelung + Sortierung + Gruppierung (nur Board) */}
       {ui.view === 'board' && (
         <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => ui.setShowAllSeries(!ui.showAllSeries)}
+            title="Pro Serie nur die nächsten Wochen zeigen (gestaffelt) – oder alle einblenden"
+            className={cn(
+              'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium shadow-sm ring-1 transition',
+              ui.showAllSeries
+                ? 'bg-white/70 text-stone-500 ring-stone-200/70 hover:bg-white'
+                : 'bg-stone-900 text-white ring-stone-900',
+            )}
+          >
+            <Layers size={13} /> {ui.showAllSeries ? 'Alle Wochen' : 'Gestaffelt'}
+          </button>
           <span className="text-xs text-stone-400">Sortieren:</span>
           <Select
             value={ui.sortBy}
