@@ -1,5 +1,11 @@
 import { useRef } from 'react'
-import { motion, useScroll, useTransform, type Variants } from 'framer-motion'
+import {
+  motion,
+  useScroll,
+  useTransform,
+  type MotionValue,
+  type Variants,
+} from 'framer-motion'
 import {
   ArrowRight,
   Repeat2,
@@ -13,7 +19,6 @@ import {
 import { Logo } from '../Logo'
 
 const NAVY = '#2a2a6e'
-
 const ease = [0.22, 1, 0.36, 1] as const
 
 /** Reveal beim Scrollen (einmalig). */
@@ -55,26 +60,80 @@ export default function Landing({ onStart }: { onStart: () => void }) {
   const { scrollYProgress } = useScroll({ container: scrollRef })
 
   return (
-    <div ref={scrollRef} className="h-full overflow-y-auto overflow-x-hidden bg-cream-50 text-stone-800">
+    <div
+      ref={scrollRef}
+      className="relative h-full overflow-y-auto overflow-x-hidden bg-cream-50 text-stone-800"
+    >
+      {/* mitscrollender Hintergrund */}
+      <AuroraBackground progress={scrollYProgress} />
+
       {/* Scroll-Fortschritt */}
       <motion.div
         style={{ scaleX: scrollYProgress }}
         className="fixed inset-x-0 top-0 z-50 h-0.5 origin-left bg-brand-400"
       />
 
-      <Nav onStart={onStart} />
-      <Hero onStart={onStart} progress={scrollYProgress} />
-      <Features />
-      <Steps />
-      <FinalCTA onStart={onStart} />
-      <Footer />
+      <div className="relative z-10">
+        <Nav onStart={onStart} />
+        <Hero onStart={onStart} progress={scrollYProgress} />
+        <StickyShowcase container={scrollRef} />
+        <Features />
+        <Steps />
+        <FinalCTA onStart={onStart} />
+        <Footer />
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Großflächige, weiche Farb-Blobs, deren Position/Größe/Deckkraft direkt vom
+ * Scroll-Fortschritt gesteuert wird – der Hintergrund „lebt" beim Scrollen.
+ */
+function AuroraBackground({ progress }: { progress: MotionValue<number> }) {
+  // Blob 1 (gelb): wandert nach unten-rechts
+  const x1 = useTransform(progress, [0, 1], ['-10%', '30%'])
+  const y1 = useTransform(progress, [0, 1], ['-5%', '60%'])
+  const s1 = useTransform(progress, [0, 0.5, 1], [1, 1.4, 1])
+  // Blob 2 (coral): wandert nach oben-links
+  const x2 = useTransform(progress, [0, 1], ['40%', '-15%'])
+  const y2 = useTransform(progress, [0, 1], ['20%', '80%'])
+  // Blob 3 (indigo/navy): erscheint in der Mitte des Scrolls
+  const y3 = useTransform(progress, [0, 1], ['90%', '10%'])
+  const o3 = useTransform(progress, [0, 0.4, 0.8, 1], [0, 0.45, 0.5, 0.3])
+  // sanfter Farb-Wash über die ganze Seite (cream → indigo-Hauch → cream)
+  const washOpacity = useTransform(progress, [0, 0.5, 1], [0, 0.5, 0])
+
+  return (
+    <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+      <motion.div
+        style={{ x: x1, y: y1, scale: s1 }}
+        className="absolute left-0 top-0 h-[55vh] w-[55vh] rounded-full bg-brand-300/50 blur-[90px]"
+      />
+      <motion.div
+        style={{ x: x2, y: y2, backgroundColor: '#e9633c' }}
+        className="absolute right-0 top-0 h-[50vh] w-[50vh] rounded-full opacity-30 blur-[90px]"
+      />
+      <motion.div
+        style={{ y: y3, opacity: o3, backgroundColor: '#6366f1' }}
+        className="absolute left-1/2 h-[60vh] w-[60vh] -translate-x-1/2 rounded-full blur-[100px]"
+      />
+      {/* sanfter Farb-Wash, der zur Seitenmitte kräftiger wird */}
+      <motion.div
+        style={{
+          opacity: washOpacity,
+          background:
+            'linear-gradient(160deg, transparent 0%, rgba(99,102,241,0.10) 60%, rgba(42,42,110,0.12) 100%)',
+        }}
+        className="absolute inset-0"
+      />
     </div>
   )
 }
 
 function Nav({ onStart }: { onStart: () => void }) {
   return (
-    <header className="sticky top-0 z-40 border-b border-stone-200/40 bg-cream-50/70 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-stone-200/40 bg-cream-50/60 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3">
         <div className="flex items-center gap-2.5">
           <Logo size={32} />
@@ -98,73 +157,61 @@ function Hero({
   progress,
 }: {
   onStart: () => void
-  progress: ReturnType<typeof useScroll>['scrollYProgress']
+  progress: MotionValue<number>
 }) {
-  // sanftes Parallax/Verblassen des Visuals beim Scrollen
-  const yVisual = useTransform(progress, [0, 0.25], [0, -60])
-  const scaleVisual = useTransform(progress, [0, 0.25], [1, 0.94])
-  const fade = useTransform(progress, [0, 0.18], [1, 0])
+  const yVisual = useTransform(progress, [0, 0.25], [0, -80])
+  const scaleVisual = useTransform(progress, [0, 0.25], [1, 0.92])
+  const yText = useTransform(progress, [0, 0.2], [0, -40])
+  const fade = useTransform(progress, [0, 0.16], [1, 0])
 
   return (
-    <section className="relative overflow-hidden px-5 pb-24 pt-16 sm:pt-24">
-      {/* warme Hintergrund-Blobs */}
-      <motion.div
-        aria-hidden
-        className="pointer-events-none absolute -left-32 -top-24 h-96 w-96 rounded-full bg-brand-300/40 blur-3xl"
-        animate={{ x: [0, 30, 0], y: [0, 20, 0] }}
-        transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      <motion.div
-        aria-hidden
-        className="pointer-events-none absolute -right-24 top-32 h-80 w-80 rounded-full blur-3xl"
-        style={{ backgroundColor: '#e9633c33' }}
-        animate={{ x: [0, -24, 0], y: [0, 26, 0] }}
-        transition={{ duration: 16, repeat: Infinity, ease: 'easeInOut' }}
-      />
-
+    <section className="relative px-5 pb-24 pt-16 sm:pt-24">
       <div className="relative mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-2">
-        {/* Text */}
-        <motion.div variants={stagger} initial="hidden" animate="show">
-          <motion.div
-            variants={item}
-            className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-semibold text-stone-500 shadow-sm ring-1 ring-stone-200/70"
-          >
-            <Sparkles size={13} className="text-brand-500" /> Dein Semester-Kanban
-          </motion.div>
-          <motion.h1
-            variants={item}
-            className="mt-5 text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl"
-            style={{ color: NAVY }}
-          >
-            Behalte dein
-            <br />
-            Studium im Griff.
-          </motion.h1>
-          <motion.p variants={item} className="mt-5 max-w-md text-lg leading-relaxed text-stone-500">
-            SemBan kennt deinen Uni-Rhythmus: automatische Wochenblätter, Stundenplan, Noten & ECTS –
-            blitzschnell lokal und auf allen Geräten synchron.
-          </motion.p>
-          <motion.div variants={item} className="mt-8 flex flex-wrap items-center gap-3">
-            <button
-              onClick={onStart}
-              className="group flex items-center gap-2 rounded-full bg-brand-400 px-6 py-3 text-sm font-semibold text-stone-900 shadow-sm transition hover:bg-brand-500"
+        <motion.div style={{ y: yText, opacity: fade }}>
+          <motion.div variants={stagger} initial="hidden" animate="show">
+            <motion.div
+              variants={item}
+              className="inline-flex items-center gap-1.5 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold text-stone-500 shadow-sm ring-1 ring-stone-200/70 backdrop-blur"
             >
-              Kostenlos starten
-              <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
-            </button>
-            <a
-              href="#features"
-              className="rounded-full bg-white px-6 py-3 text-sm font-medium text-stone-600 ring-1 ring-stone-200 transition hover:bg-stone-50"
+              <Sparkles size={13} className="text-brand-500" /> Dein Semester-Kanban
+            </motion.div>
+            <motion.h1
+              variants={item}
+              className="mt-5 text-4xl font-extrabold leading-[1.05] tracking-tight sm:text-6xl"
+              style={{ color: NAVY }}
             >
-              Funktionen ansehen
-            </a>
+              Behalte dein
+              <br />
+              Studium im Griff.
+            </motion.h1>
+            <motion.p
+              variants={item}
+              className="mt-5 max-w-md text-lg leading-relaxed text-stone-600"
+            >
+              SemBan kennt deinen Uni-Rhythmus: automatische Wochenblätter, Stundenplan, Noten & ECTS
+              – blitzschnell lokal und auf allen Geräten synchron.
+            </motion.p>
+            <motion.div variants={item} className="mt-8 flex flex-wrap items-center gap-3">
+              <button
+                onClick={onStart}
+                className="group flex items-center gap-2 rounded-full bg-brand-400 px-6 py-3 text-sm font-semibold text-stone-900 shadow-sm transition hover:bg-brand-500"
+              >
+                Kostenlos starten
+                <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
+              </button>
+              <a
+                href="#features"
+                className="rounded-full bg-white/80 px-6 py-3 text-sm font-medium text-stone-600 ring-1 ring-stone-200 backdrop-blur transition hover:bg-white"
+              >
+                Funktionen ansehen
+              </a>
+            </motion.div>
+            <motion.p variants={item} className="mt-4 text-xs text-stone-400">
+              Kostenlos · keine Kreditkarte · deine Daten gehören dir
+            </motion.p>
           </motion.div>
-          <motion.p variants={item} className="mt-4 text-xs text-stone-400">
-            Kostenlos · keine Kreditkarte · deine Daten gehören dir
-          </motion.p>
         </motion.div>
 
-        {/* Visual */}
         <motion.div
           style={{ y: yVisual, scale: scaleVisual, opacity: fade }}
           initial={{ opacity: 0, y: 40 }}
@@ -175,13 +222,27 @@ function Hero({
           <BoardMock />
         </motion.div>
       </div>
+
+      {/* Scroll-Hinweis */}
+      <motion.div
+        style={{ opacity: fade }}
+        className="mt-16 flex justify-center"
+      >
+        <motion.div
+          animate={{ y: [0, 8, 0] }}
+          transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
+          className="flex h-9 w-6 items-start justify-center rounded-full ring-2 ring-stone-300/70 p-1.5"
+        >
+          <span className="h-1.5 w-1 rounded-full bg-stone-400" />
+        </motion.div>
+      </motion.div>
     </section>
   )
 }
 
 /** Stilisiertes Mini-Board mit schwebenden Akzent-Karten. */
 function BoardMock() {
-  const cols: { title: string; accent: string; cards: { t: string; c: string; due?: string }[] }[] = [
+  const cols = [
     {
       title: 'Offen',
       accent: '#cbd5e1',
@@ -190,23 +251,15 @@ function BoardMock() {
         { t: 'Lektüre Woche 4', c: '#10b981' },
       ],
     },
-    {
-      title: 'Dran',
-      accent: '#0ea5e9',
-      cards: [{ t: 'Referat: Kant', c: '#e9633c', due: '2. Jul' }],
-    },
-    {
-      title: 'Erledigt',
-      accent: '#10b981',
-      cards: [{ t: 'Übungsblatt 2', c: '#6366f1' }],
-    },
+    { title: 'Dran', accent: '#0ea5e9', cards: [{ t: 'Referat: Kant', c: '#e9633c', due: '2. Jul' }] },
+    { title: 'Erledigt', accent: '#10b981', cards: [{ t: 'Übungsblatt 2', c: '#6366f1' }] },
   ]
   return (
     <div className="relative mx-auto max-w-md">
       <motion.div
         animate={{ y: [0, -10, 0] }}
         transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
-        className="rounded-3xl bg-white/80 p-4 shadow-2xl ring-1 ring-stone-200/70 backdrop-blur"
+        className="rounded-3xl bg-white/85 p-4 shadow-2xl ring-1 ring-stone-200/70 backdrop-blur"
       >
         <div className="mb-3 flex items-center gap-2 px-1">
           <Logo size={22} />
@@ -228,10 +281,7 @@ function BoardMock() {
                     key={card.t}
                     className="relative overflow-hidden rounded-lg bg-white px-2 py-1.5 shadow-sm ring-1 ring-stone-200/70"
                   >
-                    <span
-                      className="absolute inset-y-0 left-0 w-1"
-                      style={{ backgroundColor: card.c }}
-                    />
+                    <span className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: card.c }} />
                     <div className="pl-1 text-[10px] font-medium text-stone-700">{card.t}</div>
                     {card.due && <div className="pl-1 text-[9px] text-stone-400">{card.due}</div>}
                   </div>
@@ -242,7 +292,6 @@ function BoardMock() {
         </div>
       </motion.div>
 
-      {/* schwebende Badges */}
       <motion.div
         animate={{ y: [0, 12, 0] }}
         transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut' }}
@@ -258,6 +307,109 @@ function BoardMock() {
         <Check size={13} className="text-brand-300" /> +9 ECTS
       </motion.div>
     </div>
+  )
+}
+
+const SCENES = [
+  {
+    tag: 'Superkraft 1',
+    title: 'Das ganze Semester\nauf einen Schlag.',
+    body: 'Blatt-Serien einmal definieren – SemBan erzeugt jede Woche automatisch.',
+    color: '#6366f1',
+  },
+  {
+    tag: 'Superkraft 2',
+    title: 'Wo stehst du\ngerade?',
+    body: 'Stundenplan mit Anwesenheit und einer „Jetzt"-Linie durch den Tag.',
+    color: '#0ea5e9',
+  },
+  {
+    tag: 'Superkraft 3',
+    title: 'Note für Note\nzum Abschluss.',
+    body: 'ECTS und Schnitt – kumuliert über dein ganzes Studium.',
+    color: '#e9633c',
+  },
+]
+
+/**
+ * Gepinnte Scroll-Sektion: Während man durch sie scrollt, „scrubbt" der
+ * Fortschritt die Animation – das Board dreht/skaliert und drei Szenen-Texte
+ * blenden nacheinander durch (alethia-Stil).
+ */
+function StickyShowcase({ container }: { container: React.RefObject<HTMLDivElement | null> }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const { scrollYProgress } = useScroll({
+    container,
+    target: ref,
+    offset: ['start start', 'end end'],
+  })
+
+  const rotate = useTransform(scrollYProgress, [0, 1], [-8, 8])
+  const scale = useTransform(scrollYProgress, [0, 0.5, 1], [0.85, 1.05, 0.9])
+  const glow = useTransform(
+    scrollYProgress,
+    [0, 0.33, 0.66, 1],
+    ['#6366f1', '#0ea5e9', '#e9633c', '#6366f1'],
+  )
+
+  return (
+    <section ref={ref} className="relative" style={{ height: '300vh' }}>
+      <div className="sticky top-0 flex h-screen items-center justify-center overflow-hidden px-5">
+        {/* mitlaufender Glow hinter dem Board */}
+        <motion.div
+          style={{ backgroundColor: glow, scale }}
+          className="absolute h-[60vh] w-[60vh] rounded-full opacity-25 blur-[100px]"
+        />
+
+        {/* das Board scrubbt durch */}
+        <motion.div style={{ rotate, scale }} className="relative z-10 w-full max-w-md">
+          <BoardMock />
+        </motion.div>
+
+        {/* drei Szenen-Texte, je nach Fortschritt eingeblendet */}
+        {SCENES.map((s, i) => (
+          <Scene key={i} scene={s} index={i} progress={scrollYProgress} />
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function Scene({
+  scene,
+  index,
+  progress,
+}: {
+  scene: (typeof SCENES)[number]
+  index: number
+  progress: MotionValue<number>
+}) {
+  // Jede Szene hat ein Fenster im Scroll-Verlauf (0–.33, .33–.66, .66–1)
+  const start = index / SCENES.length
+  const end = (index + 1) / SCENES.length
+  const mid = (start + end) / 2
+  const opacity = useTransform(progress, [start, mid - 0.04, mid + 0.04, end], [0, 1, 1, 0])
+  const y = useTransform(progress, [start, end], [40, -40])
+
+  return (
+    <motion.div
+      style={{ opacity, y }}
+      className="pointer-events-none absolute inset-x-0 top-[12%] mx-auto max-w-xl px-6 text-center"
+    >
+      <span
+        className="inline-block rounded-full px-3 py-1 text-xs font-semibold text-white"
+        style={{ backgroundColor: scene.color }}
+      >
+        {scene.tag}
+      </span>
+      <h3
+        className="mt-4 whitespace-pre-line text-3xl font-extrabold leading-tight tracking-tight sm:text-5xl"
+        style={{ color: NAVY }}
+      >
+        {scene.title}
+      </h3>
+      <p className="mx-auto mt-3 max-w-sm text-base text-stone-600">{scene.body}</p>
+    </motion.div>
   )
 }
 
@@ -296,7 +448,7 @@ function Features() {
           <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl" style={{ color: NAVY }}>
             Gebaut für den Uni-Alltag
           </h2>
-          <p className="mt-4 text-lg text-stone-500">
+          <p className="mt-4 text-lg text-stone-600">
             Kein generisches To-do-Tool. SemBan denkt in Semestern, Kursen und Abgaben – so wie du.
           </p>
         </Reveal>
@@ -333,7 +485,7 @@ function FeatureRow({
         <h3 className="mt-5 text-2xl font-bold tracking-tight" style={{ color: NAVY }}>
           {feature.title}
         </h3>
-        <p className="mt-3 max-w-md text-base leading-relaxed text-stone-500">{feature.body}</p>
+        <p className="mt-3 max-w-md text-base leading-relaxed text-stone-600">{feature.body}</p>
       </Reveal>
 
       <Reveal y={50} delay={0.1} className={flip ? 'lg:order-1' : ''}>
@@ -343,12 +495,9 @@ function FeatureRow({
   )
 }
 
-/** Kleine, je nach Feature unterschiedliche Illustrationen. */
 function FeatureVisual({ index, color }: { index: number; color: string }) {
-  const shell =
-    'relative overflow-hidden rounded-3xl bg-white p-5 shadow-xl ring-1 ring-stone-200/70'
+  const shell = 'relative overflow-hidden rounded-3xl bg-white/90 p-5 shadow-xl ring-1 ring-stone-200/70 backdrop-blur'
   if (index === 0) {
-    // Serie: gestaffelte Blätter
     return (
       <div className={shell}>
         <div className="space-y-2">
@@ -371,7 +520,6 @@ function FeatureVisual({ index, color }: { index: number; color: string }) {
     )
   }
   if (index === 1) {
-    // Stundenplan mit Jetzt-Linie
     return (
       <div className={shell}>
         <div className="relative grid grid-cols-3 gap-2" style={{ height: 180 }}>
@@ -400,7 +548,6 @@ function FeatureVisual({ index, color }: { index: number; color: string }) {
     )
   }
   if (index === 2) {
-    // Noten/ECTS Fortschritt
     return (
       <div className={shell}>
         <div className="text-xs text-stone-400">ECTS-Fortschritt</div>
@@ -431,7 +578,6 @@ function FeatureVisual({ index, color }: { index: number; color: string }) {
       </div>
     )
   }
-  // Sync über Geräte
   return (
     <div className={shell}>
       <div className="flex items-center justify-center gap-6 py-4">
@@ -474,7 +620,7 @@ function Steps() {
         <div className="mt-14 grid gap-6 md:grid-cols-3">
           {STEPS.map((s, i) => (
             <Reveal key={s.n} delay={i * 0.1}>
-              <div className="h-full rounded-3xl bg-white p-6 shadow-sm ring-1 ring-stone-200/70">
+              <div className="h-full rounded-3xl bg-white/90 p-6 shadow-sm ring-1 ring-stone-200/70 backdrop-blur">
                 <div
                   className="flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold text-stone-900"
                   style={{ backgroundColor: '#f5c645' }}
@@ -499,8 +645,16 @@ function FinalCTA({ onStart }: { onStart: () => void }) {
     <section className="px-5 py-20 sm:py-28">
       <Reveal className="mx-auto max-w-4xl">
         <div className="relative overflow-hidden rounded-[2rem] px-8 py-16 text-center shadow-xl" style={{ backgroundColor: NAVY }}>
-          <div className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-brand-400/30 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-16 -left-16 h-64 w-64 rounded-full bg-[#e9633c]/20 blur-3xl" />
+          <motion.div
+            animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
+            transition={{ duration: 12, repeat: Infinity, ease: 'easeInOut' }}
+            className="pointer-events-none absolute -right-16 -top-16 h-64 w-64 rounded-full bg-brand-400/30 blur-3xl"
+          />
+          <motion.div
+            animate={{ x: [0, -24, 0], y: [0, 24, 0] }}
+            transition={{ duration: 14, repeat: Infinity, ease: 'easeInOut' }}
+            className="pointer-events-none absolute -bottom-16 -left-16 h-64 w-64 rounded-full bg-[#e9633c]/25 blur-3xl"
+          />
           <h2 className="relative text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
             Bereit fürs nächste Semester?
           </h2>
