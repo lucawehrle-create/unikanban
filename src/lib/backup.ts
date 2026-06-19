@@ -4,7 +4,7 @@ import type { Attendance, Course, Program, Semester, Task } from '@/db/types'
 const BACKUP_VERSION = 1
 
 export interface Backup {
-  app: 'unikanban'
+  app: 'semban' | 'unikanban'
   version: number
   exportedAt: string
   programs: Program[]
@@ -24,7 +24,7 @@ export async function exportData(): Promise<Backup> {
     db.attendance.toArray(),
   ])
   return {
-    app: 'unikanban',
+    app: 'semban',
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
     programs,
@@ -42,7 +42,7 @@ export async function downloadBackup(): Promise<void> {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `unikanban-backup-${new Date().toISOString().slice(0, 10)}.json`
+  a.download = `semban-backup-${new Date().toISOString().slice(0, 10)}.json`
   document.body.appendChild(a)
   a.click()
   a.remove()
@@ -53,7 +53,7 @@ function isBackup(x: unknown): x is Backup {
   const b = x as Partial<Backup>
   return (
     !!b &&
-    b.app === 'unikanban' &&
+    (b.app === 'semban' || b.app === 'unikanban') &&
     Array.isArray(b.programs) &&
     Array.isArray(b.semesters) &&
     Array.isArray(b.courses) &&

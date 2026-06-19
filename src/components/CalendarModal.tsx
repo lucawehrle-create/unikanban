@@ -31,7 +31,7 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
 
   function doDownload() {
     const ics = buildICS(semester, courses, tasks, opts)
-    downloadICS(`unikanban-${semester.name.replace(/\s+/g, '-')}.ics`, ics)
+    downloadICS(`semban-${semester.name.replace(/\s+/g, '-')}.ics`, ics)
   }
 
   function ingest(text: string) {

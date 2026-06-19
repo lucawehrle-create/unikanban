@@ -121,7 +121,7 @@ export function Onboarding() {
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-stone-900 text-brand-300">
               <GraduationCap size={28} />
             </div>
-            <h1 className="text-xl font-bold text-stone-800">Willkommen bei UniKanban</h1>
+            <h1 className="text-xl font-bold text-stone-800">Willkommen bei SemBan</h1>
             <p className="mx-auto mt-2 max-w-sm text-sm text-stone-500">
               Dein Semesterbegleiter. Richte in 30 Sekunden dein Studium ein – oder schau dich
               erst mit Beispieldaten um.

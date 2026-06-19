@@ -1,6 +1,6 @@
-# 🎓 UniKanban — Der Semesterbegleiter
+# 🎓 SemBan — Semester-Kanban
 
-Ein Kanban-Board, das den **Uni-Rhythmus** kennt: viele Kurse parallel, wöchentliche
+**SemBan** (Semester + Kanban) ist ein Kanban-Board, das den **Uni-Rhythmus** kennt: viele Kurse parallel, wöchentliche
 Übungsblätter mit harten Abgabefristen, Hausarbeiten, Referate, Lektüre — alles
 gleichzeitig. Kein generisches Trello, sondern ein uni-natives Werkzeug, gebaut um
 den Semester-Takt herum.

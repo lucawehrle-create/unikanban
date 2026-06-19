@@ -71,10 +71,10 @@ export function buildICS(
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//UniKanban//Semesterbegleiter//DE',
+    'PRODID:-//SemBan//Semester-Kanban//DE',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
-    `X-WR-CALNAME:UniKanban – ${esc(semester.name)}`,
+    `X-WR-CALNAME:SemBan – ${esc(semester.name)}`,
     'X-WR-TIMEZONE:Europe/Berlin',
   ]
 

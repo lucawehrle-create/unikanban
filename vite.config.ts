@@ -13,9 +13,9 @@ export default defineConfig({
       injectRegister: 'auto',
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'UniKanban – Semesterbegleiter',
-        short_name: 'UniKanban',
-        description: 'Dein uni-natives Kanban-Board: Aufgaben, Stundenplan, Noten & ECTS.',
+        name: 'SemBan – Semester-Kanban',
+        short_name: 'SemBan',
+        description: 'Dein Semester-Kanban: Aufgaben, Stundenplan, Noten & ECTS.',
         lang: 'de',
         theme_color: '#f7c948',
         background_color: '#fdfcf7',

@@ -38,7 +38,7 @@ const STEPS: TourStep[] = [
     target: 'courses',
     view: 'board',
     title: 'Kurse anlegen',
-    body: 'Lege Kurse mit Stundenplan an – wöchentliche Übungsblätter erzeugt UniKanban dann automatisch fürs ganze Semester.',
+    body: 'Lege Kurse mit Stundenplan an – wöchentliche Übungsblätter erzeugt SemBan dann automatisch fürs ganze Semester.',
   },
   {
     target: 'tab-study',

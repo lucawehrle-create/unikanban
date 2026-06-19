@@ -35,7 +35,7 @@ export function Header({ semester, program }: { semester?: Semester; program?: P
           <GraduationCap size={19} />
         </div>
         <div className="leading-tight">
-          <div className="text-[15px] font-bold tracking-tight text-stone-800">UniKanban</div>
+          <div className="text-[15px] font-bold tracking-tight text-stone-800">SemBan</div>
           <div className="text-[11px] text-stone-400">{program?.name ?? 'Studium'}</div>
         </div>
       </div>
