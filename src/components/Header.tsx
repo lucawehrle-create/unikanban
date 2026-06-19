@@ -8,11 +8,17 @@ import {
   Settings2,
   MoreHorizontal,
   Cloud,
+  CloudOff,
+  Loader2,
+  LogOut,
   type LucideIcon,
 } from 'lucide-react'
+import { formatDistanceToNow, parseISO } from 'date-fns'
+import { de } from 'date-fns/locale'
 import type { Program, Semester } from '@/db/types'
 import { isSyncConfigured } from '@/lib/supabase'
 import { useSync } from '@/lib/sync'
+import { signOut } from '@/lib/auth'
 import { useUI, type ViewId } from '@/store/ui'
 import { Logo } from './Logo'
 import { SemesterSwitcher } from './SemesterSwitcher'
@@ -31,9 +37,10 @@ export function Header({ semester, program }: { semester?: Semester; program?: P
   const setView = useUI((s) => s.setView)
   const setShowCourseManager = useUI((s) => s.setShowCourseManager)
   const setShowCalendar = useUI((s) => s.setShowCalendar)
-  const setShowAccount = useUI((s) => s.setShowAccount)
   const setTour = useUI((s) => s.setTour)
-  const signedIn = useSync((s) => !!s.user)
+  const account = useSync((s) => s.user)
+  const syncStatus = useSync((s) => s.status)
+  const lastSyncAt = useSync((s) => s.lastSyncAt)
 
   return (
     <header className="flex items-center gap-3 px-4 py-3 sm:px-5 sm:py-4">
@@ -80,15 +87,24 @@ export function Header({ semester, program }: { semester?: Semester; program?: P
           <Popover label="Mehr" icon={<MoreHorizontal size={15} />} width={208}>
             {(close) => (
               <div className="space-y-0.5">
-                {isSyncConfigured && (
-                  <MenuItem
-                    icon={Cloud}
-                    label={signedIn ? 'Konto & Sync' : 'Anmelden & sichern'}
-                    onClick={() => {
-                      setShowAccount(true)
-                      close()
-                    }}
-                  />
+                {isSyncConfigured && account && (
+                  <>
+                    <div className="px-2.5 pb-1.5 pt-1">
+                      <div className="truncate text-sm font-medium text-stone-700">
+                        {account.email}
+                      </div>
+                      <SyncStatusLine status={syncStatus} lastSyncAt={lastSyncAt} />
+                    </div>
+                    <MenuItem
+                      icon={LogOut}
+                      label="Abmelden"
+                      onClick={() => {
+                        void signOut()
+                        close()
+                      }}
+                    />
+                    <div className="my-1 border-t border-stone-100" />
+                  </>
                 )}
                 <MenuItem
                   icon={Settings2}
@@ -141,5 +157,29 @@ function MenuItem({
       <Icon size={16} className="text-stone-400" />
       {label}
     </button>
+  )
+}
+
+/** Kompakte Sync-Zeile unter der E-Mail im „Mehr"-Menü. */
+function SyncStatusLine({ status, lastSyncAt }: { status: string; lastSyncAt: string | null }) {
+  if (status === 'syncing')
+    return (
+      <span className="flex items-center gap-1 text-[11px] text-stone-400">
+        <Loader2 size={11} className="animate-spin" /> Synchronisiere…
+      </span>
+    )
+  if (status === 'error')
+    return (
+      <span className="flex items-center gap-1 text-[11px] text-red-500">
+        <CloudOff size={11} /> Nicht synchron
+      </span>
+    )
+  return (
+    <span className="flex items-center gap-1 text-[11px] text-emerald-600">
+      <Cloud size={11} />
+      {lastSyncAt
+        ? `Synchron · vor ${formatDistanceToNow(parseISO(lastSyncAt), { locale: de })}`
+        : 'Synchron'}
+    </span>
   )
 }
