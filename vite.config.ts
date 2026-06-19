@@ -9,8 +9,8 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
-      injectRegister: 'auto',
+      registerType: 'prompt',
+      injectRegister: false,
       includeAssets: ['favicon.ico', 'icon.svg', 'apple-touch-icon.png', 'favicon-16.png', 'favicon-32.png'],
       manifest: {
         name: 'SemBan – Semester-Kanban',
@@ -33,7 +33,6 @@ export default defineConfig({
         navigateFallback: '/index.html',
         cleanupOutdatedCaches: true,
         clientsClaim: true,
-        skipWaiting: true,
       },
     }),
   ],
