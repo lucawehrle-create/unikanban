@@ -39,6 +39,13 @@ export const TASK_TYPES: Record<TaskTypeId, TaskTypeDef> = {
     phases: ['Gelesen'],
     keywords: ['lektuere', 'lektüre', 'reading', 'lesen', 'text'],
   },
+  tutorium: {
+    id: 'tutorium',
+    label: 'Tutorium',
+    emoji: '🧑‍🏫',
+    phases: ['Vorbereitet', 'Besucht'],
+    keywords: ['tutorium', 'tut', 'tutorial', 'übungsgruppe', 'uebungsgruppe'],
+  },
   klausur: {
     id: 'klausur',
     label: 'Klausur',

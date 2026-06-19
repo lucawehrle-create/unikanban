@@ -28,6 +28,7 @@ export type TaskTypeId =
   | 'hausarbeit'
   | 'referat'
   | 'lektuere'
+  | 'tutorium'
   | 'klausur'
   | 'sonstiges'
 
