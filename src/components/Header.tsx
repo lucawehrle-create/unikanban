@@ -1,5 +1,4 @@
 import {
-  GraduationCap,
   LayoutGrid,
   CalendarDays,
   Clock,
@@ -10,6 +9,7 @@ import {
 } from 'lucide-react'
 import type { Program, Semester } from '@/db/types'
 import { useUI, type ViewId } from '@/store/ui'
+import { Logo } from './Logo'
 import { SemesterSwitcher } from './SemesterSwitcher'
 import { cn } from '@/lib/cn'
 
@@ -31,11 +31,11 @@ export function Header({ semester, program }: { semester?: Semester; program?: P
     <header className="flex flex-wrap items-center gap-3 px-5 py-4">
       {/* Logo */}
       <div className="flex items-center gap-2.5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-stone-900 text-brand-300 shadow-sm">
-          <GraduationCap size={19} />
-        </div>
+        <Logo size={38} className="shrink-0" />
         <div className="leading-tight">
-          <div className="text-[15px] font-bold tracking-tight text-stone-800">SemBan</div>
+          <div className="text-[15px] font-bold tracking-tight" style={{ color: '#2a2a6e' }}>
+            SemBan
+          </div>
           <div className="text-[11px] text-stone-400">{program?.name ?? 'Studium'}</div>
         </div>
       </div>

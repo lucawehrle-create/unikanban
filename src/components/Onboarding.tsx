@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { startOfWeek, format } from 'date-fns'
-import { GraduationCap, Plus, Sparkles, Trash2, ArrowRight, ArrowLeft, Check } from 'lucide-react'
+import { Plus, Sparkles, Trash2, ArrowRight, ArrowLeft, Check } from 'lucide-react'
+import { Logo } from './Logo'
 import type { ProgramType } from '@/db/types'
 import { db, uid } from '@/db/db'
 import { createProgram, createSemester } from '@/lib/actions'
@@ -118,9 +119,7 @@ export function Onboarding() {
       <div className="w-full max-w-lg rounded-3xl bg-cream-50 p-6 shadow-xl ring-1 ring-stone-200 sm:p-8">
         {step === 'welcome' ? (
           <div className="text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-stone-900 text-brand-300">
-              <GraduationCap size={28} />
-            </div>
+            <Logo size={64} className="mx-auto mb-4" />
             <h1 className="text-xl font-bold text-stone-800">Willkommen bei SemBan</h1>
             <p className="mx-auto mt-2 max-w-sm text-sm text-stone-500">
               Dein Semesterbegleiter. Richte in 30 Sekunden dein Studium ein – oder schau dich
