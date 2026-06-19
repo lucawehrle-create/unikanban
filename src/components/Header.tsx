@@ -6,11 +6,14 @@ import {
   Gauge,
   HelpCircle,
   Settings2,
+  MoreHorizontal,
+  type LucideIcon,
 } from 'lucide-react'
 import type { Program, Semester } from '@/db/types'
 import { useUI, type ViewId } from '@/store/ui'
 import { Logo } from './Logo'
 import { SemesterSwitcher } from './SemesterSwitcher'
+import { Popover } from './ui/Popover'
 import { cn } from '@/lib/cn'
 
 const VIEWS: { id: ViewId; label: string; icon: typeof LayoutGrid }[] = [
@@ -68,32 +71,60 @@ export function Header({ semester, program }: { semester?: Semester; program?: P
       <div className="ml-auto flex items-center gap-2">
         {semester && <SemesterSwitcher semester={semester} />}
 
-        <button
-          onClick={() => setShowCalendar(true)}
-          className="flex items-center gap-1.5 rounded-full bg-white/70 px-3.5 py-2 text-xs font-medium text-stone-600 shadow-sm ring-1 ring-stone-200/70 backdrop-blur transition hover:bg-white"
-        >
-          <CalendarPlus size={15} />
-          <span className="hidden sm:inline">Kalender</span>
-        </button>
-
-        <button
-          data-tour="courses"
-          onClick={() => setShowCourseManager(true)}
-          className="flex items-center gap-1.5 rounded-full bg-white/70 px-3.5 py-2 text-xs font-medium text-stone-600 shadow-sm ring-1 ring-stone-200/70 backdrop-blur transition hover:bg-white"
-        >
-          <Settings2 size={15} />
-          <span className="hidden sm:inline">Kurse</span>
-        </button>
-
-        <button
-          onClick={() => setTour(true)}
-          aria-label="Tour starten"
-          title="Tour starten"
-          className="flex h-9 w-9 items-center justify-center rounded-full bg-white/70 text-stone-500 shadow-sm ring-1 ring-stone-200/70 backdrop-blur transition hover:bg-white hover:text-stone-700"
-        >
-          <HelpCircle size={16} />
-        </button>
+        <span data-tour="courses">
+          <Popover label="Mehr" icon={<MoreHorizontal size={15} />} width={208}>
+            {(close) => (
+              <div className="space-y-0.5">
+                <MenuItem
+                  icon={Settings2}
+                  label="Kurse verwalten"
+                  onClick={() => {
+                    setShowCourseManager(true)
+                    close()
+                  }}
+                />
+                <MenuItem
+                  icon={CalendarPlus}
+                  label="Kalender importieren"
+                  onClick={() => {
+                    setShowCalendar(true)
+                    close()
+                  }}
+                />
+                <div className="my-1 border-t border-stone-100" />
+                <MenuItem
+                  icon={HelpCircle}
+                  label="Tour starten"
+                  onClick={() => {
+                    setTour(true)
+                    close()
+                  }}
+                />
+              </div>
+            )}
+          </Popover>
+        </span>
       </div>
     </header>
+  )
+}
+
+function MenuItem({
+  icon: Icon,
+  label,
+  onClick,
+}: {
+  icon: LucideIcon
+  label: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-stone-600 transition hover:bg-stone-100"
+    >
+      <Icon size={16} className="text-stone-400" />
+      {label}
+    </button>
   )
 }

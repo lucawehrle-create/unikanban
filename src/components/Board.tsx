@@ -10,6 +10,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core'
+import { BookOpen, FilterX, ListPlus, Plus } from 'lucide-react'
 import type { Course, Task, TaskStatus } from '@/db/types'
 import { TASK_TYPE_LIST } from '@/lib/taskTypes'
 import { classifyDue, dueSortKey } from '@/lib/deadline'
@@ -19,11 +20,14 @@ import { staggerSeries } from '@/lib/series'
 import { setTaskStatus } from '@/lib/actions'
 import { useUI, type GroupBy, type SortBy } from '@/store/ui'
 import { TaskCard } from './TaskCard'
+import { EmptyState } from './EmptyState'
 import { cn } from '@/lib/cn'
 
 interface BoardProps {
   tasks: Task[]
   courses: Course[]
+  /** Gibt es im Semester überhaupt Aufgaben (vor Filterung)? */
+  hasTasks: boolean
 }
 
 interface ColumnDef {
@@ -166,16 +170,70 @@ function Draggable({
   )
 }
 
-export function Board({ tasks, courses }: BoardProps) {
+export function Board({ tasks, courses, hasTasks }: BoardProps) {
   const groupBy = useUI((s) => s.groupBy)
   const sortBy = useUI((s) => s.sortBy)
   const showAllSeries = useUI((s) => s.showAllSeries)
   const editTask = useUI((s) => s.editTask)
+  const setShowCourseManager = useUI((s) => s.setShowCourseManager)
+  const clearFilters = useUI((s) => s.clearFilters)
+  const setShowDone = useUI((s) => s.setShowDone)
   const byId = useMemo(() => courseMap(courses), [courses])
   const [activeId, setActiveId] = useState<string | null>(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }))
   const dndEnabled = groupBy === 'status'
+
+  // Leerer Bildschirm – je nach Grund mit passender nächster Aktion.
+  if (tasks.length === 0) {
+    if (courses.length === 0) {
+      return (
+        <EmptyState
+          icon={<BookOpen size={26} />}
+          title="Leg deine Kurse an"
+          description="Trag deine Kurse mit Vorlesungen, Übungen und wöchentlichen Blättern ein – SemBan erzeugt daraus automatisch deine Aufgaben fürs ganze Semester."
+          primary={{
+            label: 'Kurse anlegen',
+            icon: <Plus size={16} />,
+            onClick: () => setShowCourseManager(true),
+          }}
+        />
+      )
+    }
+    if (!hasTasks) {
+      return (
+        <EmptyState
+          icon={<ListPlus size={26} />}
+          title="Noch keine Aufgaben"
+          description="Erfasse oben deine erste Aufgabe – z. B. „Blatt 3 #ana @übung !fr“ – oder lass dir aus deinen Kursen wöchentliche Blätter erzeugen."
+          primary={{
+            label: 'Aufgabe erfassen',
+            icon: <Plus size={16} />,
+            onClick: () => document.getElementById('quickadd')?.focus(),
+          }}
+          secondary={{
+            label: 'Kurse verwalten',
+            onClick: () => setShowCourseManager(true),
+          }}
+        />
+      )
+    }
+    return (
+      <EmptyState
+        icon={<FilterX size={26} />}
+        title="Nichts gefunden"
+        description="Zu deiner Suche bzw. den aktiven Filtern passt gerade keine Aufgabe."
+        primary={{
+          label: 'Filter zurücksetzen',
+          icon: <FilterX size={16} />,
+          onClick: () => {
+            clearFilters()
+            setShowDone(true)
+          },
+        }}
+      />
+    )
+  }
 
   const shown = useMemo(
     () => (showAllSeries ? tasks : staggerSeries(tasks, 2)),

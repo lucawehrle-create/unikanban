@@ -94,7 +94,9 @@ export default function App() {
       )}
 
       <main className="min-h-0 flex-1 pt-1">
-        {semester && effectiveView === 'board' && <Board tasks={visible} courses={courses} />}
+        {semester && effectiveView === 'board' && (
+          <Board tasks={visible} courses={courses} hasTasks={tasks.length > 0} />
+        )}
         {semester && effectiveView === 'week' && <WeekView tasks={visible} courses={courses} />}
         {semester && effectiveView === 'schedule' && (
           <Schedule tasks={visible} courses={courses} semesterId={semester.id} />
