@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   addDays,
   addWeeks,
@@ -60,6 +60,14 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
   const attendance = useAttendance(semesterId)
 
   const [weekOffset, setWeekOffset] = useState(0)
+
+  // Live mitlaufende Uhrzeit für die "Jetzt"-Linie (minütlich)
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(t)
+  }, [])
+
   const weekStart = useMemo(
     () => addWeeks(startOfWeek(new Date(), { weekStartsOn: 1 }), weekOffset),
     [weekOffset],
@@ -114,6 +122,11 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
     : 18
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i)
   const gridHeight = (endHour - startHour) * PX_PER_HOUR
+
+  // Position der "Jetzt"-Linie (nur sichtbar, wenn im dargestellten Zeitfenster)
+  const nowMin = now.getHours() * 60 + now.getMinutes()
+  const nowVisible = nowMin >= startHour * 60 && nowMin <= endHour * 60
+  const nowTop = ((nowMin - startHour * 60) / 60) * PX_PER_HOUR
 
   const menuMarkers = menu ? (attendance[attendanceKey(menu.slotId, menu.date)] ?? []) : []
   function toggle(marker: AttendanceMarker) {
@@ -311,6 +324,18 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
                         </button>
                       )
                     })}
+
+                    {/* "Jetzt"-Linie */}
+                    {isToday(date) && nowVisible && (
+                      <div
+                        className="pointer-events-none absolute inset-x-0 z-20"
+                        style={{ top: nowTop }}
+                      >
+                        <div className="relative h-px bg-rose-400/80">
+                          <span className="absolute -left-[3px] top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-rose-400" />
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )
               })}
