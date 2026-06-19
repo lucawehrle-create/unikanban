@@ -6,12 +6,17 @@ import { generateRecurringTasks } from './recurring'
 import { attendanceKey } from './actions'
 import { dateForWeekday, withTime } from './semester'
 
-// Dedupe gegen StrictMode-Doppelaufruf / parallele Aufrufe in derselben Session.
+// Dedupe nur gegen StrictMode-Doppelaufruf / parallele Aufrufe – nach Abschluss
+// wird der Merker gelöscht, damit nach einem Reset erneut geseedet werden kann.
 let seedPromise: Promise<void> | null = null
 
 /** Legt einmalig ein Demo-Studium an, falls die DB leer ist. */
 export function seedIfEmpty(): Promise<void> {
-  return (seedPromise ??= doSeed())
+  if (seedPromise) return seedPromise
+  seedPromise = doSeed().finally(() => {
+    seedPromise = null
+  })
+  return seedPromise
 }
 
 const iso = (d: Date) => format(d, 'yyyy-MM-dd')
