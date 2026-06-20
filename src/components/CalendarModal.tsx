@@ -1,8 +1,17 @@
-import { useRef, useState } from 'react'
-import { Download, Upload, Link2, Check, FileDown } from 'lucide-react'
+import { useMemo, useRef, useState } from 'react'
+import { Download, Upload, Link2, Check, FileDown, CalendarClock, GraduationCap } from 'lucide-react'
 import type { Course, Semester, Task } from '@/db/types'
-import { db } from '@/db/db'
-import { buildICS, downloadICS, eventsToCourses, parseICS, type IcsOptions } from '@/lib/ics'
+import { db, uid } from '@/db/db'
+import {
+  buildICS,
+  downloadICS,
+  parseICS,
+  planImport,
+  type IcsOptions,
+  type ImportPlan,
+} from '@/lib/ics'
+import { createTask } from '@/lib/actions'
+import { TASK_TYPES } from '@/lib/taskTypes'
 import { useUI } from '@/store/ui'
 import { Modal } from './Modal'
 import { cn } from '@/lib/cn'
@@ -15,6 +24,17 @@ interface Props {
 
 type Tab = 'export' | 'import'
 
+const WD = ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+
+function fmtDate(iso: string, allDay: boolean): string {
+  return new Date(iso).toLocaleDateString('de-DE', {
+    weekday: 'short',
+    day: '2-digit',
+    month: 'short',
+    ...(allDay ? {} : { hour: '2-digit', minute: '2-digit' }),
+  })
+}
+
 export function CalendarModal({ semester, courses, tasks }: Props) {
   const close = () => useUI.getState().setShowCalendar(false)
   const [tab, setTab] = useState<Tab>('export')
@@ -25,9 +45,11 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
   // Import
   const fileRef = useRef<HTMLInputElement>(null)
   const [url, setUrl] = useState('')
-  const [preview, setPreview] = useState<Course[] | null>(null)
+  const [plan, setPlan] = useState<ImportPlan | null>(null)
+  const [selected, setSelected] = useState<Record<string, boolean>>({})
   const [error, setError] = useState('')
   const [flash, setFlash] = useState('')
+  const [dragging, setDragging] = useState(false)
 
   function doDownload() {
     const ics = buildICS(semester, courses, tasks, opts)
@@ -36,18 +58,29 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
 
   function ingest(text: string) {
     setError('')
+    setFlash('')
     const events = parseICS(text)
     if (events.length === 0) {
       setError('Keine Termine in der Datei gefunden.')
-      setPreview(null)
+      setPlan(null)
       return
     }
-    setPreview(eventsToCourses(events, semester.id))
+    const p = planImport(events, semester, courses, tasks)
+    if (p.courses.length === 0 && p.deadlines.length === 0) {
+      setError('Nichts Neues zu importieren – alles ist schon vorhanden.')
+      setPlan(null)
+      return
+    }
+    const sel: Record<string, boolean> = {}
+    for (const c of p.courses) sel[c.key] = true
+    for (const d of p.deadlines) sel[d.key] = true
+    setSelected(sel)
+    setPlan(p)
   }
 
   async function loadFromUrl() {
     setError('')
-    setPreview(null)
+    setPlan(null)
     const u = url.trim().replace(/^webcal:\/\//, 'https://')
     if (!u) return
     try {
@@ -62,14 +95,56 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
     }
   }
 
+  const toggle = (key: string) => setSelected((s) => ({ ...s, [key]: !s[key] }))
+  const setAll = (keys: string[], value: boolean) =>
+    setSelected((s) => ({ ...s, ...Object.fromEntries(keys.map((k) => [k, value])) }))
+
+  const counts = useMemo(() => {
+    if (!plan) return { c: 0, d: 0 }
+    return {
+      c: plan.courses.filter((x) => selected[x.key]).length,
+      d: plan.deadlines.filter((x) => selected[x.key]).length,
+    }
+  }, [plan, selected])
+
   async function commitImport() {
-    if (!preview) return
-    await db.courses.bulkAdd(preview)
-    const n = preview.length
-    setPreview(null)
+    if (!plan) return
+    const selCourses = plan.courses.filter((c) => selected[c.key])
+    const selDeadlines = plan.deadlines.filter((d) => selected[d.key])
+
+    for (const pc of selCourses) {
+      if (pc.existingId) {
+        const ex = await db.courses.get(pc.existingId)
+        if (ex) await db.courses.put({ ...ex, slots: [...ex.slots, ...pc.slots] })
+      } else {
+        const course: Course = {
+          id: uid(),
+          semesterId: semester.id,
+          name: pc.name,
+          short: pc.short,
+          color: pc.color,
+          slots: pc.slots,
+        }
+        await db.courses.add(course)
+      }
+    }
+    for (const d of selDeadlines) {
+      await createTask({
+        semesterId: semester.id,
+        title: d.title,
+        type: d.type,
+        courseId: d.courseId,
+        dueDate: d.dueDate,
+      })
+    }
+
+    const parts: string[] = []
+    if (counts.c) parts.push(`${counts.c} Kurs${counts.c === 1 ? '' : 'e'}`)
+    if (counts.d) parts.push(`${counts.d} Termin${counts.d === 1 ? '' : 'e'}`)
+    setPlan(null)
     setUrl('')
-    setFlash(`${n} Kurs${n === 1 ? '' : 'e'} importiert.`)
-    setTimeout(() => setFlash(''), 2500)
+    setFlash(`${parts.join(' & ')} importiert.`)
+    setTimeout(() => setFlash(''), 2800)
   }
 
   return (
@@ -161,8 +236,9 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
       ) : (
         <div className="space-y-4">
           <p className="text-sm text-stone-500">
-            Bekommst du von der Uni einen Kalender-Link oder eine <strong>.ics</strong>-Datei?
-            Importiere sie hier – die Termine werden als Kurse mit Stundenplan angelegt.
+            Kalender-Link oder <strong>.ics</strong>-Datei von der Uni? Importiere sie hier –
+            wöchentliche Termine werden zu Kursen mit Stundenplan, einzelne Termine (Klausuren,
+            Abgaben) zu Aufgaben.
           </p>
 
           {/* Per Link */}
@@ -187,7 +263,7 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
             </div>
           </div>
 
-          {/* Per Datei */}
+          {/* Per Datei (inkl. Drag & Drop) */}
           <div>
             <span className="mb-1 block text-xs font-medium text-stone-500">Per Datei</span>
             <input
@@ -198,13 +274,30 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
               onChange={async (e) => {
                 const f = e.target.files?.[0]
                 if (f) ingest(await f.text())
+                e.target.value = ''
               }}
             />
             <button
               onClick={() => fileRef.current?.click()}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-stone-300 py-3 text-sm font-medium text-stone-500 hover:border-brand-400 hover:text-brand-600"
+              onDragOver={(e) => {
+                e.preventDefault()
+                setDragging(true)
+              }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={async (e) => {
+                e.preventDefault()
+                setDragging(false)
+                const f = e.dataTransfer.files?.[0]
+                if (f) ingest(await f.text())
+              }}
+              className={cn(
+                'flex w-full items-center justify-center gap-2 rounded-xl border border-dashed py-3 text-sm font-medium transition',
+                dragging
+                  ? 'border-brand-400 bg-brand-50 text-brand-600'
+                  : 'border-stone-300 text-stone-500 hover:border-brand-400 hover:text-brand-600',
+              )}
             >
-              <Upload size={16} /> .ics-Datei auswählen
+              <Upload size={16} /> .ics-Datei wählen oder hierher ziehen
             </button>
           </div>
 
@@ -213,26 +306,71 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
           )}
 
           {/* Vorschau */}
-          {preview && (
-            <div className="space-y-2">
-              <div className="text-xs font-medium text-stone-500">
-                Erkannt: {preview.length} Kurs(e), {preview.reduce((s, c) => s + c.slots.length, 0)}{' '}
-                Termine
-              </div>
-              <div className="max-h-40 space-y-1.5 overflow-y-auto">
-                {preview.map((c) => (
-                  <div key={c.id} className="flex items-center gap-2 rounded-lg bg-stone-50 px-2.5 py-1.5">
-                    <span className="h-5 w-1.5 rounded-full" style={{ backgroundColor: c.color }} />
-                    <span className="flex-1 truncate text-sm text-stone-700">{c.name}</span>
-                    <span className="text-xs text-stone-400">{c.slots.length} Termine</span>
-                  </div>
-                ))}
-              </div>
+          {plan && (
+            <div className="space-y-4">
+              {plan.courses.length > 0 && (
+                <PreviewSection
+                  icon={<CalendarClock size={14} className="text-stone-400" />}
+                  title="Stundenplan"
+                  rows={plan.courses.map((c) => c.key)}
+                  selected={selected}
+                  onAll={setAll}
+                >
+                  {plan.courses.map((c) => (
+                    <Row key={c.key} checked={!!selected[c.key]} onToggle={() => toggle(c.key)}>
+                      <span className="h-5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: c.color }} />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center gap-1.5">
+                          <span className="truncate text-sm text-stone-700">{c.name}</span>
+                          <span
+                            className={cn(
+                              'shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+                              c.existingId
+                                ? 'bg-sky-100 text-sky-700'
+                                : 'bg-emerald-100 text-emerald-700',
+                            )}
+                          >
+                            {c.existingId ? 'ergänzt' : 'neu'}
+                          </span>
+                        </span>
+                        <span className="block truncate text-xs text-stone-400">
+                          {c.slots.map((s) => `${WD[s.weekday]} ${s.start}`).join(' · ')}
+                        </span>
+                      </span>
+                    </Row>
+                  ))}
+                </PreviewSection>
+              )}
+
+              {plan.deadlines.length > 0 && (
+                <PreviewSection
+                  icon={<GraduationCap size={14} className="text-stone-400" />}
+                  title="Termine & Abgaben"
+                  rows={plan.deadlines.map((d) => d.key)}
+                  selected={selected}
+                  onAll={setAll}
+                >
+                  {plan.deadlines.map((d) => (
+                    <Row key={d.key} checked={!!selected[d.key]} onToggle={() => toggle(d.key)}>
+                      <span className="text-base leading-none">{TASK_TYPES[d.type].emoji}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm text-stone-700">{d.title}</span>
+                        <span className="block truncate text-xs text-stone-400">
+                          {fmtDate(d.dueDate, d.allDay)}
+                        </span>
+                      </span>
+                    </Row>
+                  ))}
+                </PreviewSection>
+              )}
+
               <button
                 onClick={() => void commitImport()}
-                className="flex w-full items-center justify-center gap-2 rounded-full bg-brand-400 px-4 py-2.5 text-sm font-semibold text-stone-900 hover:bg-brand-500"
+                disabled={counts.c + counts.d === 0}
+                className="flex w-full items-center justify-center gap-2 rounded-full bg-brand-400 px-4 py-2.5 text-sm font-semibold text-stone-900 transition hover:bg-brand-500 disabled:opacity-40"
               >
-                <Download size={16} /> {preview.length} Kurse importieren
+                <Download size={16} /> Auswahl importieren
+                {counts.c + counts.d > 0 ? ` (${counts.c + counts.d})` : ''}
               </button>
             </div>
           )}
@@ -245,5 +383,61 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
         </div>
       )}
     </Modal>
+  )
+}
+
+function PreviewSection({
+  icon,
+  title,
+  rows,
+  selected,
+  onAll,
+  children,
+}: {
+  icon: React.ReactNode
+  title: string
+  rows: string[]
+  selected: Record<string, boolean>
+  onAll: (keys: string[], value: boolean) => void
+  children: React.ReactNode
+}) {
+  const allOn = rows.every((k) => selected[k])
+  return (
+    <div>
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-xs font-semibold text-stone-500">
+          {icon} {title} · {rows.length}
+        </span>
+        <button
+          onClick={() => onAll(rows, !allOn)}
+          className="text-xs font-medium text-brand-600 hover:underline"
+        >
+          {allOn ? 'Keine' : 'Alle'}
+        </button>
+      </div>
+      <div className="max-h-44 space-y-1 overflow-y-auto pr-0.5">{children}</div>
+    </div>
+  )
+}
+
+function Row({
+  checked,
+  onToggle,
+  children,
+}: {
+  checked: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2 rounded-lg bg-stone-50 px-2.5 py-2 hover:bg-stone-100">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onToggle}
+        className="h-4 w-4 shrink-0 rounded accent-brand-500"
+      />
+      {children}
+    </label>
   )
 }

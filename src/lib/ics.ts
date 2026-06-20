@@ -1,4 +1,4 @@
-import type { Course, SlotKind, Semester, Task } from '@/db/types'
+import type { Course, CourseSlot, SlotKind, Semester, Task, TaskTypeId } from '@/db/types'
 import { uid } from '@/db/db'
 import { dateForWeekday, withTime } from './semester'
 import { slotKindLabel } from './slotKinds'
@@ -55,6 +55,35 @@ function esc(text: string): string {
   return text.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n')
 }
 
+// RFC 5545: Content-Zeilen dürfen max. 75 Oktette lang sein; längere werden
+// gefaltet (Folgezeile mit führendem Leerzeichen). Wichtig für lange deutsche
+// Kursnamen/Beschreibungen, sonst lehnen strenge Parser die Datei ab.
+function foldLine(line: string): string {
+  const enc = new TextEncoder()
+  if (enc.encode(line).length <= 75) return line
+  let out = ''
+  let cur = ''
+  let curBytes = 0
+  let limit = 75
+  for (const ch of line) {
+    const b = enc.encode(ch).length
+    if (curBytes + b > limit) {
+      out += (out ? '\r\n ' : '') + cur
+      cur = ch
+      curBytes = b
+      limit = 74 // Folgezeilen beginnen mit einem Leerzeichen (1 Oktett)
+    } else {
+      cur += ch
+      curBytes += b
+    }
+  }
+  return out + (out ? '\r\n ' : '') + cur
+}
+
+function serialize(lines: string[]): string {
+  return lines.map(foldLine).join('\r\n')
+}
+
 export interface IcsOptions {
   schedule: boolean
   deadlines: boolean
@@ -88,7 +117,7 @@ export function buildICS(
         const end = withTime(dateForWeekday(semester, 1, slot.weekday), slot.end)
         lines.push(
           'BEGIN:VEVENT',
-          `UID:${course.id}-${slot.id}@unikanban`,
+          `UID:${course.id}-${slot.id}@semban.de`,
           `DTSTAMP:${now}`,
           `DTSTART;TZID=Europe/Berlin:${fmtLocal(start)}`,
           `DTEND;TZID=Europe/Berlin:${fmtLocal(end)}`,
@@ -113,12 +142,15 @@ export function buildICS(
       const summary = `${TASK_TYPES[t.type].emoji} ${t.title}${course ? ` (${course.short})` : ''}`
       lines.push(
         'BEGIN:VEVENT',
-        `UID:${t.id}@unikanban`,
+        `UID:${t.id}@semban.de`,
         `DTSTAMP:${now}`,
         `DTSTART:${fmtUTC(start)}`,
         `DTEND:${fmtUTC(end)}`,
         `SUMMARY:${esc(summary)}`,
         ...(t.notes ? [`DESCRIPTION:${esc(t.notes)}`] : []),
+        // Deadlines blockieren den Kalender nicht als „belegt".
+        'TRANSP:TRANSPARENT',
+        'CATEGORIES:SemBan,Abgabe',
         'BEGIN:VALARM',
         'ACTION:DISPLAY',
         'DESCRIPTION:Erinnerung',
@@ -130,7 +162,7 @@ export function buildICS(
   }
 
   lines.push('END:VCALENDAR')
-  return lines.join('\r\n')
+  return serialize(lines)
 }
 
 /** Löst einen Datei-Download des iCalendar-Strings aus. */
@@ -148,20 +180,39 @@ export function downloadICS(filename: string, content: string): void {
 
 // ---------- Import ----------
 
-interface ParsedEvent {
+export interface ParsedEvent {
   summary: string
-  weekday: number // 1=Mo … 7=So
-  start: string // "HH:mm"
-  end: string
-  room?: string
+  description?: string
+  location?: string
+  start: Date
+  end: Date | null
+  /** Ganztags-Termin (DATE ohne Uhrzeit). */
+  allDay: boolean
+  /** Wöchentlich wiederkehrend (RRULE FREQ=WEEKLY). */
   weekly: boolean
+  /** Wochentage (1=Mo … 7=So) – bei RRULE BYDAY ggf. mehrere. */
+  weekdays: number[]
 }
 
 function jsToWeekday(d: Date): number {
   return ((d.getDay() + 6) % 7) + 1
 }
 
-/** Heuristik: Veranstaltungsart aus dem Titel ableiten. */
+const DAY_CODES: Record<string, number> = { MO: 1, TU: 2, WE: 3, TH: 4, FR: 5, SA: 6, SU: 7 }
+
+/** Wochentage aus RRULE BYDAY (z.B. "MO,WE,FR"); Fallback = Wochentag des Starts. */
+function rruleWeekdays(rrule: string, fallback: number): number[] {
+  const m = rrule.match(/BYDAY=([^;]+)/i)
+  if (!m) return [fallback]
+  const days = m[1]
+    .split(',')
+    .map((s) => s.replace(/^[+-]?\d+/, '').trim().toUpperCase()) // "1MO" → "MO"
+    .map((code) => DAY_CODES[code])
+    .filter((n): n is number => !!n)
+  return days.length ? Array.from(new Set(days)) : [fallback]
+}
+
+/** Veranstaltungsart (Stundenplan) aus dem Titel ableiten. */
 function classifyKind(summary: string): SlotKind {
   const t = summary.toLowerCase()
   if (/tutor/.test(t)) return 'tutorium'
@@ -172,6 +223,16 @@ function classifyKind(summary: string): SlotKind {
   if (/kolloqu/.test(t)) return 'kolloquium'
   if (/klausur|prüfung|pruefung|\bexam\b/.test(t)) return 'klausur'
   return 'vorlesung'
+}
+
+/** Aufgabentyp (Deadline) aus dem Titel ableiten. */
+function classifyTaskType(summary: string): TaskTypeId {
+  const t = summary.toLowerCase()
+  if (/klausur|prüfung|pruefung|\bexam\b|\btest\b/.test(t)) return 'klausur'
+  if (/referat|vortrag|präsentation|presentation/.test(t)) return 'referat'
+  if (/hausarbeit|seminararbeit|essay|\bpaper\b|term ?paper/.test(t)) return 'hausarbeit'
+  if (/abgabe|übung|uebung|blatt|sheet|assignment|hausaufgabe|deadline|fällig/.test(t)) return 'uebung'
+  return 'sonstiges'
 }
 
 /** Parst "20260413T100000" / "...Z" / mit TZID in ein lokales Date. */
@@ -187,6 +248,10 @@ function hhmm(d: Date): string {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+function unescapeText(v: string): string {
+  return v.replace(/\\n/gi, '\n').replace(/\\,/g, ',').replace(/\\;/g, ';').replace(/\\\\/g, '\\')
+}
+
 /** Entfaltet (RFC 5545 line folding) und parst VEVENTs eines iCalendar-Texts. */
 export function parseICS(text: string): ParsedEvent[] {
   const unfolded = text.replace(/\r\n/g, '\n').replace(/\n[ \t]/g, '')
@@ -198,19 +263,21 @@ export function parseICS(text: string): ParsedEvent[] {
     else if (line.startsWith('END:VEVENT')) {
       if (cur) {
         const dtStart = cur['DTSTART']
-        const dtEnd = cur['DTEND']
         const start = dtStart ? parseDt(dtStart) : null
-        const end = dtEnd ? parseDt(dtEnd) : null
-        // Ganztagstermine (VALUE=DATE, ohne Uhrzeit) sind keine Stundenplan-Slots → überspringen
-        const hasTime = !!dtStart && /T\d{2}/.test(dtStart)
-        if (start && hasTime) {
+        if (start) {
+          const end = cur['DTEND'] ? parseDt(cur['DTEND']) : null
+          const allDay = !/T\d{2}/.test(dtStart)
+          const rrule = cur['RRULE'] ?? ''
+          const weekly = /FREQ=WEEKLY/i.test(rrule)
           events.push({
-            summary: (cur['SUMMARY'] ?? 'Termin').replace(/\\,/g, ',').replace(/\\;/g, ';'),
-            weekday: jsToWeekday(start),
-            start: hhmm(start),
-            end: end ? hhmm(end) : hhmm(new Date(start.getTime() + 90 * 60000)),
-            room: cur['LOCATION']?.replace(/\\,/g, ','),
-            weekly: (cur['RRULE'] ?? '').includes('FREQ=WEEKLY'),
+            summary: unescapeText(cur['SUMMARY'] ?? 'Termin').trim() || 'Termin',
+            description: cur['DESCRIPTION'] ? unescapeText(cur['DESCRIPTION']) : undefined,
+            location: cur['LOCATION'] ? unescapeText(cur['LOCATION']) : undefined,
+            start,
+            end,
+            allDay,
+            weekly,
+            weekdays: weekly ? rruleWeekdays(rrule, jsToWeekday(start)) : [jsToWeekday(start)],
           })
         }
       }
@@ -226,44 +293,159 @@ export function parseICS(text: string): ParsedEvent[] {
   return events
 }
 
+// ---------- Import-Plan (Kurse + Deadlines, mit Zusammenführung) ----------
+
+export interface PlannedCourse {
+  key: string
+  name: string
+  short: string
+  color: string
+  slots: CourseSlot[]
+  /** Gesetzt, wenn die Slots einem bestehenden Kurs hinzugefügt werden. */
+  existingId?: string
+}
+
+export interface PlannedDeadline {
+  key: string
+  title: string
+  type: TaskTypeId
+  dueDate: string // ISO
+  courseId?: string
+  allDay: boolean
+}
+
+export interface ImportPlan {
+  courses: PlannedCourse[]
+  deadlines: PlannedDeadline[]
+}
+
+const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim()
+
+function makeShort(name: string): string {
+  const short = name
+    .split(/\s+/)
+    .map((w) => w[0])
+    .filter(Boolean)
+    .join('')
+    .slice(0, 5)
+    .toUpperCase()
+  return short || name.slice(0, 4).toUpperCase()
+}
+
+const slotSig = (s: { weekday: number; start: string; end: string }) =>
+  `${s.weekday}|${s.start}|${s.end}`
+
 /**
- * Wandelt geparste Events in Kurse mit Stundenplan-Slots um.
- * Gleicher SUMMARY-Stamm → ein Kurs (mehrere Termine → mehrere Slots).
+ * Macht aus geparsten Events einen Import-Plan:
+ *  - wöchentliche Termine → Kurse mit Stundenplan-Slots (bestehende Kurse werden
+ *    ergänzt statt dupliziert; identische Slots werden ausgelassen),
+ *  - Einzeltermine & Ganztags-Termine → Deadlines/Aufgaben (Klausuren, Abgaben …).
  */
-export function eventsToCourses(events: ParsedEvent[], semesterId: string): Course[] {
+export function planImport(
+  events: ParsedEvent[],
+  _semester: Semester,
+  existingCourses: Course[],
+  existingTasks: Task[] = [],
+): ImportPlan {
+  const recurring = events.filter((e) => e.weekly && !e.allDay)
+  const oneoff = events.filter((e) => !e.weekly)
+
+  // Farben, die schon vergeben sind, möglichst meiden.
+  const usedColors = new Set(existingCourses.map((c) => c.color))
+  const freeColors = PALETTE.filter((c) => !usedColors.has(c))
+  const colorAt = (i: number) =>
+    (freeColors.length ? freeColors : PALETTE)[i % (freeColors.length || PALETTE.length)]
+
+  // --- Kurse aus wöchentlichen Terminen ---
   const groups = new Map<string, ParsedEvent[]>()
-  for (const e of events) {
-    // Stamm = Titel ohne Klammerzusätze/Gruppen-Nummern
-    const base = e.summary.split(/[-–(]/)[0].trim() || e.summary.trim()
+  for (const e of recurring) {
+    const base = e.summary.split(/[-–(|]/)[0].trim() || e.summary.trim()
     if (!groups.has(base)) groups.set(base, [])
     groups.get(base)!.push(e)
   }
 
-  let i = 0
-  const courses: Course[] = []
+  const courses: PlannedCourse[] = []
+  let ci = 0
   for (const [name, evs] of groups) {
-    const short = name
-      .split(/\s+/)
-      .map((w) => w[0])
-      .join('')
-      .slice(0, 5)
-      .toUpperCase()
-    courses.push({
-      id: uid(),
-      semesterId,
-      name,
-      short: short || name.slice(0, 4).toUpperCase(),
-      color: PALETTE[i % PALETTE.length],
-      slots: evs.map((e) => ({
-        id: uid(),
-        kind: classifyKind(e.summary),
-        weekday: e.weekday,
-        start: e.start,
-        end: e.end,
-        room: e.room,
-      })),
+    // Slots aus allen Events der Gruppe (RRULE BYDAY → mehrere Wochentage).
+    const rawSlots: CourseSlot[] = []
+    for (const e of evs) {
+      const start = hhmm(e.start)
+      const end = e.end ? hhmm(e.end) : hhmm(new Date(e.start.getTime() + 90 * 60000))
+      for (const wd of e.weekdays) {
+        rawSlots.push({
+          id: uid(),
+          kind: classifyKind(e.summary),
+          weekday: wd,
+          start,
+          end,
+          room: e.location,
+        })
+      }
+    }
+    // Innerhalb des Imports doppelte Slots zusammenfassen.
+    const seen = new Set<string>()
+    let slots = rawSlots.filter((s) => {
+      const sig = `${slotSig(s)}|${s.kind}`
+      if (seen.has(sig)) return false
+      seen.add(sig)
+      return true
     })
-    i++
+
+    // Bestehenden Kurs erkennen (Name oder Kürzel) → ergänzen statt duplizieren.
+    const match = existingCourses.find(
+      (c) => norm(c.name) === norm(name) || norm(c.short) === norm(makeShort(name)),
+    )
+    if (match) {
+      const have = new Set(match.slots.map(slotSig))
+      slots = slots.filter((s) => !have.has(slotSig(s)))
+      if (slots.length === 0) continue // nichts Neues hinzuzufügen
+      courses.push({
+        key: `c-${ci++}`,
+        name: match.name,
+        short: match.short,
+        color: match.color,
+        slots,
+        existingId: match.id,
+      })
+    } else {
+      courses.push({
+        key: `c-${ci++}`,
+        name,
+        short: makeShort(name),
+        color: colorAt(ci),
+        slots,
+      })
+    }
   }
-  return courses
+
+  // --- Deadlines aus Einzel-/Ganztags-Terminen ---
+  const taskDayKey = (title: string, iso: string) =>
+    `${norm(title)}|${new Date(iso).toDateString()}`
+  const existingTaskKeys = new Set(
+    existingTasks.filter((t) => t.dueDate).map((t) => taskDayKey(t.title, t.dueDate!)),
+  )
+
+  const deadlines: PlannedDeadline[] = []
+  let di = 0
+  for (const e of oneoff) {
+    const due = e.allDay ? withTime(e.start, '23:59') : e.start
+    const iso = due.toISOString()
+    if (existingTaskKeys.has(taskDayKey(e.summary, iso))) continue
+    // Kurs zuordnen, wenn ein Kürzel/Name im Titel vorkommt.
+    const course = existingCourses.find((c) => {
+      const s = norm(e.summary)
+      return s.includes(norm(c.short)) || s.includes(norm(c.name))
+    })
+    deadlines.push({
+      key: `d-${di++}`,
+      title: e.summary,
+      type: classifyTaskType(e.summary),
+      dueDate: iso,
+      courseId: course?.id,
+      allDay: e.allDay,
+    })
+  }
+
+  return { courses, deadlines }
 }
