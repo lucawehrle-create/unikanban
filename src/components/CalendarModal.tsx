@@ -98,6 +98,10 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
   const toggle = (key: string) => setSelected((s) => ({ ...s, [key]: !s[key] }))
   const setAll = (keys: string[], value: boolean) =>
     setSelected((s) => ({ ...s, ...Object.fromEntries(keys.map((k) => [k, value])) }))
+  const editShort = (key: string, value: string) =>
+    setPlan((pl) =>
+      pl ? { ...pl, courses: pl.courses.map((c) => (c.key === key ? { ...c, short: value } : c)) } : pl,
+    )
 
   const counts = useMemo(() => {
     if (!plan) return { c: 0, d: 0 }
@@ -121,7 +125,7 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
           id: uid(),
           semesterId: semester.id,
           name: pc.name,
-          short: pc.short,
+          short: pc.short.trim() || pc.name.slice(0, 4).toUpperCase(),
           color: pc.color,
           slots: pc.slots,
         }
@@ -317,27 +321,13 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
                   onAll={setAll}
                 >
                   {plan.courses.map((c) => (
-                    <Row key={c.key} checked={!!selected[c.key]} onToggle={() => toggle(c.key)}>
-                      <span className="h-5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: c.color }} />
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-1.5">
-                          <span className="truncate text-sm text-stone-700">{c.name}</span>
-                          <span
-                            className={cn(
-                              'shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium',
-                              c.existingId
-                                ? 'bg-sky-100 text-sky-700'
-                                : 'bg-emerald-100 text-emerald-700',
-                            )}
-                          >
-                            {c.existingId ? 'ergänzt' : 'neu'}
-                          </span>
-                        </span>
-                        <span className="block truncate text-xs text-stone-400">
-                          {c.slots.map((s) => `${WD[s.weekday]} ${s.start}`).join(' · ')}
-                        </span>
-                      </span>
-                    </Row>
+                    <CourseRow
+                      key={c.key}
+                      course={c}
+                      checked={!!selected[c.key]}
+                      onToggle={() => toggle(c.key)}
+                      onShort={(v) => editShort(c.key, v)}
+                    />
                   ))}
                 </PreviewSection>
               )}
@@ -416,6 +406,60 @@ function PreviewSection({
         </button>
       </div>
       <div className="max-h-44 space-y-1 overflow-y-auto pr-0.5">{children}</div>
+    </div>
+  )
+}
+
+function CourseRow({
+  course,
+  checked,
+  onToggle,
+  onShort,
+}: {
+  course: import('@/lib/ics').PlannedCourse
+  checked: boolean
+  onToggle: () => void
+  onShort: (value: string) => void
+}) {
+  const c = course
+  return (
+    <div className="flex items-center gap-2 rounded-lg bg-stone-50 px-2.5 py-2 hover:bg-stone-100">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={onToggle}
+        className="h-4 w-4 shrink-0 rounded accent-brand-500"
+      />
+      <span className="h-7 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: c.color }} />
+      <button type="button" onClick={onToggle} className="min-w-0 flex-1 text-left">
+        <span className="flex items-center gap-1.5">
+          <span className="truncate text-sm text-stone-700">{c.name}</span>
+          <span
+            className={cn(
+              'shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium',
+              c.existingId ? 'bg-sky-100 text-sky-700' : 'bg-emerald-100 text-emerald-700',
+            )}
+          >
+            {c.existingId ? 'ergänzt' : 'neu'}
+          </span>
+        </span>
+        <span className="block truncate text-xs text-stone-400">
+          {c.slots.map((s) => `${WD[s.weekday]} ${s.start}`).join(' · ')}
+        </span>
+      </button>
+      {c.existingId ? (
+        <span className="shrink-0 rounded-md bg-stone-200 px-1.5 py-1 text-xs font-semibold text-stone-500">
+          {c.short}
+        </span>
+      ) : (
+        <input
+          value={c.short}
+          onChange={(e) => onShort(e.target.value.toUpperCase().slice(0, 8))}
+          placeholder="Kürzel"
+          aria-label={`Kürzel für ${c.name}`}
+          className="w-16 shrink-0 rounded-md border border-stone-200 bg-white px-1.5 py-1 text-center text-xs font-semibold uppercase text-stone-700 outline-none placeholder:font-normal placeholder:text-stone-300 focus:border-brand-400 focus:ring-2 focus:ring-brand-400/30"
+        />
+      )}
     </div>
   )
 }
