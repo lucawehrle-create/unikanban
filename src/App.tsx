@@ -24,6 +24,7 @@ import { Tour } from '@/components/Tour'
 import { initSync, useSync } from '@/lib/sync'
 import { isSyncConfigured } from '@/lib/supabase'
 import { hasSeenTour } from '@/lib/tour'
+import { useLocalReminderNotifications } from '@/lib/reminders'
 
 const Landing = lazy(() => import('@/components/landing/Landing'))
 
@@ -33,6 +34,9 @@ export default function App() {
   const semester = useActiveSemester()
   const courses = useCourses(semester?.id)
   const tasks = useTasks(semester?.id)
+
+  // Lokale Fristen-Benachrichtigungen (App offen / Rückkehr zur App).
+  useLocalReminderNotifications(tasks, courses)
 
   const view = useUI((s) => s.view)
   const ui = useUI()

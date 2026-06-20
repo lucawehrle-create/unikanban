@@ -22,6 +22,7 @@ import { signOut } from '@/lib/auth'
 import { useUI, type ViewId } from '@/store/ui'
 import { Logo } from './Logo'
 import { SemesterSwitcher } from './SemesterSwitcher'
+import { NotificationCenter } from './NotificationCenter'
 import { Popover } from './ui/Popover'
 import { cn } from '@/lib/cn'
 
@@ -82,6 +83,8 @@ export function Header({ semester, program }: { semester?: Semester; program?: P
 
       <div className="ml-auto flex items-center gap-2">
         {semester && <SemesterSwitcher semester={semester} />}
+
+        <NotificationCenter />
 
         <span data-tour="courses">
           <Popover label="Mehr" icon={<MoreHorizontal size={15} />} width={208}>

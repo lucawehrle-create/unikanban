@@ -30,6 +30,8 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff2}'],
+        // Eigener Push-/Notification-Handler wird in den generierten SW geladen.
+        importScripts: ['push-sw.js'],
         // Landing-Screenshots nicht vorab cachen (nur für ausgeloggte Besucher,
         // würden sonst den App-Install unnötig aufblähen).
         globIgnores: ['**/landing/**'],
