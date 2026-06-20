@@ -13,13 +13,14 @@ import {
 } from '@/lib/reminders'
 import { formatDue } from '@/lib/deadline'
 import { enableReminders, pushPermission, syncReminderSettingsToServer } from '@/lib/push'
+import { Select } from './ui/Select'
 import { cn } from '@/lib/cn'
 
 const LEAD_OPTIONS = [
-  { value: 0, label: 'Am Fälligkeitstag' },
-  { value: 1, label: '1 Tag vorher' },
-  { value: 3, label: '3 Tage vorher' },
-  { value: 7, label: '1 Woche vorher' },
+  { value: '0', label: 'Am Fälligkeitstag' },
+  { value: '1', label: '1 Tag vorher' },
+  { value: '3', label: '3 Tage vorher' },
+  { value: '7', label: '1 Woche vorher' },
 ]
 
 export function NotificationCenter() {
@@ -131,20 +132,16 @@ export function NotificationCenter() {
                       onChange={(v) => persist({ ...settings, enabled: v })}
                     />
                   </label>
-                  <label className="flex items-center justify-between gap-3">
+                  <div className="flex items-center justify-between gap-3">
                     <span className="text-sm text-stone-700">Vorlauf</span>
-                    <select
-                      value={settings.leadDays}
-                      onChange={(e) => persist({ ...settings, leadDays: Number(e.target.value) })}
-                      className="rounded-lg border border-stone-200 bg-white px-2 py-1 text-xs text-stone-700 focus:outline-none focus:ring-2 focus:ring-brand-400"
-                    >
-                      {LEAD_OPTIONS.map((o) => (
-                        <option key={o.value} value={o.value}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
+                    <Select
+                      ariaLabel="Vorlauf"
+                      className="w-40"
+                      value={String(settings.leadDays)}
+                      options={LEAD_OPTIONS}
+                      onChange={(v) => persist({ ...settings, leadDays: Number(v) })}
+                    />
+                  </div>
                 </div>
               ) : perm === 'denied' ? (
                 <p className="text-xs text-stone-500">
