@@ -27,10 +27,22 @@ eigenen Daten).
   (Apple Developer Account nötig).
 
 ### Redirect-URLs (Authentication → URL Configuration)
-- **Site URL**: die Adresse, unter der SemBan läuft (z. B. `https://semban.de`).
-- **Redirect URLs** zusätzlich für lokale Tests:
-  - `http://localhost:5173`
-  - `http://localhost:4173`
+- **Site URL**: die Adresse, unter der SemBan **produktiv** läuft, z. B.
+  `https://semban.de` (oder `https://unikanban.vercel.app`). **Wichtig:** Der
+  Bestätigungslink in der Sign-up-Mail leitet nach dem Klick hierhin um. Steht
+  hier noch `http://localhost…`, landen neue Accounts nach der Bestätigung auf
+  localhost.
+- **Redirect URLs** (Allowlist) – alle Adressen eintragen, von denen aus man
+  sich anmelden können soll. Die App schickt jeweils die aktuelle Origin als
+  `redirect_to` mit; ist sie hier **nicht** gelistet, ignoriert Supabase sie und
+  nimmt die Site URL. Mit Wildcard `/**`:
+  - `https://semban.de/**`
+  - `https://unikanban.vercel.app/**`
+  - `http://localhost:5173/**` (Dev)
+  - `http://localhost:4173/**` (Preview)
+
+> Hinweis: Bereits verschickte Bestätigungs-Mails enthalten noch den alten Link.
+> Nach dem Ändern einen **neuen** Account anlegen, um es zu testen.
 
 > Bei den OAuth-Providern (Google/Apple) zusätzlich die von Supabase angezeigte
 > **Callback-URL** (`https://DEIN-PROJEKT.supabase.co/auth/v1/callback`) in der
