@@ -4,7 +4,7 @@ import { dateForWeekday, withTime } from './semester'
 import { slotKindLabel } from './slotKinds'
 import { TASK_TYPES } from './taskTypes'
 
-const PALETTE = [
+export const COURSE_COLORS = [
   '#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444',
   '#ec4899', '#8b5cf6', '#14b8a6', '#f97316', '#64748b',
 ]
@@ -297,12 +297,13 @@ export function parseICS(text: string): ParsedEvent[] {
 
 export interface PlannedCourse {
   key: string
+  /** Bereinigter Anzeigename (ohne Veranstaltungsnummer/Zusätze). */
   name: string
-  short: string
-  color: string
+  /** Kürzel-Vorschlag (vom Nutzer überschreibbar). */
+  suggestedShort: string
   slots: CourseSlot[]
-  /** Gesetzt, wenn die Slots einem bestehenden Kurs hinzugefügt werden. */
-  existingId?: string
+  /** Bester automatischer Treffer unter den bestehenden Kursen (Kurs-ID). */
+  autoMatchId?: string
 }
 
 export interface PlannedDeadline {
@@ -321,8 +322,36 @@ export interface ImportPlan {
 
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim()
 
+const ROMAN: Record<string, string> = {
+  i: '1', ii: '2', iii: '3', iv: '4', v: '5', vi: '6', vii: '7', viii: '8', ix: '9', x: '10',
+}
+
+/**
+ * Bereinigter Anzeigename: führende Veranstaltungsnummer und Klammer-/Gruppen-/
+ * Art-Zusätze entfernen (z.B. "040120 Analysis II (Vorlesung) - Gr. 3" → "Analysis II").
+ */
+function cleanCourseName(raw: string): string {
+  let s = raw.replace(/^\s*[\dA-Z]{0,3}\d{3,}[\s.:–-]*/, '') // führende Nummer (auch "INF1234")
+  s = s.replace(/\([^)]*\)/g, ' ') // Klammer-Zusätze
+  s = s.split(/\s[-–|]\s/)[0] // alles ab " - " / " | " (Gruppe/Art)
+  s = s.replace(/\s+/g, ' ').trim()
+  return s || raw.replace(/\s+/g, ' ').trim()
+}
+
+/** Normalisierter Schlüssel für den Abgleich: Diakritika, Umlaute, römische Ziffern. */
+function matchKey(name: string): string {
+  return cleanCourseName(name)
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '') // Diakritika (auch ä→a, ü→u, ö→o)
+    .replace(/ß/g, 'ss')
+    .split(/[^a-z0-9]+/)
+    .map((tok) => ROMAN[tok] ?? tok)
+    .join('')
+}
+
 function makeShort(name: string): string {
-  const short = name
+  const short = cleanCourseName(name)
     .split(/\s+/)
     .map((w) => w[0])
     .filter(Boolean)
@@ -350,73 +379,62 @@ export function planImport(
   const recurring = events.filter((e) => e.weekly && !e.allDay)
   const oneoff = events.filter((e) => !e.weekly)
 
-  // Farben, die schon vergeben sind, möglichst meiden.
-  const usedColors = new Set(existingCourses.map((c) => c.color))
-  const freeColors = PALETTE.filter((c) => !usedColors.has(c))
-  const colorAt = (i: number) =>
-    (freeColors.length ? freeColors : PALETTE)[i % (freeColors.length || PALETTE.length)]
+  // Bestehende Kurse nach Match-Schlüssel + Kürzel indexieren (für Auto-Treffer).
+  const byKey = new Map<string, Course>()
+  const byShort = new Map<string, Course>()
+  for (const c of existingCourses) {
+    byKey.set(matchKey(c.name), c)
+    if (c.short) byShort.set(norm(c.short), c)
+  }
 
   // --- Kurse aus wöchentlichen Terminen ---
-  const groups = new Map<string, ParsedEvent[]>()
+  // Gruppierung über den normalisierten Schlüssel: Mo- und Do-Termin desselben
+  // Kurses landen zusammen, auch bei leicht abweichenden Titel-Zusätzen.
+  const groups = new Map<string, { display: string; evs: ParsedEvent[] }>()
   for (const e of recurring) {
-    const base = e.summary.split(/[-–(|]/)[0].trim() || e.summary.trim()
-    if (!groups.has(base)) groups.set(base, [])
-    groups.get(base)!.push(e)
+    const k = matchKey(e.summary) || norm(e.summary)
+    if (!groups.has(k)) groups.set(k, { display: cleanCourseName(e.summary), evs: [] })
+    groups.get(k)!.evs.push(e)
   }
 
   const courses: PlannedCourse[] = []
   let ci = 0
-  for (const [name, evs] of groups) {
+  for (const [k, { display, evs }] of groups) {
     // Slots aus allen Events der Gruppe (RRULE BYDAY → mehrere Wochentage).
     const rawSlots: CourseSlot[] = []
     for (const e of evs) {
       const start = hhmm(e.start)
       const end = e.end ? hhmm(e.end) : hhmm(new Date(e.start.getTime() + 90 * 60000))
       for (const wd of e.weekdays) {
-        rawSlots.push({
-          id: uid(),
-          kind: classifyKind(e.summary),
-          weekday: wd,
-          start,
-          end,
-          room: e.location,
-        })
+        rawSlots.push({ id: uid(), kind: classifyKind(e.summary), weekday: wd, start, end, room: e.location })
       }
     }
     // Innerhalb des Imports doppelte Slots zusammenfassen.
     const seen = new Set<string>()
-    let slots = rawSlots.filter((s) => {
+    const slots = rawSlots.filter((s) => {
       const sig = `${slotSig(s)}|${s.kind}`
       if (seen.has(sig)) return false
       seen.add(sig)
       return true
     })
 
-    // Bestehenden Kurs erkennen (Name oder Kürzel) → ergänzen statt duplizieren.
-    const match = existingCourses.find(
-      (c) => norm(c.name) === norm(name) || norm(c.short) === norm(makeShort(name)),
-    )
+    // Auto-Treffer: gleicher Match-Schlüssel ODER gleiches Kürzel.
+    const match = byKey.get(k) ?? byShort.get(norm(makeShort(display)))
+
+    // Re-Import-Idempotenz: matcht ein bestehender Kurs und alle Slots sind
+    // schon vorhanden → nichts zu tun, gar nicht erst anzeigen.
     if (match) {
       const have = new Set(match.slots.map(slotSig))
-      slots = slots.filter((s) => !have.has(slotSig(s)))
-      if (slots.length === 0) continue // nichts Neues hinzuzufügen
-      courses.push({
-        key: `c-${ci++}`,
-        name: match.name,
-        short: match.short,
-        color: match.color,
-        slots,
-        existingId: match.id,
-      })
-    } else {
-      courses.push({
-        key: `c-${ci++}`,
-        name,
-        short: makeShort(name),
-        color: colorAt(ci),
-        slots,
-      })
+      if (slots.every((s) => have.has(slotSig(s)))) continue
     }
+
+    courses.push({
+      key: `c-${ci++}`,
+      name: display,
+      suggestedShort: match?.short || makeShort(display),
+      slots,
+      autoMatchId: match?.id,
+    })
   }
 
   // --- Deadlines aus Einzel-/Ganztags-Terminen ---
