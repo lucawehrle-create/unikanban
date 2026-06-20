@@ -90,7 +90,7 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
     let msg = 'Kurs gespeichert.'
     if (draft.recurring?.length) {
       const n = await regenerateRecurring(draft, semester)
-      if (n > 0) msg = `Kurs gespeichert · ${n} Aufgaben erzeugt.`
+      if (n > 0) msg = `Kurs gespeichert · ${n} wöchentliche Aufgaben erstellt.`
     }
     setDraft(null)
     setFlash(msg)
@@ -200,26 +200,33 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
           <div className="rounded-xl bg-stone-50 p-3">
             <div className="flex items-center gap-2 text-sm font-medium text-stone-700">
               <Sparkles size={15} className="text-brand-500" />
-              Automatische Wochen-Serien
+              Wöchentliche Aufgaben
             </div>
+            <p className="mt-1 text-xs text-stone-500">
+              Richte z. B. Übungsblätter einmal ein – SemBan erstellt daraus automatisch eine Aufgabe
+              pro Woche fürs ganze Semester.
+            </p>
 
             <div className="mt-2 space-y-2">
               {(draft.recurring ?? []).map((r) => (
                 <div key={r.id} className="rounded-lg bg-white p-2.5 ring-1 ring-stone-200">
-                  <div className="mb-2 flex items-center gap-2">
-                    <input
-                      value={r.labelPrefix}
-                      onChange={(e) => updateSeries(r.id, { labelPrefix: e.target.value })}
-                      placeholder="z.B. Übungsblatt"
-                      className="flex-1 rounded-lg border border-stone-200 px-2 py-1.5 text-sm font-medium"
-                    />
-                    <button
-                      onClick={() => removeSeries(r.id)}
-                      className="rounded-lg p-1.5 text-stone-400 hover:bg-red-50 hover:text-red-500"
-                      title="Serie entfernen"
-                    >
-                      <X size={15} />
-                    </button>
+                  <div className="mb-2">
+                    <span className="mb-1 block text-xs text-stone-500">Titel</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={r.labelPrefix}
+                        onChange={(e) => updateSeries(r.id, { labelPrefix: e.target.value })}
+                        placeholder="z.B. Übungsblatt"
+                        className="flex-1 rounded-lg border border-stone-200 px-2 py-1.5 text-sm font-medium"
+                      />
+                      <button
+                        onClick={() => removeSeries(r.id)}
+                        className="rounded-lg p-1.5 text-stone-400 hover:bg-red-50 hover:text-red-500"
+                        title="Wöchentliche Aufgabe entfernen"
+                      >
+                        <X size={15} />
+                      </button>
+                    </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <label className="block">
@@ -271,7 +278,7 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
                 onClick={addSeries}
                 className="flex items-center gap-1 rounded-lg px-1.5 py-1 text-xs font-medium text-stone-500 hover:text-brand-600"
               >
-                <Plus size={13} /> Serie hinzufügen
+                <Plus size={13} /> Wöchentliche Aufgabe hinzufügen
               </button>
             </div>
           </div>

@@ -38,7 +38,7 @@ interface ColumnDef {
 
 const STATUS_COLUMNS: ColumnDef[] = [
   { id: 'offen', title: 'Offen' },
-  { id: 'dran', title: 'Dran', accent: '#0ea5e9' },
+  { id: 'dran', title: 'In Arbeit', accent: '#0ea5e9' },
   { id: 'erledigt', title: 'Erledigt', accent: '#10b981' },
 ]
 
@@ -204,7 +204,7 @@ export function Board({ tasks, courses, hasTasks }: BoardProps) {
         <EmptyState
           icon={<BookOpen size={26} />}
           title="Leg deine Kurse an"
-          description="Trag deine Kurse mit Vorlesungen, Übungen und wöchentlichen Blättern ein – SemBan erzeugt daraus automatisch deine Aufgaben fürs ganze Semester."
+          description="Trag deine Kurse ein – mit Vorlesungszeiten und optional wöchentlichen Aufgaben (z. B. Übungsblättern). Daraus baut SemBan automatisch deinen Plan fürs ganze Semester."
           primary={{
             label: 'Kurse anlegen',
             icon: <Plus size={16} />,
@@ -218,7 +218,7 @@ export function Board({ tasks, courses, hasTasks }: BoardProps) {
         <EmptyState
           icon={<ListPlus size={26} />}
           title="Noch keine Aufgaben"
-          description="Erfasse oben deine erste Aufgabe – z. B. „Blatt 3 #ana @übung !fr“ – oder lass dir aus deinen Kursen wöchentliche Blätter erzeugen."
+          description="Erfasse oben deine erste Aufgabe – tipp einfach den Titel. Oder lass dir aus deinen Kursen automatisch wöchentliche Aufgaben erstellen."
           primary={{
             label: 'Aufgabe erfassen',
             icon: <Plus size={16} />,
@@ -389,7 +389,7 @@ export function Board({ tasks, courses, hasTasks }: BoardProps) {
 
 const STATUS_LABEL: Record<TaskStatus, string> = {
   offen: 'Offen',
-  dran: 'Dran',
+  dran: 'In Arbeit',
   erledigt: 'Erledigt',
 }
 

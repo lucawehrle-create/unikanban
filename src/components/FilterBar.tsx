@@ -7,7 +7,7 @@ import { cn } from '@/lib/cn'
 
 const GROUP_OPTIONS: { id: GroupBy; label: string }[] = [
   { id: 'status', label: 'Status' },
-  { id: 'deadline', label: 'Deadline' },
+  { id: 'deadline', label: 'Frist' },
   { id: 'priority', label: 'Priorität' },
   { id: 'course', label: 'Kurs' },
   { id: 'type', label: 'Typ' },
@@ -177,22 +177,27 @@ export function FilterBar({ courses }: { courses: Course[] }) {
                   />
                 ))}
               </div>
-              <button
-                onClick={() => ui.setShowAllSeries(!ui.showAllSeries)}
-                className="flex w-full items-center justify-between rounded-lg border-t border-stone-100 px-1 pt-2.5 text-sm text-stone-600"
-              >
-                <span className="flex items-center gap-1.5">
-                  <Layers size={13} /> Serien gestaffelt
-                </span>
-                <span
-                  className={cn(
-                    'flex h-4 w-4 items-center justify-center rounded',
-                    !ui.showAllSeries ? 'bg-brand-400 text-stone-900' : 'ring-1 ring-stone-300',
-                  )}
+              <div className="border-t border-stone-100 pt-2.5">
+                <button
+                  onClick={() => ui.setShowAllSeries(!ui.showAllSeries)}
+                  className="flex w-full items-center justify-between rounded-lg px-1 text-sm text-stone-600"
                 >
-                  {!ui.showAllSeries && <Check size={12} strokeWidth={3} />}
-                </span>
-              </button>
+                  <span className="flex items-center gap-1.5">
+                    <Layers size={13} /> Nur kommende Wochen
+                  </span>
+                  <span
+                    className={cn(
+                      'flex h-4 w-4 items-center justify-center rounded',
+                      !ui.showAllSeries ? 'bg-brand-400 text-stone-900' : 'ring-1 ring-stone-300',
+                    )}
+                  >
+                    {!ui.showAllSeries && <Check size={12} strokeWidth={3} />}
+                  </span>
+                </button>
+                <p className="mt-1 px-1 text-[11px] text-stone-400">
+                  Zeigt von wöchentlichen Aufgaben nur die nächsten – statt aller auf einmal.
+                </p>
+              </div>
             </div>
           </Popover>
         )}

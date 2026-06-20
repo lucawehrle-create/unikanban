@@ -15,7 +15,7 @@ const STEPS: TourStep[] = [
     target: 'nav',
     view: 'board',
     title: 'Vier Ansichten',
-    body: 'Board für den Überblick, „Diese Woche" für den Fokus, Stundenplan für deinen Rhythmus und Studium für Noten & ECTS.',
+    body: '„Aufgaben" für den Überblick, „Diese Woche" für den Fokus, „Stundenplan" für deinen Rhythmus und „Studium" für Noten & ECTS.',
   },
   {
     target: 'quickadd',
@@ -27,19 +27,19 @@ const STEPS: TourStep[] = [
     target: 'filter',
     view: 'board',
     title: 'Filtern & gruppieren',
-    body: 'Nach Kurs oder Typ filtern, suchen („/") und das Board nach Status, Deadline, Kurs oder Typ gruppieren.',
+    body: 'Nach Kurs oder Typ filtern, suchen („/") und deine Aufgaben nach Status, Frist, Kurs oder Typ gruppieren.',
   },
   {
     target: 'semester',
     view: 'board',
     title: 'Semester & Phase',
-    body: 'Hier siehst du das aktive Semester und die Phase (z. B. Vorlesungszeit). Ein Klick wechselt Semester oder Studiengang.',
+    body: 'Hier siehst du dein aktives Semester und die aktuelle Phase (z. B. Vorlesungszeit oder Klausurenphase). Ein Klick wechselt Semester oder Studiengang.',
   },
   {
     target: 'courses',
     view: 'board',
     title: 'Kurse anlegen',
-    body: 'Lege Kurse mit Stundenplan an – wöchentliche Übungsblätter erzeugt SemBan dann automatisch fürs ganze Semester.',
+    body: 'Lege Kurse mit Stundenplan an – wöchentliche Aufgaben (z. B. Übungsblätter) erstellt SemBan dann automatisch fürs ganze Semester.',
   },
   {
     target: 'tab-study',

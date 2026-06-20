@@ -96,7 +96,7 @@ export function Onboarding() {
     })
     const sid = await createSemester({
       programId: pid,
-      name: semName.trim() || 'Semester 1',
+      name: semName.trim() || suggestSemester(),
       startDate: semStart,
       weeks: semWeeks,
     })
@@ -187,9 +187,14 @@ export function Onboarding() {
                     />
                   </label>
                 </div>
+                <p className="-mt-1 text-xs text-stone-400">
+                  ECTS sind die Leistungspunkte (Credits) deines Studiums – Bachelor meist 180,
+                  Master 120.
+                </p>
                 <div className="rounded-xl bg-stone-50 p-3">
                   <div className="mb-2 text-xs font-medium text-stone-600">
-                    Schon mitten im Studium? Trag deinen bisherigen Stand ein (optional).
+                    Schon weiter im Studium oder Quereinstieg? Trag optional deinen bisherigen Stand
+                    ein – SemBan rechnet ihn in Schnitt &amp; Fortschritt mit ein.
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <label className="block">
@@ -232,11 +237,11 @@ export function Onboarding() {
                 </label>
                 <div className="grid grid-cols-2 gap-3">
                   <label className="block">
-                    <span className="mb-1 block text-xs font-medium text-stone-500">Vorlesungsbeginn</span>
+                    <span className="mb-1 block text-xs font-medium text-stone-500">Semester-Start</span>
                     <DatePicker dateOnly value={semStart} onChange={(v) => setSemStart(v ?? semStart)} />
                   </label>
                   <label className="block">
-                    <span className="mb-1 block text-xs font-medium text-stone-500">Vorlesungswochen</span>
+                    <span className="mb-1 block text-xs font-medium text-stone-500">Anzahl Wochen</span>
                     <input
                       type="number"
                       value={semWeeks}
@@ -246,7 +251,8 @@ export function Onboarding() {
                   </label>
                 </div>
                 <p className="text-xs text-stone-400">
-                  Klausurenphasen kannst du später unter „Studium" ergänzen.
+                  Erster Tag der Vorlesungszeit und wie viele Wochen sie dauert. Klausurenphasen
+                  kannst du später unter „Studium" ergänzen.
                 </p>
               </div>
             )}
@@ -255,7 +261,8 @@ export function Onboarding() {
               <div className="space-y-4">
                 <h2 className="text-lg font-bold text-stone-800">Deine Kurse</h2>
                 <p className="text-sm text-stone-500">
-                  Leg ein paar Kurse an (Stundenplan & wöchentliche Übungsblätter später pro Kurs).
+                  Leg ein paar Kurse an. Vorlesungszeiten und wöchentliche Aufgaben kannst du später
+                  je Kurs ergänzen.
                 </p>
                 <div className="space-y-2">
                   {courses.map((c, i) => (

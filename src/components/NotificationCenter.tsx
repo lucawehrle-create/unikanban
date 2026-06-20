@@ -133,7 +133,7 @@ export function NotificationCenter() {
                     />
                   </label>
                   <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm text-stone-700">Vorlauf</span>
+                    <span className="text-sm text-stone-700">Erinnern</span>
                     <Select
                       ariaLabel="Vorlauf"
                       className="w-40"

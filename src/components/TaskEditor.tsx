@@ -11,7 +11,7 @@ import { cn } from '@/lib/cn'
 
 const STATUS: { id: TaskStatus; label: string }[] = [
   { id: 'offen', label: 'Offen' },
-  { id: 'dran', label: 'Dran' },
+  { id: 'dran', label: 'In Arbeit' },
   { id: 'erledigt', label: 'Erledigt' },
 ]
 
@@ -179,7 +179,8 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
         {/* Phasen / Lebenszyklus */}
         {task.phases.length > 0 && (
           <div>
-            <span className="mb-1.5 block text-xs font-medium text-stone-500">Schritte</span>
+            <span className="block text-xs font-medium text-stone-500">Schritte</span>
+            <p className="mb-1.5 text-[11px] text-stone-400">Hak ab, was du schon erledigt hast.</p>
             <div className="space-y-1">
               {task.phases.map((p, i) => (
                 <label

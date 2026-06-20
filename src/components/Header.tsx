@@ -27,7 +27,7 @@ import { Popover } from './ui/Popover'
 import { cn } from '@/lib/cn'
 
 export const VIEWS: { id: ViewId; label: string; shortLabel: string; icon: LucideIcon }[] = [
-  { id: 'board', label: 'Board', shortLabel: 'Board', icon: LayoutGrid },
+  { id: 'board', label: 'Aufgaben', shortLabel: 'Aufgaben', icon: LayoutGrid },
   { id: 'week', label: 'Diese Woche', shortLabel: 'Woche', icon: CalendarDays },
   { id: 'schedule', label: 'Stundenplan', shortLabel: 'Plan', icon: Clock },
   { id: 'study', label: 'Studium', shortLabel: 'Studium', icon: Gauge },
