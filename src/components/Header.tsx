@@ -6,6 +6,7 @@ import {
   Gauge,
   HelpCircle,
   Settings2,
+  Settings,
   MoreHorizontal,
   Cloud,
   CloudOff,
@@ -38,6 +39,7 @@ export function Header({ semester, program }: { semester?: Semester; program?: P
   const setView = useUI((s) => s.setView)
   const setShowCourseManager = useUI((s) => s.setShowCourseManager)
   const setShowCalendar = useUI((s) => s.setShowCalendar)
+  const setShowAccount = useUI((s) => s.setShowAccount)
   const setTour = useUI((s) => s.setTour)
   const account = useSync((s) => s.user)
   const syncStatus = useSync((s) => s.status)
@@ -98,6 +100,14 @@ export function Header({ semester, program }: { semester?: Semester; program?: P
                       </div>
                       <SyncStatusLine status={syncStatus} lastSyncAt={lastSyncAt} />
                     </div>
+                    <MenuItem
+                      icon={Settings}
+                      label="Einstellungen"
+                      onClick={() => {
+                        setShowAccount(true)
+                        close()
+                      }}
+                    />
                     <MenuItem
                       icon={LogOut}
                       label="Abmelden"

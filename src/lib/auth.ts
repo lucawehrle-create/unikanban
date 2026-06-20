@@ -64,6 +64,21 @@ export async function resetPassword(email: string) {
   if (error) throw new Error(friendlyAuthError(error))
 }
 
+/** E-Mail-Adresse ändern – Supabase schickt eine Bestätigung an die neue Adresse. */
+export async function updateEmail(newEmail: string) {
+  const { error } = await supabase!.auth.updateUser(
+    { email: newEmail.trim() },
+    { emailRedirectTo: redirectTo },
+  )
+  if (error) throw new Error(friendlyAuthError(error))
+}
+
+/** Passwort des angemeldeten Kontos setzen/ändern. */
+export async function updatePassword(newPassword: string) {
+  const { error } = await supabase!.auth.updateUser({ password: newPassword })
+  if (error) throw new Error(friendlyAuthError(error))
+}
+
 export async function signOut() {
   // 1. Letzte Änderungen noch sichern (solange wir noch angemeldet sind).
   await flushPush().catch(() => {})

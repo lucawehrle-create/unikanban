@@ -12,6 +12,7 @@ import {
   switchSemester,
 } from '@/lib/actions'
 import { usePrograms, useProgramCourses, useSemesters } from '@/hooks/data'
+import { isSyncConfigured } from '@/lib/supabase'
 import { computeProgramStats, fmtGrade, PROGRAM_TYPE_LABEL } from '@/lib/study'
 import { Modal } from './Modal'
 import { DataSection } from './DataSection'
@@ -191,7 +192,8 @@ export function StudyView({ activeProgram }: { activeProgram: Program }) {
           })}
         </div>
 
-        <DataSection />
+        {/* Backup/Reset: im Konto-Modus unter „Einstellungen", sonst hier. */}
+        {!isSyncConfigured && <DataSection />}
       </div>
 
       {editProgram && (
