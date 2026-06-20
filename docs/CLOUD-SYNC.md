@@ -72,15 +72,26 @@ HTML-Vorlagen unter [`supabase/email-templates/`](../supabase/email-templates/):
 | Datei | Supabase-Template | Betreff-Vorschlag |
 |---|---|---|
 | `confirm-signup.html` | **Confirm signup** | SemBan – bestätige deine E-Mail |
+| `invite-user.html` | **Invite user** | Du bist zu SemBan eingeladen |
+| `magic-link.html` | **Magic Link** | Dein SemBan-Anmeldelink |
+| `change-email.html` | **Change Email Address** | SemBan – neue E-Mail-Adresse bestätigen |
 | `reset-password.html` | **Reset Password** | SemBan – Passwort zurücksetzen |
+| `reauthentication.html` | **Reauthentication** | Dein SemBan-Bestätigungscode |
 
 So einsetzen:
 1. Supabase → **Authentication → Emails → Templates**.
 2. Das jeweilige Template wählen, **„Source"/HTML** öffnen.
 3. Inhalt der passenden Datei reinkopieren, Betreff setzen, speichern.
 
-Der Platzhalter `{{ .ConfirmationURL }}` wird von Supabase automatisch durch den
-echten Link ersetzt – nicht ersetzen oder umbenennen.
+Die Platzhalter werden von Supabase automatisch ersetzt – nicht umbenennen:
+- `{{ .ConfirmationURL }}` (Bestätigungs-/Anmeldelink) in den meisten Vorlagen,
+- `{{ .Token }}` (Code) in `magic-link.html` und `reauthentication.html`,
+- `{{ .Email }}` / `{{ .NewEmail }}` (alte/neue Adresse) in `change-email.html`.
+
+> **Wichtig:** Bei vielen Supabase-Projekten lässt sich der Template-Editor erst
+> bearbeiten, **nachdem Custom SMTP aktiviert** ist (Banner „Set up custom SMTP
+> to edit templates"). Ohne eigenen SMTP werden die Supabase-Standardmails
+> verschickt.
 
 > Hinweis: Über Supabase' Standard-Versand gibt es ein striktes Rate-Limit
 > (wenige Mails/Stunde) und der Absender ist eine Supabase-Adresse. Für den
