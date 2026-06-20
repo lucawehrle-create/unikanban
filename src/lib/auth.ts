@@ -6,8 +6,13 @@ const redirectTo = typeof location !== 'undefined' ? location.origin : undefined
 
 /** Übersetzt Supabase-/Netzwerkfehler in klare, deutsche Hinweise. */
 export function friendlyAuthError(e: unknown): string {
-  const raw = (e instanceof Error ? e.message : String(e ?? '')).toLowerCase()
-  if (!raw) return 'Etwas ist schiefgelaufen. Bitte versuch es erneut.'
+  // Für die Diagnose den echten Fehler (inkl. Status/Code) in die Konsole schreiben.
+  if (e) console.error('[SemBan] Auth-Fehler:', e)
+
+  const rawMsg = e instanceof Error ? e.message : typeof e === 'string' ? e : ''
+  const raw = rawMsg.toLowerCase().trim()
+  const status = (e as { status?: number; code?: string } | null)?.status
+
   if (raw.includes('failed to fetch') || raw.includes('networkerror') || raw.includes('load failed'))
     return 'Keine Verbindung. Bitte prüfe dein Internet und versuch es erneut.'
   if (raw.includes('invalid login credentials')) return 'E-Mail oder Passwort ist nicht korrekt.'
@@ -19,11 +24,37 @@ export function friendlyAuthError(e: unknown): string {
     return 'Das Passwort muss mindestens 6 Zeichen haben.'
   if (raw.includes('unable to validate email') || raw.includes('invalid format'))
     return 'Diese E-Mail-Adresse sieht nicht gültig aus.'
-  if (raw.includes('for security purposes') || raw.includes('rate limit') || raw.includes('too many'))
+  if (
+    raw.includes('for security purposes') ||
+    raw.includes('rate limit') ||
+    raw.includes('rate_limit') ||
+    raw.includes('too many')
+  )
     return 'Zu viele Versuche. Bitte warte einen Moment und versuch es nochmal.'
   if (raw.includes('provider is not enabled') || raw.includes('unsupported provider'))
     return 'Diese Anmeldeart ist gerade nicht verfügbar. Nutze bitte eine andere.'
-  return e instanceof Error ? e.message : 'Anmeldung fehlgeschlagen.'
+  // E-Mail-Versand scheitert oft an einer kaputten SMTP-Konfiguration im Backend.
+  if (
+    raw.includes('error sending') ||
+    raw.includes('sending email') ||
+    raw.includes('confirmation email') ||
+    raw.includes('smtp') ||
+    raw.includes('mailer')
+  )
+    return 'Die E-Mail konnte gerade nicht versendet werden. Bitte versuch es später erneut.'
+  if (raw.includes('same') && raw.includes('email'))
+    return 'Das ist bereits deine aktuelle E-Mail-Adresse.'
+
+  // Leere/nichtssagende Antwort (z.B. "{}", "[object Object]") niemals roh zeigen.
+  const uninformative =
+    !raw || raw === '{}' || raw === '[]' || raw === '[object object]' || raw === 'null' || raw === 'undefined'
+  if (uninformative) {
+    if (status && status >= 500)
+      return 'Der Server hat gerade ein Problem. Bitte versuch es in einem Moment erneut.'
+    return 'Das hat gerade nicht geklappt. Bitte versuch es in einem Moment erneut.'
+  }
+
+  return rawMsg
 }
 
 async function oauth(provider: 'google' | 'apple') {
