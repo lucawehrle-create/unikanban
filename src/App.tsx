@@ -135,17 +135,19 @@ export default function App() {
   // „Studium" und „Lernpläne" sind eigenständige Vollansichten (ohne QuickAdd/Filter).
   const isFullView = effectiveView === 'study' || effectiveView === 'plans'
 
-  // Im Aufgaben-Board nur aktuell anstehende Lern-Sessions zeigen – zukünftige
-  // Plan-Sessions (examId gesetzt, Fälligkeit nach heute) würden es überfüllen.
-  // Klausuren sind Termine (keine Aufgaben) und erscheinen nur in „Diese Woche“,
-  // im Kalender und in der Klausurphase – nicht im Board.
-  const startOfTomorrow = new Date()
-  startOfTomorrow.setHours(0, 0, 0, 0)
-  startOfTomorrow.setDate(startOfTomorrow.getDate() + 1)
+  // Im Aufgaben-Board nur die unmittelbar anstehenden Lern-Sessions zeigen –
+  // ein kurzes Fenster (heute + nächste 2 Tage + überfällige), damit ein frisch
+  // angelegter Plan sichtbar ist (auch an Ruhetagen), das Board aber nicht von
+  // wochenweit verteilten Plan-Sessions überflutet wird. Die ganze Woche steht
+  // in „Diese Woche“; Klausuren sind Termine und erscheinen nur dort, im Kalender
+  // und in der Klausurphase – nicht im Board.
+  const boardHorizon = new Date()
+  boardHorizon.setHours(0, 0, 0, 0)
+  boardHorizon.setDate(boardHorizon.getDate() + 3)
   const boardTasks = visible.filter(
     (t) =>
       t.type !== 'klausur' &&
-      !(t.examId && t.dueDate && new Date(t.dueDate).getTime() >= startOfTomorrow.getTime()),
+      !(t.examId && t.dueDate && new Date(t.dueDate).getTime() >= boardHorizon.getTime()),
   )
 
   return (
