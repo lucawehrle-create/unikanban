@@ -151,8 +151,9 @@ export interface StudyPlanConfig {
   tutReviewIds: string[]
   /** Gewählte Start-Strategie. */
   strategy: StudyStrategy
-  /** Maximale Lernzeit pro Tag (Minuten) – kursübergreifender Deckel. */
-  dailyMaxMin: number
+  /** Optionales Tageslimit NUR für diesen Kurs (Minuten). Der globale Deckel
+   *  über alle Kurse liegt in den Einstellungen. */
+  dailyMaxMin?: number
   /** Bevorzugte Uhrzeit der Sessions (HH:mm). */
   time: string
 }

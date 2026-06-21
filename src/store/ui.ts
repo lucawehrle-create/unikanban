@@ -32,6 +32,8 @@ interface UIState {
   tour: boolean
   /** Reflexions-Abfrage nach dem Erledigen von Übungs-/Tutoriumsblättern. */
   reflectionPrompts: boolean
+  /** Globaler Tagesdeckel für Lern-Sessions über ALLE Kurse (Minuten). */
+  studyDailyMaxMin: number
   /** id der Aufgabe, für die gerade das Reflexions-Popup offen ist. */
   reflectingTaskId: string | null
 
@@ -56,6 +58,7 @@ interface UIState {
   setDemo: (b: boolean) => void
   setTour: (b: boolean) => void
   setReflectionPrompts: (b: boolean) => void
+  setStudyDailyMaxMin: (n: number) => void
   /** Öffnet das Reflexions-Popup, falls aktiviert & passender, noch nicht reflektierter Task. */
   maybeReflect: (task: Task) => void
   /** Öffnet das Reflexions-Popup direkt (Ansehen/Bearbeiten), ohne Bedingungen. */
@@ -65,6 +68,16 @@ interface UIState {
 
 const DEMO_KEY = 'semban:demo'
 const REFLECT_KEY = 'semban:reflectionPrompts'
+const STUDY_MAX_KEY = 'semban:studyDailyMax'
+
+function loadStudyMax(): number {
+  try {
+    const n = Number(localStorage.getItem(STUDY_MAX_KEY))
+    return Number.isFinite(n) && n >= 60 ? n : 180
+  } catch {
+    return 180
+  }
+}
 
 export const useUI = create<UIState>((set) => ({
   view: 'board',
@@ -87,6 +100,7 @@ export const useUI = create<UIState>((set) => ({
   tour: false,
   reflectionPrompts:
     typeof localStorage === 'undefined' || localStorage.getItem(REFLECT_KEY) !== '0',
+  studyDailyMaxMin: loadStudyMax(),
   reflectingTaskId: null,
 
   setView: (view) => set({ view }),
@@ -133,6 +147,14 @@ export const useUI = create<UIState>((set) => ({
       /* ignore */
     }
     set({ reflectionPrompts })
+  },
+  setStudyDailyMaxMin: (studyDailyMaxMin) => {
+    try {
+      localStorage.setItem(STUDY_MAX_KEY, String(studyDailyMaxMin))
+    } catch {
+      /* ignore */
+    }
+    set({ studyDailyMaxMin })
   },
   maybeReflect: (task) =>
     set((s) => {

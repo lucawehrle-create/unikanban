@@ -72,7 +72,7 @@ export function defaultPlanConfig(
     uebungReviewIds: [...uebungIds],
     tutReviewIds: [...tutIds],
     strategy: 'breaks',
-    dailyMaxMin: 180,
+    dailyMaxMin: undefined,
     time: '18:00',
   }
 }
@@ -217,6 +217,7 @@ export function buildPlan(
   courseId: string,
   courses: Course[],
   allTasks: Task[],
+  globalMaxMin: number,
 ): PlanResult {
   const exam = new Date(cfg.examDate + 'T00:00:00')
   if (isNaN(exam.getTime())) return { sessions: [], unplaced: 0 }
@@ -228,7 +229,11 @@ export function buildPlan(
   const start = addDays(today, Math.floor(s.startFrac * total))
   const examKeys = examDayKeys(courseId, allTasks)
   const foreign = foreignLoadMin(courseId, allTasks)
-  const budget = Math.max(60, cfg.dailyMaxMin)
+  // Globaler Tagesdeckel (über alle Kurse) und optionales Kurs-Limit.
+  const globalBudget = Math.max(60, globalMaxMin)
+  const courseBudget = cfg.dailyMaxMin
+  // Größter Einzelblock, der überhaupt an einem Tag möglich ist.
+  const budget = courseBudget != null ? Math.min(globalBudget, courseBudget) : globalBudget
 
   // Plan-Tage (ohne fremde Klausurtage)
   const days: Date[] = []
@@ -240,7 +245,14 @@ export function buildPlan(
   // belegte Minuten je Tag (eigene Planung), startet mit fremder Last
   const used = new Map<string, number>()
   const perDay = new Map<string, { kind: ItemKind; label: string; durationMin: number }[]>()
-  const free = (k: string) => budget - (foreign.get(k) ?? 0) - (used.get(k) ?? 0)
+  // Restkapazität für DIESEN Kurs an einem Tag: durch globalen Deckel (inkl.
+  // fremder Last) UND optionales Kurs-Limit begrenzt.
+  const free = (k: string) => {
+    const u = used.get(k) ?? 0
+    const globalFree = globalBudget - (foreign.get(k) ?? 0) - u
+    const courseFree = courseBudget != null ? courseBudget - u : Infinity
+    return Math.min(globalFree, courseFree)
+  }
   const add = (day: Date, it: { kind: ItemKind; label: string; durationMin: number }) => {
     const k = dayKey(day)
     used.set(k, (used.get(k) ?? 0) + it.durationMin)
@@ -366,6 +378,7 @@ export async function savePlan(
   cfg: StudyPlanConfig,
   courses: Course[],
   allTasks: Task[],
+  globalMaxMin: number,
 ): Promise<number> {
   const prefix = titlePrefix(course)
   const doneLabels = new Set(
@@ -379,7 +392,7 @@ export async function savePlan(
     .map((t) => t.id)
   if (openIds.length) await db.tasks.bulkDelete(openIds)
 
-  const { sessions } = buildPlan(cfg, course.id, courses, allTasks)
+  const { sessions } = buildPlan(cfg, course.id, courses, allTasks, globalMaxMin)
   let created = 0
   for (const s of sessions) {
     // bereits erledigtes Material nicht doppeln (Karteikarten laufen täglich weiter)
@@ -434,6 +447,7 @@ export async function rescheduleOverduePlan(
   cfg: StudyPlanConfig,
   courses: Course[],
   allTasks: Task[],
+  globalMaxMin: number,
 ): Promise<number> {
   const today = startOfToday()
   const exam = new Date(cfg.examDate + 'T00:00:00')
@@ -450,7 +464,8 @@ export async function rescheduleOverduePlan(
     .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
   if (!overdue.length) return 0
 
-  const budget = Math.max(60, cfg.dailyMaxMin)
+  const globalBudget = Math.max(60, globalMaxMin)
+  const courseBudget = cfg.dailyMaxMin
   const examKeys = examDayKeys(course.id, allTasks)
   const foreign = foreignLoadMin(course.id, allTasks)
   const days: Date[] = []
@@ -471,7 +486,12 @@ export async function rescheduleOverduePlan(
       }
     }
   }
-  const freeCap = (k: string) => budget - (foreign.get(k) ?? 0) - (used.get(k) ?? 0)
+  const freeCap = (k: string) => {
+    const u = used.get(k) ?? 0
+    const globalFree = globalBudget - (foreign.get(k) ?? 0) - u
+    const courseFree = courseBudget != null ? courseBudget - u : Infinity
+    return Math.min(globalFree, courseFree)
+  }
   const pref = toMin(cfg.time)
 
   let moved = 0

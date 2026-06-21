@@ -153,13 +153,43 @@ function SignedIn({
   )
 }
 
+const STUDY_MAX_OPTS = [120, 180, 240, 300, 360].map((m) => ({
+  value: String(m),
+  label: `${m / 60} h`,
+}))
+
 function PreferencesSection() {
   const reflectionPrompts = useUI((s) => s.reflectionPrompts)
   const setReflectionPrompts = useUI((s) => s.setReflectionPrompts)
+  const studyDailyMaxMin = useUI((s) => s.studyDailyMaxMin)
+  const setStudyDailyMaxMin = useUI((s) => s.setStudyDailyMaxMin)
   return (
     <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70">
       <h3 className="text-sm font-semibold text-stone-700">Lernen</h3>
+
       <label className="mt-2 flex items-start justify-between gap-3">
+        <span>
+          <span className="block text-sm font-medium text-stone-700">
+            Max. Lernzeit pro Tag (über alle Kurse)
+          </span>
+          <span className="block text-xs text-stone-400">
+            Gesamtdeckel für alle Lernpläne zusammen – kein Tag wird überladen.
+          </span>
+        </span>
+        <select
+          value={String(studyDailyMaxMin)}
+          onChange={(e) => setStudyDailyMaxMin(Number(e.target.value))}
+          className="mt-0.5 shrink-0 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm"
+        >
+          {STUDY_MAX_OPTS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="mt-3 flex items-start justify-between gap-3 border-t border-stone-100 pt-3">
         <span>
           <span className="block text-sm font-medium text-stone-700">Reflexion nach Erledigen</span>
           <span className="block text-xs text-stone-400">

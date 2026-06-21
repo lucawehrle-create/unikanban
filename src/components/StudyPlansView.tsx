@@ -48,10 +48,14 @@ function defaultReviewIds(tasks: Task[]): string[] {
     .map((t) => t.id)
 }
 
-const DAILY_OPTS = [120, 180, 240, 300, 360].map((m) => ({
-  value: String(m),
-  label: `${m / 60} h`,
-}))
+/** Optionales Tageslimit nur für diesen Kurs ('' = kein eigenes Limit). */
+const COURSE_LIMIT_OPTS = [
+  { value: '', label: 'kein eigenes Limit' },
+  { value: '60', label: '1 h' },
+  { value: '90', label: '1,5 h' },
+  { value: '120', label: '2 h' },
+  { value: '180', label: '3 h' },
+]
 
 const KIND_ORDER: ItemKind[] = ['altklausur', 'kapitel', 'uebung', 'tut', 'karten']
 
@@ -145,6 +149,7 @@ function PlanEditor({
   })
   const [busy, setBusy] = useState(false)
   const [flash, setFlash] = useState('')
+  const globalMax = useUI((s) => s.studyDailyMaxMin)
 
   const set = <K extends keyof StudyPlanConfig>(k: K, v: StudyPlanConfig[K]) =>
     setCfg((c) => ({ ...c, [k]: v }))
@@ -152,10 +157,10 @@ function PlanEditor({
   const variants = useMemo(
     () =>
       (['now', 'breaks', 'later'] as StudyStrategy[]).map((strategy) => {
-        const r = buildPlan({ ...cfg, strategy }, course.id, courses, allTasks)
+        const r = buildPlan({ ...cfg, strategy }, course.id, courses, allTasks, globalMax)
         return { strategy, sessions: r.sessions, unplaced: r.unplaced, summary: summarize(r.sessions) }
       }),
-    [cfg, course.id, courses, allTasks],
+    [cfg, course.id, courses, allTasks, globalMax],
   )
   const active = variants.find((v) => v.strategy === cfg.strategy) ?? variants[0]
   const bars = useMemo(() => timeline(cfg, active.sessions), [cfg, active.sessions])
@@ -166,7 +171,7 @@ function PlanEditor({
 
   const catchUp = async () => {
     setBusy(true)
-    const n = await rescheduleOverduePlan(course, cfg, courses, allTasks)
+    const n = await rescheduleOverduePlan(course, cfg, courses, allTasks, globalMax)
     setBusy(false)
     setFlash(n > 0 ? `${n} überfällige Sessions verschoben` : 'Nichts aufzuholen')
     setTimeout(() => setFlash(''), 3000)
@@ -174,7 +179,7 @@ function PlanEditor({
 
   const save = async () => {
     setBusy(true)
-    const n = await savePlan(course, cfg, courses, allTasks)
+    const n = await savePlan(course, cfg, courses, allTasks, globalMax)
     setBusy(false)
     setFlash(`${n} Lern-Sessions angelegt`)
     setTimeout(() => setFlash(''), 3000)
@@ -273,18 +278,19 @@ function PlanEditor({
         </p>
       </div>
 
-      {/* Tagesbudget (kursübergreifend) */}
+      {/* Optionales Tageslimit nur für diesen Kurs */}
       <label className="block sm:max-w-xs">
         <span className="mb-1 block text-xs font-medium text-stone-500">
-          Max. Lernzeit pro Tag (über alle Kurse)
+          Max. Lernzeit für diesen Kurs pro Tag
         </span>
         <Select
-          value={String(cfg.dailyMaxMin)}
-          options={DAILY_OPTS}
-          onChange={(v) => set('dailyMaxMin', Number(v))}
+          value={cfg.dailyMaxMin != null ? String(cfg.dailyMaxMin) : ''}
+          options={COURSE_LIMIT_OPTS}
+          onChange={(v) => set('dailyMaxMin', v ? Number(v) : undefined)}
         />
         <span className="mt-1 block text-[11px] text-stone-400">
-          Lern-Sessions anderer Kurse zählen mit – kein Tag wird überladen.
+          Der gesamte Tagesdeckel über alle Kurse ({Math.round(globalMax / 60)} h) wird in den
+          Einstellungen festgelegt. Lern-Sessions anderer Kurse zählen dort mit.
         </span>
       </label>
 

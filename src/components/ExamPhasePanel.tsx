@@ -40,6 +40,7 @@ export function ExamPhasePanel({ onlyImminent = false }: { onlyImminent?: boolea
   const allTasks = useTasks(semester?.id)
   const editTask = useUI((s) => s.editTask)
   const openPlans = useUI((s) => s.openPlans)
+  const globalMax = useUI((s) => s.studyDailyMaxMin)
   const [busy, setBusy] = useState<string | null>(null)
   if (!status) return null
   if (onlyImminent && !examBadge(status)) return null
@@ -115,7 +116,7 @@ export function ExamPhasePanel({ onlyImminent = false }: { onlyImminent?: boolea
               const catchUp = async () => {
                 if (!course?.studyPlan) return
                 setBusy(t.id)
-                await rescheduleOverduePlan(course, course.studyPlan, courses, allTasks)
+                await rescheduleOverduePlan(course, course.studyPlan, courses, allTasks, globalMax)
                 setBusy(null)
               }
               return (
