@@ -7,15 +7,15 @@ import { pickSessionTime, toMin } from './schedule'
 const CHAPTER_MIN = 60
 const SHEET_REVIEW_MIN = 30
 const CARD_MIN = 0.3 // ~18 s pro Karte (Heuristik)
-const DAY_LOAD_CAP = 2 // max. fremde Klausur-Termine/Sessions pro Tag
+const FALLBACK_SESSION_MIN = 60 // für Fremd-Sessions ohne gespeicherte Dauer
 
 export type ItemKind = 'altklausur' | 'kapitel' | 'uebung' | 'tut' | 'karten'
 
 export const KIND_META: Record<ItemKind, { label: string; color: string }> = {
-  altklausur: { label: 'Altklausuren', color: '#e9633c' },
   kapitel: { label: 'Kapitel', color: '#6366f1' },
   uebung: { label: 'Übungsblätter', color: '#0ea5e9' },
   tut: { label: 'Tutoriumsblätter', color: '#14b8a6' },
+  altklausur: { label: 'Altklausuren', color: '#e9633c' },
   karten: { label: 'Karteikarten', color: '#f5c645' },
 }
 
@@ -26,23 +26,16 @@ export interface PlanSession {
   kind: ItemKind
 }
 
-const STRATEGY: Record<StudyStrategy, { startFrac: number; reps: number; dayUse: number }> = {
-  now: { startFrac: 0, reps: 2, dayUse: 1 }, // sofort, viele Wiederholungen
-  breaks: { startFrac: 0, reps: 2, dayUse: 0.65 }, // sofort, mit Pausentagen
-  later: { startFrac: 0.55, reps: 1, dayUse: 1 }, // später, einmal durch
+const STRATEGY: Record<StudyStrategy, { startFrac: number; chapterReps: number }> = {
+  now: { startFrac: 0, chapterReps: 2 }, // sofort, Kapitel zusätzlich wiederholen
+  breaks: { startFrac: 0.1, chapterReps: 2 }, // etwas später starten, mit Luft
+  later: { startFrac: 0.55, chapterReps: 1 }, // spät, einmal durch
 }
 
-export const STRATEGY_META: Record<
-  StudyStrategy,
-  { title: string; desc: string; reps: string }
-> = {
-  now: { title: 'Sofort starten', desc: 'Jetzt lernen, bis zur Klausur üben.', reps: '~2× pro Material' },
-  breaks: {
-    title: 'Sofort, mit Pausen',
-    desc: 'Jetzt starten, mit Erholungstagen.',
-    reps: '~2× pro Material',
-  },
-  later: { title: 'Später starten', desc: 'Näher an der Klausur, einmal durch.', reps: '1× pro Material' },
+export const STRATEGY_META: Record<StudyStrategy, { title: string; desc: string; reps: string }> = {
+  now: { title: 'Sofort starten', desc: 'Jetzt lernen, früh & gründlich.', reps: 'Kapitel 2×' },
+  breaks: { title: 'Ausgewogen', desc: 'Etwas später, mit Luft zum Atmen.', reps: 'Kapitel 2×' },
+  later: { title: 'Später starten', desc: 'Näher an der Klausur, einmal durch.', reps: 'Kapitel 1×' },
 }
 
 function startOfToday(): Date {
@@ -61,14 +54,10 @@ function addDays(d: Date, n: number): Date {
 function diffDays(a: Date, b: Date): number {
   return Math.round((b.getTime() - a.getTime()) / 86400000)
 }
-
-function chunkInto<T>(arr: T[], n: number): T[][] {
-  const out: T[][] = Array.from({ length: Math.max(1, n) }, () => [])
-  arr.forEach((x, i) => out[Math.min(out.length - 1, Math.floor((i * out.length) / arr.length))].push(x))
-  return out
+function lerp(a: number, b: number, f: number): number {
+  return a + (b - a) * (isFinite(f) ? f : 0.5)
 }
 
-/** Sinnvolle Standard-Konfiguration für einen Kurs. */
 export function defaultPlanConfig(
   examDate: string,
   uebungCount: number,
@@ -83,113 +72,174 @@ export function defaultPlanConfig(
     uebungReview: uebungCount,
     tutReview: tutCount,
     strategy: 'breaks',
+    dailyMaxMin: 180,
     time: '18:00',
   }
 }
 
-/** Karteikarten-Minuten pro Tag (für Anzeige & Budget). */
 export function cardMinutesPerDay(cfg: StudyPlanConfig): number {
   return Math.round(cfg.cardsPerDay * CARD_MIN)
 }
 
-/** Ein „Material-Stück" = eine Session-Einheit (vor Wiederholung). */
-function materialItems(cfg: StudyPlanConfig): { label: string; kind: ItemKind; durationMin: number }[] {
-  const out: { label: string; kind: ItemKind; durationMin: number }[] = []
-  for (let i = 1; i <= cfg.altklausuren; i++)
-    out.push({ label: `Altklausur ${i} rechnen`, kind: 'altklausur', durationMin: cfg.examDurationMin * 2 })
-  for (let i = 1; i <= cfg.chapters; i++)
-    out.push({ label: `Kapitel ${i} durchgehen`, kind: 'kapitel', durationMin: CHAPTER_MIN })
-  for (let i = 1; i <= cfg.uebungReview; i++)
-    out.push({ label: `Übungsblatt wiederholen`, kind: 'uebung', durationMin: SHEET_REVIEW_MIN })
-  for (let i = 1; i <= cfg.tutReview; i++)
-    out.push({ label: `Tutoriumsblatt wiederholen`, kind: 'tut', durationMin: SHEET_REVIEW_MIN })
-  return out
+interface Unit {
+  kind: ItemKind
+  label: string
+  durationMin: number
+  pos: number // Ziel-Position 0..1 im Zeitfenster (Phase)
 }
 
-/** Tage anderer Klausuren / fremder Lern-Sessions (für Konflikt & Cap). */
-function blockedDayLoad(courseId: string, allTasks: Task[]): Map<string, number> {
+/**
+ * Material in pädagogischer Reihenfolge: erst Kapitel lernen, dann Übungen/
+ * Tutorien wiederholen, Altklausuren ans Ende (Prüfungssimulation), optional
+ * Kapitel-Wiederholung spät.
+ */
+function buildUnits(cfg: StudyPlanConfig, chapterReps: number): Unit[] {
+  const u: Unit[] = []
+  const span = (i: number, n: number, a: number, b: number) => lerp(a, b, n <= 1 ? 0.5 : i / (n - 1))
+
+  for (let i = 0; i < cfg.chapters; i++) {
+    u.push({ kind: 'kapitel', label: `Kapitel ${i + 1} durchgehen`, durationMin: CHAPTER_MIN, pos: span(i, cfg.chapters, 0.05, 0.45) })
+    if (chapterReps >= 2)
+      u.push({ kind: 'kapitel', label: `Kapitel ${i + 1} wiederholen`, durationMin: Math.round(CHAPTER_MIN * 0.6), pos: span(i, cfg.chapters, 0.6, 0.85) })
+  }
+  for (let i = 0; i < cfg.uebungReview; i++)
+    u.push({ kind: 'uebung', label: 'Übungsblatt wiederholen', durationMin: SHEET_REVIEW_MIN, pos: span(i, cfg.uebungReview, 0.3, 0.78) })
+  for (let i = 0; i < cfg.tutReview; i++)
+    u.push({ kind: 'tut', label: 'Tutoriumsblatt wiederholen', durationMin: SHEET_REVIEW_MIN, pos: span(i, cfg.tutReview, 0.35, 0.8) })
+  for (let i = 0; i < cfg.altklausuren; i++)
+    u.push({ kind: 'altklausur', label: `Altklausur ${i + 1} rechnen`, durationMin: cfg.examDurationMin * 2, pos: span(i, cfg.altklausuren, 0.6, 0.92) })
+
+  return u.sort((a, b) => a.pos - b.pos)
+}
+
+/** Belegte Tage (andere Klausuren) – dort gar nicht planen. */
+function examDayKeys(courseId: string, allTasks: Task[]): Set<string> {
+  const s = new Set<string>()
+  for (const t of allTasks) {
+    if (t.type === 'klausur' && t.dueDate && t.courseId !== courseId) s.add(dayKey(new Date(t.dueDate)))
+  }
+  return s
+}
+
+/** Kursübergreifende Tageslast (Minuten) aus Lern-Sessions ANDERER Kurse. */
+function foreignLoadMin(courseId: string, allTasks: Task[]): Map<string, number> {
   const m = new Map<string, number>()
   for (const t of allTasks) {
     if (!t.dueDate || t.status === 'erledigt') continue
-    const otherExam = t.type === 'klausur'
-    const otherSession = !!t.examId && t.examId !== courseId
-    if (otherExam || otherSession) {
+    if (t.examId && t.examId !== courseId) {
       const k = dayKey(new Date(t.dueDate))
-      m.set(k, (m.get(k) ?? 0) + 1)
+      m.set(k, (m.get(k) ?? 0) + (t.duration ?? FALLBACK_SESSION_MIN))
     }
   }
   return m
 }
 
+export interface PlanResult {
+  sessions: PlanSession[]
+  /** Einheiten, die wegen Tagesbudget/Zeitfenster nicht untergebracht wurden. */
+  unplaced: number
+}
+
 /**
- * Lernplan für einen Kurs erzeugen: Material (× Wiederholungen je Strategie) +
- * tägliche Karteikarten, verteilt auf freie Tage/Slots bis zur Klausur.
+ * Budget-basierter Scheduler: verteilt Material gemäß Phase, deckelt die
+ * Lernzeit pro Tag (inkl. anderer Kurse) und legt Sessions in freie Slots.
  */
-export function generatePlanSessions(
+export function buildPlan(
   cfg: StudyPlanConfig,
   courseId: string,
   courses: Course[],
   allTasks: Task[],
-): PlanSession[] {
+): PlanResult {
   const exam = new Date(cfg.examDate + 'T00:00:00')
-  if (isNaN(exam.getTime())) return []
+  if (isNaN(exam.getTime())) return { sessions: [], unplaced: 0 }
   const today = startOfToday()
   const total = diffDays(today, exam)
-  if (total <= 0) return []
+  if (total <= 0) return { sessions: [], unplaced: 0 }
 
   const s = STRATEGY[cfg.strategy]
   const start = addDays(today, Math.floor(s.startFrac * total))
-  const load = blockedDayLoad(courseId, allTasks)
+  const examKeys = examDayKeys(courseId, allTasks)
+  const foreign = foreignLoadMin(courseId, allTasks)
+  const budget = Math.max(60, cfg.dailyMaxMin)
 
-  // verfügbare Tage (jeden Tag, ohne Konflikt-/Last-Tage)
-  const allDays: Date[] = []
+  // Plan-Tage (ohne fremde Klausurtage)
+  const days: Date[] = []
   for (let d = new Date(start); d.getTime() < exam.getTime(); d = addDays(d, 1)) {
-    if ((load.get(dayKey(d)) ?? 0) < DAY_LOAD_CAP) allDays.push(new Date(d))
+    if (!examKeys.has(dayKey(d))) days.push(new Date(d))
   }
-  if (allDays.length === 0) return []
+  if (days.length === 0) return { sessions: [], unplaced: 0 }
 
-  // Material-Pool (mit Wiederholungen)
-  const base = materialItems(cfg)
-  const pool: { label: string; kind: ItemKind; durationMin: number }[] = []
-  for (let r = 0; r < s.reps; r++) pool.push(...base)
+  // belegte Minuten je Tag (eigene Planung), startet mit fremder Last
+  const used = new Map<string, number>()
+  const perDay = new Map<string, { kind: ItemKind; label: string; durationMin: number }[]>()
+  const free = (k: string) => budget - (foreign.get(k) ?? 0) - (used.get(k) ?? 0)
+  const add = (day: Date, it: { kind: ItemKind; label: string; durationMin: number }) => {
+    const k = dayKey(day)
+    used.set(k, (used.get(k) ?? 0) + it.durationMin)
+    if (!perDay.has(k)) perDay.set(k, [])
+    perDay.get(k)!.push(it)
+  }
 
-  // Material-Tage (bei „Pausen" weniger Tage)
-  const matDayCount = Math.max(1, Math.round(allDays.length * s.dayUse))
-  const matDays = pickSpread(allDays, Math.min(matDayCount, allDays.length))
-  const buckets = chunkInto(pool, matDays.length)
-  const matByDay = new Map<string, typeof pool>()
-  matDays.forEach((d, i) => matByDay.set(dayKey(d), buckets[i] ?? []))
-
+  // Karteikarten: tägliche Gewohnheit zuerst (kleiner Block, darf knapp übers Budget)
   const cardMin = cardMinutesPerDay(cfg)
+  if (cfg.cardsPerDay > 0 && cardMin > 0) {
+    for (const day of days) add(day, { kind: 'karten', label: `Karteikarten (${cfg.cardsPerDay})`, durationMin: cardMin })
+  }
+
+  // Material phasenweise platzieren, nächstgelegenen Tag mit Restbudget suchen
+  let unplaced = 0
+  for (const unit of buildUnits(cfg, s.chapterReps)) {
+    const targetIdx = Math.max(0, Math.min(days.length - 1, Math.round(unit.pos * (days.length - 1))))
+    let placed = false
+    for (let off = 0; off < days.length && !placed; off++) {
+      for (const dir of off === 0 ? [0] : [1, -1]) {
+        const idx = targetIdx + dir * off
+        if (idx < 0 || idx >= days.length) continue
+        if (free(dayKey(days[idx])) >= unit.durationMin) {
+          add(days[idx], { kind: unit.kind, label: unit.label, durationMin: unit.durationMin })
+          placed = true
+          break
+        }
+      }
+    }
+    // Großer Block (z. B. Altklausur, Dauer > Tagesbudget): bekommt einen eigenen,
+    // schwereren Tag – den mit dem meisten Restbudget nahe der Ziel-Phase.
+    if (!placed && unit.durationMin > budget) {
+      let bestIdx = -1
+      let bestFree = -Infinity
+      for (let i = 0; i < days.length; i++) {
+        const f = free(dayKey(days[i])) - Math.abs(i - targetIdx) * 0.01 // leichte Nähe-Präferenz
+        if (f > bestFree) {
+          bestFree = f
+          bestIdx = i
+        }
+      }
+      if (bestIdx >= 0) {
+        add(days[bestIdx], { kind: unit.kind, label: unit.label, durationMin: unit.durationMin })
+        placed = true
+      }
+    }
+    if (!placed) unplaced++
+  }
+
+  // Sessions je Tag sequentiell in freie Stundenplan-Lücken legen
   const pref = toMin(cfg.time)
   const sessions: PlanSession[] = []
-
-  for (const day of allDays) {
-    const items = matByDay.get(dayKey(day)) ?? []
-    const todays: { label: string; kind: ItemKind; durationMin: number }[] = []
-    if (cfg.cardsPerDay > 0 && cardMin > 0)
-      todays.push({ label: `Karteikarten (${cfg.cardsPerDay})`, kind: 'karten', durationMin: cardMin })
-    todays.push(...items)
-    if (todays.length === 0) continue
-    // Sessions des Tages sequentiell ab erster freier Zeit stapeln
-    let cursor = pickSessionTime(courses, day, pref, todays[0].durationMin)
-    for (const it of todays) {
+  for (const day of days) {
+    const items = perDay.get(dayKey(day))
+    if (!items || items.length === 0) continue
+    // Karteikarten zuerst, dann Material in Phasen-Reihenfolge (perDay-Reihenfolge passt grob)
+    const ordered = [...items].sort((a, b) => (a.kind === 'karten' ? -1 : b.kind === 'karten' ? 1 : 0))
+    let cursor = pickSessionTime(courses, day, pref, ordered[0].durationMin)
+    for (const it of ordered) {
       const date = new Date(day)
       date.setHours(Math.floor(cursor / 60), cursor % 60, 0, 0)
       sessions.push({ date, durationMin: it.durationMin, label: it.label, kind: it.kind })
       cursor += it.durationMin
     }
   }
-  return sessions.sort((a, b) => a.date.getTime() - b.date.getTime())
-}
-
-function pickSpread<T>(arr: T[], n: number): T[] {
-  if (n <= 0) return []
-  if (n >= arr.length) return arr.slice()
-  if (n === 1) return [arr[0]]
-  const res: T[] = []
-  for (let i = 0; i < n; i++) res.push(arr[Math.round((i * (arr.length - 1)) / (n - 1))])
-  return res
+  sessions.sort((a, b) => a.date.getTime() - b.date.getTime())
+  return { sessions, unplaced }
 }
 
 export interface PlanSummary {
@@ -208,11 +258,10 @@ export function summarize(sessions: PlanSession[]): PlanSummary {
 
 export interface DayBar {
   date: Date
-  byKind: Record<ItemKind, number> // Minuten je Art
+  byKind: Record<ItemKind, number>
   total: number
 }
 
-/** Tageweise Minuten je Material-Art – für die Timeline-Visualisierung. */
 export function timeline(cfg: StudyPlanConfig, sessions: PlanSession[]): DayBar[] {
   const exam = new Date(cfg.examDate + 'T00:00:00')
   const today = startOfToday()
@@ -235,7 +284,6 @@ export function timeline(cfg: StudyPlanConfig, sessions: PlanSession[]): DayBar[
   return [...map.values()]
 }
 
-/** Plan bestätigen: alte Sessions ersetzen, neue als Aufgaben anlegen, Config speichern. */
 export async function savePlan(
   course: Course,
   cfg: StudyPlanConfig,
@@ -243,7 +291,7 @@ export async function savePlan(
   allTasks: Task[],
 ): Promise<number> {
   await removePlanSessions(course.id, allTasks)
-  const sessions = generatePlanSessions(cfg, course.id, courses, allTasks)
+  const { sessions } = buildPlan(cfg, course.id, courses, allTasks)
   for (const s of sessions) {
     await createTask({
       semesterId: course.semesterId,
@@ -251,6 +299,7 @@ export async function savePlan(
       type: 'sonstiges',
       courseId: course.id,
       dueDate: s.date.toISOString(),
+      duration: s.durationMin,
       notes: `Lernplan ${course.name} · ${s.durationMin} Min`,
       examId: course.id,
     })
@@ -259,13 +308,11 @@ export async function savePlan(
   return sessions.length
 }
 
-/** Lern-Sessions eines Kurses entfernen. */
 export async function removePlanSessions(courseId: string, allTasks: Task[]): Promise<void> {
   const ids = allTasks.filter((t) => t.examId === courseId).map((t) => t.id)
   if (ids.length) await db.tasks.bulkDelete(ids)
 }
 
-/** Plan ganz löschen (Sessions + Config). */
 export async function deletePlan(courseId: string, allTasks: Task[]): Promise<void> {
   await removePlanSessions(courseId, allTasks)
   await db.courses.update(courseId, { studyPlan: undefined })

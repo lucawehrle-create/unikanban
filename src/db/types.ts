@@ -145,6 +145,8 @@ export interface StudyPlanConfig {
   tutReview: number
   /** Gewählte Start-Strategie. */
   strategy: StudyStrategy
+  /** Maximale Lernzeit pro Tag (Minuten) – kursübergreifender Deckel. */
+  dailyMaxMin: number
   /** Bevorzugte Uhrzeit der Sessions (HH:mm). */
   time: string
 }
@@ -175,6 +177,8 @@ export interface Task {
   recurringId?: string
   /** id der Klausur-Aufgabe, zu der diese Lern-Session gehört (Lernplan). */
   examId?: string
+  /** geplante Dauer in Minuten (Lern-Sessions; für Tagesbudget-Planung). */
+  duration?: number
   createdAt: string
   completedAt?: string
 }
