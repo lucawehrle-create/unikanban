@@ -24,6 +24,34 @@ export interface PlanSession {
   durationMin: number
   label: string
   kind: ItemKind
+  /** Übergeordnetes Lernziel der Session (für die Notizen). */
+  focus: string
+}
+
+// Übergeordnete Lernziele je Session-Art – erklären dem Nutzer den ZWECK
+// (nicht den Inhalt), z.B. warum Kapitel 3 ein drittes Mal auftaucht.
+const CARD_FOCUS =
+  'Tägliches aktives Abrufen: kurz deine Karteikarten durchgehen (Spaced Repetition – kleine Dosis, dafür regelmäßig).'
+const ALTKLAUSUR_FOCUS =
+  'Wie in der echten Klausur: unter Zeitdruck & ohne Hilfsmittel rechnen, danach ehrlich kontrollieren und Fehler gezielt nacharbeiten.'
+
+function chapterFocus(isLearn: boolean, waveIdx: number, waveCount: number): string {
+  if (isLearn)
+    return 'Erstes Durcharbeiten: Überblick verschaffen, die zentralen Konzepte verstehen und alles Unklare markieren.'
+  if (waveCount <= 1)
+    return 'Aktiv wiederholen: erst ohne Unterlagen aus dem Kopf abrufen, dann gezielt die markierten Lücken schließen.'
+  if (waveIdx < waveCount - 1)
+    return 'Aktiv wiederholen: aus dem Kopf abrufen und die zuvor markierten Lücken nacharbeiten.'
+  return 'Festigen: nur noch die schwierigen Stellen & Zusammenhänge, kurze Selbstabfrage – fast wie in der Klausur.'
+}
+
+function sheetFocus(repIdx: number, repCount: number): string {
+  if (repCount <= 1)
+    return 'Fokus auf die Aufgaben, die dir schwergefallen sind (siehe deine Reflexion) – den Lösungsweg verstehen statt alles neu zu rechnen.'
+  if (repIdx === 0) return 'Die schweren Aufgaben nochmal selbst lösen – wo genau hakt es?'
+  if (repIdx < repCount - 1)
+    return 'Kurzer Check der noch wackeligen Aufgaben – den Lösungsweg aus dem Kopf rekonstruieren.'
+  return 'Letzter Durchgang: nur noch die kniffligen Aufgaben sicher beherrschen.'
 }
 
 // Anzahl Wiederholungs-„Wellen" für Kapitel (zusätzlich zum ersten Durchgang).
@@ -99,6 +127,7 @@ interface Unit {
   label: string
   durationMin: number
   pos: number // Ziel-Position 0..1 im Zeitfenster (Phase)
+  focus: string
 }
 
 /**
@@ -156,13 +185,20 @@ function buildUnits(
   // wachsenden Abständen wiederholen (verteiltes Lernen).
   const waves = CHAPTER_REVIEW_WAVES[chapterReviews] ?? []
   for (let i = 0; i < cfg.chapters; i++) {
-    u.push({ kind: 'kapitel', label: `Kapitel ${i + 1} durchgehen`, durationMin: CHAPTER_MIN, pos: span(i, cfg.chapters, 0.05, 0.4) })
+    u.push({
+      kind: 'kapitel',
+      label: `Kapitel ${i + 1} durchgehen`,
+      durationMin: CHAPTER_MIN,
+      pos: span(i, cfg.chapters, 0.05, 0.4),
+      focus: chapterFocus(true, 0, waves.length),
+    })
     waves.forEach((win, w) =>
       u.push({
         kind: 'kapitel',
         label: waves.length > 1 ? `Kapitel ${i + 1} wiederholen (${w + 1}/${waves.length})` : `Kapitel ${i + 1} wiederholen`,
         durationMin: Math.round(CHAPTER_MIN * 0.55),
         pos: span(i, cfg.chapters, win[0], win[1]),
+        focus: chapterFocus(false, w, waves.length),
       }),
     )
   }
@@ -180,6 +216,7 @@ function buildUnits(
           label: reps > 1 ? `${sh.title} wiederholen (${r + 1}/${reps})` : `${sh.title} wiederholen`,
           durationMin: Math.max(15, Math.round(minutes * (r === 0 ? 1 : 0.8))),
           pos,
+          focus: sheetFocus(r, reps),
         })
       })
     })
@@ -188,7 +225,13 @@ function buildUnits(
   pushSheets(tutSheets, 'tut', 0.35, 0.8)
 
   for (let i = 0; i < cfg.altklausuren; i++)
-    u.push({ kind: 'altklausur', label: `Altklausur ${i + 1} rechnen`, durationMin: cfg.examDurationMin * 2, pos: span(i, cfg.altklausuren, 0.6, 0.92) })
+    u.push({
+      kind: 'altklausur',
+      label: `Altklausur ${i + 1} rechnen`,
+      durationMin: cfg.examDurationMin * 2,
+      pos: span(i, cfg.altklausuren, 0.6, 0.92),
+      focus: ALTKLAUSUR_FOCUS,
+    })
 
   return u.sort((a, b) => a.pos - b.pos)
 }
@@ -265,8 +308,9 @@ export function buildPlan(
   if (days.length === 0) return { sessions: [], unplaced: 0 }
 
   // belegte Minuten je Tag (eigene Planung), startet mit fremder Last
+  type Item = { kind: ItemKind; label: string; durationMin: number; focus: string }
   const used = new Map<string, number>()
-  const perDay = new Map<string, { kind: ItemKind; label: string; durationMin: number }[]>()
+  const perDay = new Map<string, Item[]>()
   // Restkapazität für DIESEN Kurs an einem Tag: durch globalen Deckel (inkl.
   // fremder Last) UND optionales Kurs-Limit begrenzt.
   const free = (k: string) => {
@@ -275,7 +319,7 @@ export function buildPlan(
     const courseFree = courseBudget != null ? courseBudget - u : Infinity
     return Math.min(globalFree, courseFree)
   }
-  const add = (day: Date, it: { kind: ItemKind; label: string; durationMin: number }) => {
+  const add = (day: Date, it: Item) => {
     const k = dayKey(day)
     used.set(k, (used.get(k) ?? 0) + it.durationMin)
     if (!perDay.has(k)) perDay.set(k, [])
@@ -285,7 +329,7 @@ export function buildPlan(
   // Karteikarten: tägliche Gewohnheit zuerst (kleiner Block, darf knapp übers Budget)
   const cardMin = cardMinutesPerDay(cfg)
   if (cfg.cardsPerDay > 0 && cardMin > 0) {
-    for (const day of days) add(day, { kind: 'karten', label: `Karteikarten (${cfg.cardsPerDay})`, durationMin: cardMin })
+    for (const day of days) add(day, { kind: 'karten', label: `Karteikarten (${cfg.cardsPerDay})`, durationMin: cardMin, focus: CARD_FOCUS })
   }
 
   // Material phasenweise platzieren, nächstgelegenen Tag mit Restbudget suchen
@@ -300,7 +344,7 @@ export function buildPlan(
         const idx = targetIdx + dir * off
         if (idx < 0 || idx >= days.length) continue
         if (free(dayKey(days[idx])) >= unit.durationMin) {
-          add(days[idx], { kind: unit.kind, label: unit.label, durationMin: unit.durationMin })
+          add(days[idx], { kind: unit.kind, label: unit.label, durationMin: unit.durationMin, focus: unit.focus })
           placed = true
           break
         }
@@ -319,7 +363,7 @@ export function buildPlan(
         }
       }
       if (bestIdx >= 0) {
-        add(days[bestIdx], { kind: unit.kind, label: unit.label, durationMin: unit.durationMin })
+        add(days[bestIdx], { kind: unit.kind, label: unit.label, durationMin: unit.durationMin, focus: unit.focus })
         placed = true
       }
     }
@@ -338,7 +382,7 @@ export function buildPlan(
     for (const it of ordered) {
       const date = new Date(day)
       date.setHours(Math.floor(cursor / 60), cursor % 60, 0, 0)
-      sessions.push({ date, durationMin: it.durationMin, label: it.label, kind: it.kind })
+      sessions.push({ date, durationMin: it.durationMin, label: it.label, kind: it.kind, focus: it.focus })
       cursor += it.durationMin
     }
   }
@@ -432,7 +476,7 @@ export async function savePlan(
       courseId: course.id,
       dueDate: s.date.toISOString(),
       duration: s.durationMin,
-      notes: `Lernplan ${course.name} · ${s.durationMin} Min`,
+      notes: `🎯 ${s.focus}\n\n${s.durationMin} Min · Lernplan ${course.name}`,
       examId: course.id,
     })
     created++
