@@ -60,8 +60,8 @@ function lerp(a: number, b: number, f: number): number {
 
 export function defaultPlanConfig(
   examDate: string,
-  uebungCount: number,
-  tutCount: number,
+  uebungIds: string[],
+  tutIds: string[],
 ): StudyPlanConfig {
   return {
     examDate,
@@ -69,8 +69,8 @@ export function defaultPlanConfig(
     cardsPerDay: 15,
     altklausuren: 0,
     chapters: 0,
-    uebungReview: uebungCount,
-    tutReview: tutCount,
+    uebungReviewIds: [...uebungIds],
+    tutReviewIds: [...tutIds],
     strategy: 'breaks',
     dailyMaxMin: 180,
     time: '18:00',
@@ -93,7 +93,12 @@ interface Unit {
  * Tutorien wiederholen, Altklausuren ans Ende (Prüfungssimulation), optional
  * Kapitel-Wiederholung spät.
  */
-function buildUnits(cfg: StudyPlanConfig, chapterReps: number): Unit[] {
+function buildUnits(
+  cfg: StudyPlanConfig,
+  chapterReps: number,
+  uebungTitles: string[],
+  tutTitles: string[],
+): Unit[] {
   const u: Unit[] = []
   const span = (i: number, n: number, a: number, b: number) => lerp(a, b, n <= 1 ? 0.5 : i / (n - 1))
 
@@ -102,14 +107,25 @@ function buildUnits(cfg: StudyPlanConfig, chapterReps: number): Unit[] {
     if (chapterReps >= 2)
       u.push({ kind: 'kapitel', label: `Kapitel ${i + 1} wiederholen`, durationMin: Math.round(CHAPTER_MIN * 0.6), pos: span(i, cfg.chapters, 0.6, 0.85) })
   }
-  for (let i = 0; i < cfg.uebungReview; i++)
-    u.push({ kind: 'uebung', label: 'Übungsblatt wiederholen', durationMin: SHEET_REVIEW_MIN, pos: span(i, cfg.uebungReview, 0.3, 0.78) })
-  for (let i = 0; i < cfg.tutReview; i++)
-    u.push({ kind: 'tut', label: 'Tutoriumsblatt wiederholen', durationMin: SHEET_REVIEW_MIN, pos: span(i, cfg.tutReview, 0.35, 0.8) })
+  uebungTitles.forEach((title, i) =>
+    u.push({ kind: 'uebung', label: `${title} wiederholen`, durationMin: SHEET_REVIEW_MIN, pos: span(i, uebungTitles.length, 0.3, 0.78) }),
+  )
+  tutTitles.forEach((title, i) =>
+    u.push({ kind: 'tut', label: `${title} wiederholen`, durationMin: SHEET_REVIEW_MIN, pos: span(i, tutTitles.length, 0.35, 0.8) }),
+  )
   for (let i = 0; i < cfg.altklausuren; i++)
     u.push({ kind: 'altklausur', label: `Altklausur ${i + 1} rechnen`, durationMin: cfg.examDurationMin * 2, pos: span(i, cfg.altklausuren, 0.6, 0.92) })
 
   return u.sort((a, b) => a.pos - b.pos)
+}
+
+/** Löst gewählte Blatt-IDs zu (sortierten) Titeln auf. */
+function resolveTitles(ids: string[], allTasks: Task[]): string[] {
+  const idSet = new Set(ids)
+  return allTasks
+    .filter((t) => idSet.has(t.id))
+    .sort((a, b) => a.order - b.order)
+    .map((t) => t.title)
 }
 
 /** Belegte Tage (andere Klausuren) – dort gar nicht planen. */
@@ -187,8 +203,10 @@ export function buildPlan(
   }
 
   // Material phasenweise platzieren, nächstgelegenen Tag mit Restbudget suchen
+  const uebungTitles = resolveTitles(cfg.uebungReviewIds, allTasks)
+  const tutTitles = resolveTitles(cfg.tutReviewIds, allTasks)
   let unplaced = 0
-  for (const unit of buildUnits(cfg, s.chapterReps)) {
+  for (const unit of buildUnits(cfg, s.chapterReps, uebungTitles, tutTitles)) {
     const targetIdx = Math.max(0, Math.min(days.length - 1, Math.round(unit.pos * (days.length - 1))))
     let placed = false
     for (let off = 0; off < days.length && !placed; off++) {

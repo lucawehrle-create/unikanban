@@ -140,9 +140,9 @@ export interface StudyPlanConfig {
   altklausuren: number
   /** Anzahl Skript-/Vorlesungskapitel. */
   chapters: number
-  /** Wie viele Übungs-/Tutoriumsblätter nochmal wiederholt werden sollen. */
-  uebungReview: number
-  tutReview: number
+  /** IDs der konkret zum Wiederholen ausgewählten Übungs-/Tutoriumsblätter. */
+  uebungReviewIds: string[]
+  tutReviewIds: string[]
   /** Gewählte Start-Strategie. */
   strategy: StudyStrategy
   /** Maximale Lernzeit pro Tag (Minuten) – kursübergreifender Deckel. */

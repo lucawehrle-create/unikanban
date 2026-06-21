@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react'
-import { GraduationCap, BookOpen, Trash2, Check, CalendarClock } from 'lucide-react'
+import { GraduationCap, BookOpen, Trash2, Check, CalendarClock, ChevronRight } from 'lucide-react'
 import { parseISO, format, differenceInCalendarDays } from 'date-fns'
 import { de } from 'date-fns/locale'
 import type { Course, StudyPlanConfig, StudyStrategy, Task } from '@/db/types'
 import { useActiveSemester, useCourses, useTasks } from '@/hooks/data'
-import { courseMaterial } from '@/lib/lernplan'
 import {
   KIND_META,
   STRATEGY_META,
@@ -83,7 +82,20 @@ function PlanEditor({
   courses: Course[]
   allTasks: Task[]
 }) {
-  const mat = useMemo(() => courseMaterial(allTasks, course.id), [allTasks, course.id])
+  const uebungTasks = useMemo(
+    () =>
+      allTasks
+        .filter((t) => t.courseId === course.id && t.type === 'uebung')
+        .sort((a, b) => a.order - b.order),
+    [allTasks, course.id],
+  )
+  const tutTasks = useMemo(
+    () =>
+      allTasks
+        .filter((t) => t.courseId === course.id && t.type === 'tutoriumsblatt')
+        .sort((a, b) => a.order - b.order),
+    [allTasks, course.id],
+  )
   const examTask = useMemo(
     () =>
       allTasks
@@ -97,7 +109,13 @@ function PlanEditor({
     new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)
 
   const [cfg, setCfg] = useState<StudyPlanConfig>(
-    () => course.studyPlan ?? defaultPlanConfig(initialDate, mat.uebung, mat.tut),
+    () =>
+      course.studyPlan ??
+      defaultPlanConfig(
+        initialDate,
+        uebungTasks.map((t) => t.id),
+        tutTasks.map((t) => t.id),
+      ),
   )
   const [busy, setBusy] = useState(false)
   const [flash, setFlash] = useState('')
@@ -229,20 +247,20 @@ function PlanEditor({
       {/* Übungen/Tutorien bestätigen */}
       <div className="rounded-xl bg-stone-50 p-3">
         <div className="mb-2 text-xs font-medium text-stone-600">
-          Aus deinen Aufgaben – wie viele nochmal wiederholen?
+          Aus deinen Aufgaben – welche nochmal wiederholen?
         </div>
         <div className="space-y-2">
-          <ReviewRow
+          <ReviewSection
             label="Übungsblätter"
-            available={mat.uebung}
-            value={cfg.uebungReview}
-            onChange={(v) => set('uebungReview', v)}
+            tasks={uebungTasks}
+            selectedIds={cfg.uebungReviewIds}
+            onChange={(ids) => set('uebungReviewIds', ids)}
           />
-          <ReviewRow
+          <ReviewSection
             label="Tutoriumsblätter"
-            available={mat.tut}
-            value={cfg.tutReview}
-            onChange={(v) => set('tutReview', v)}
+            tasks={tutTasks}
+            selectedIds={cfg.tutReviewIds}
+            onChange={(ids) => set('tutReviewIds', ids)}
           />
         </div>
       </div>
@@ -333,37 +351,93 @@ function PlanEditor({
   )
 }
 
-function ReviewRow({
+/**
+ * Aufklappbare Liste der konkreten Übungs-/Tutoriumsblätter mit Checkboxen –
+ * der Nutzer hakt genau die an, die er wiederholen möchte.
+ */
+function ReviewSection({
   label,
-  available,
-  value,
+  tasks,
+  selectedIds,
   onChange,
 }: {
   label: string
-  available: number
-  value: number
-  onChange: (v: number) => void
+  tasks: Task[]
+  selectedIds: string[]
+  onChange: (ids: string[]) => void
 }) {
-  if (available === 0)
+  const [open, setOpen] = useState(false)
+  if (tasks.length === 0)
     return <div className="text-xs text-stone-400">{label}: keine vorhanden</div>
+
+  const sel = new Set(selectedIds)
+  const chosen = tasks.filter((t) => sel.has(t.id)).length
+  const allOn = chosen === tasks.length
+
+  const toggle = (id: string) => {
+    const next = new Set(sel)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    onChange(tasks.filter((t) => next.has(t.id)).map((t) => t.id))
+  }
+  const toggleAll = () =>
+    onChange(allOn ? [] : tasks.map((t) => t.id))
+
   return (
-    <div className="flex items-center justify-between gap-2 text-sm">
-      <span className="text-stone-700">
-        {label} <span className="text-stone-400">· {available} vorhanden</span>
-      </span>
-      <div className="flex items-center gap-1.5">
-        <input
-          type="number"
-          min={0}
-          max={available}
-          value={value}
-          onChange={(e) =>
-            onChange(Math.max(0, Math.min(available, Number(e.target.value) || 0)))
-          }
-          className="w-16 rounded-md border border-stone-200 px-1.5 py-1 text-center text-xs"
-        />
-        <span className="text-xs text-stone-400">wiederholen</span>
-      </div>
+    <div className="rounded-lg bg-white ring-1 ring-stone-200/70">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-2 px-2.5 py-2 text-left text-sm"
+      >
+        <span className="flex items-center gap-1.5 text-stone-700">
+          <ChevronRight
+            size={14}
+            className={cn('text-stone-400 transition-transform', open && 'rotate-90')}
+          />
+          {label}
+          <span className="text-stone-400">· {tasks.length} vorhanden</span>
+        </span>
+        <span className="text-xs font-medium text-stone-500">{chosen} ausgewählt</span>
+      </button>
+      {open && (
+        <div className="border-t border-stone-100 px-2.5 py-2">
+          <button
+            type="button"
+            onClick={toggleAll}
+            className="mb-1.5 text-[11px] font-medium text-indigo-600 hover:text-indigo-700"
+          >
+            {allOn ? 'Keine auswählen' : 'Alle auswählen'}
+          </button>
+          <div className="max-h-44 space-y-0.5 overflow-y-auto">
+            {tasks.map((t) => {
+              const on = sel.has(t.id)
+              return (
+                <label
+                  key={t.id}
+                  className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-stone-50"
+                >
+                  <span
+                    className={cn(
+                      'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition',
+                      on ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 bg-white',
+                    )}
+                  >
+                    {on && <Check size={11} strokeWidth={3} />}
+                  </span>
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    onChange={() => toggle(t.id)}
+                    className="sr-only"
+                  />
+                  <span className="truncate text-stone-700">{t.title}</span>
+                </label>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
