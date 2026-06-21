@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Pencil, Plus, GraduationCap, Trash2, X } from 'lucide-react'
+import { Pencil, Plus, GraduationCap, Trash2, X, TrendingUp } from 'lucide-react'
 import type { Course, CourseStatus, ExamPhase, Program, ProgramType, Semester } from '@/db/types'
 import { db, uid } from '@/db/db'
 import {
@@ -13,7 +13,15 @@ import {
 } from '@/lib/actions'
 import { usePrograms, useProgramCourses, useSemesters } from '@/hooks/data'
 import { isSyncConfigured } from '@/lib/supabase'
-import { computeProgramStats, fmtGrade, PROGRAM_TYPE_LABEL } from '@/lib/study'
+import {
+  computeProgramStats,
+  fmtGrade,
+  getForecast,
+  neededForTarget,
+  projectedFinal,
+  PROGRAM_TYPE_LABEL,
+  type ProgramStats,
+} from '@/lib/study'
 import { Modal } from './Modal'
 import { DataSection } from './DataSection'
 import { DatePicker } from './DatePicker'
@@ -125,6 +133,9 @@ export function StudyView({ activeProgram }: { activeProgram: Program }) {
           </div>
         </div>
 
+        {/* Notenprognose */}
+        {stats.targetEcts > 0 && <Forecast key={sel.id} stats={stats} />}
+
         {/* Semester / Transcript */}
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-stone-700">Semester</h2>
@@ -212,6 +223,116 @@ export function StudyView({ activeProgram }: { activeProgram: Program }) {
           onClose={() => setSemForm(null)}
         />
       )}
+    </div>
+  )
+}
+
+function clampGrade(n: number): number {
+  if (isNaN(n)) return 2.0
+  return Math.min(4, Math.max(1, n))
+}
+
+/** Notenprognose: „Was brauche ich noch?" + Endschnitt-Szenario. */
+function Forecast({ stats }: { stats: ProgramStats }) {
+  const f = getForecast(stats)
+  const [target, setTarget] = useState(() =>
+    Number((stats.gradeAvg ? Math.min(stats.gradeAvg, 2.0) : 2.0).toFixed(1)),
+  )
+  const [assumed, setAssumed] = useState(() => Number((stats.gradeAvg ?? 2.0).toFixed(1)))
+
+  const head = (
+    <div className="mb-3 flex items-center gap-1.5">
+      <TrendingUp size={15} className="text-stone-500" />
+      <span className="text-sm font-semibold text-stone-700">Notenprognose</span>
+    </div>
+  )
+
+  // Nichts mehr offen → Schnitt steht fest.
+  if (f.remainingEcts <= 0) {
+    return (
+      <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70">
+        {head}
+        <p className="text-sm text-stone-500">
+          Alle eingeplanten ECTS sind benotet – dein Schnitt steht bei{' '}
+          <strong className="text-stone-700">{fmtGrade(stats.gradeAvg)}</strong>.
+        </p>
+      </div>
+    )
+  }
+
+  const { needed, status } = neededForTarget(stats, target)
+  const projected = projectedFinal(stats, assumed)
+  const statusColor =
+    status === 'secured'
+      ? 'text-emerald-600'
+      : status === 'impossible'
+        ? 'text-amber-600'
+        : 'text-stone-600'
+
+  return (
+    <div className="space-y-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70">
+      {head}
+
+      {/* Was brauche ich noch? */}
+      <div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm text-stone-600">Mein Ziel-Schnitt</span>
+          <input
+            type="number"
+            step="0.1"
+            min="1"
+            max="4"
+            value={target}
+            onChange={(e) => setTarget(clampGrade(Number(e.target.value)))}
+            className="w-16 rounded-lg border border-stone-200 px-2 py-1 text-center text-sm"
+            aria-label="Ziel-Schnitt"
+          />
+        </div>
+        <p className={cn('mt-2 text-sm', statusColor)}>
+          {status === 'ok' && (
+            <>
+              Dafür brauchst du in den restlichen <strong>{f.remainingEcts} ECTS</strong> im Schnitt{' '}
+              <strong>Note {fmtGrade(needed)}</strong>.
+            </>
+          )}
+          {status === 'secured' && (
+            <>
+              Schon gesichert – selbst mit ausreichenden Noten (4,0) im Rest erreichst du{' '}
+              <strong>{fmtGrade(target)}</strong>.
+            </>
+          )}
+          {status === 'impossible' && (
+            <>Rechnerisch nicht mehr erreichbar – dafür müsstest du im Rest besser als 1,0 sein.</>
+          )}
+        </p>
+      </div>
+
+      {/* Endschnitt-Szenario */}
+      <div className="border-t border-stone-100 pt-3">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm text-stone-600">Wenn der Rest im Schnitt …</span>
+          <span className="text-sm font-semibold text-stone-700">Note {fmtGrade(assumed)}</span>
+        </div>
+        <input
+          type="range"
+          min="1"
+          max="4"
+          step="0.1"
+          value={assumed}
+          onChange={(e) => setAssumed(Number(e.target.value))}
+          className="mt-2 w-full accent-brand-500"
+          aria-label="Angenommener Schnitt im Rest"
+        />
+        <div className="mt-1.5 flex items-baseline gap-2">
+          <span className="text-sm text-stone-500">… wird dein Endschnitt etwa</span>
+          <span className="text-2xl font-bold text-stone-800">{fmtGrade(projected)}</span>
+        </div>
+      </div>
+
+      <p className="text-[11px] leading-relaxed text-stone-400">
+        Bezogen auf rund {f.finalEcts} benotete ECTS. Annahme: die restlichen ECTS werden benotet –
+        unbenotete Module (bestanden/nicht bestanden) zählen nicht in den Schnitt.
+      </p>
     </div>
   )
 }

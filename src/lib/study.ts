@@ -8,6 +8,8 @@ export interface ProgramStats {
   runningEcts: number
   /** gewichteter Notenschnitt inkl. Startbilanz (oder undefined). */
   gradeAvg?: number
+  /** benotete, bestandene ECTS inkl. Startbilanz (Basis des Schnitts). */
+  gradedEcts: number
   /** Anzahl benoteter, bestandener Kurse (ohne Startbilanz). */
   gradedCourses: number
   /** Fortschritt 0–1 Richtung Ziel-ECTS. */
@@ -50,6 +52,7 @@ export function computeProgramStats(program: Program, courses: Course[]): Progra
     doneEcts,
     runningEcts,
     gradeAvg: gradeDen > 0 ? gradeNum / gradeDen : undefined,
+    gradedEcts: gradeDen,
     gradedCourses,
     progress: program.targetEcts > 0 ? Math.min(1, doneEcts / program.targetEcts) : 0,
   }
@@ -64,4 +67,58 @@ export const PROGRAM_TYPE_LABEL: Record<Program['type'], string> = {
 /** Note schön formatiert (1.7 → "1,7"). */
 export function fmtGrade(g?: number): string {
   return g == null ? '–' : g.toFixed(1).replace('.', ',')
+}
+
+// --- Notenprognose ---------------------------------------------------------
+
+export interface Forecast {
+  /** Bereits benotete ECTS (Basis des aktuellen Schnitts). */
+  gradedEcts: number
+  /** Angenommene benotete ECTS am Ende (≈ Ziel; mind. die schon benoteten). */
+  finalEcts: number
+  /** Noch zu benotende ECTS bis zum Ziel. */
+  remainingEcts: number
+  /** Aktueller Schnitt (oder undefined, wenn noch keine Note). */
+  current?: number
+}
+
+export function getForecast(stats: ProgramStats): Forecast {
+  const gradedEcts = stats.gradedEcts
+  const finalEcts = Math.max(stats.targetEcts, gradedEcts)
+  return {
+    gradedEcts,
+    finalEcts,
+    remainingEcts: Math.max(0, finalEcts - gradedEcts),
+    current: stats.gradeAvg,
+  }
+}
+
+export type NeededStatus = 'ok' | 'secured' | 'impossible' | 'done'
+
+/**
+ * Welchen Ø brauchst du in den restlichen ECTS, um den Ziel-Schnitt zu
+ * erreichen? Gewichtet identisch zum Gesamtschnitt (ECTS-gewichtet).
+ */
+export function neededForTarget(
+  stats: ProgramStats,
+  targetGrade: number,
+): { needed: number; status: NeededStatus } {
+  const f = getForecast(stats)
+  const sum = (stats.gradeAvg ?? 0) * f.gradedEcts
+  if (f.remainingEcts <= 0) return { needed: stats.gradeAvg ?? targetGrade, status: 'done' }
+  const needed = (targetGrade * f.finalEcts - sum) / f.remainingEcts
+  // Notenskala 1,0 (beste) … 4,0 (gerade bestanden). needed < 1,0 → selbst mit
+  // lauter 1,0ern unerreichbar; needed > 4,0 → selbst mit 4,0 schon sicher.
+  let status: NeededStatus = 'ok'
+  if (needed > 4.0) status = 'secured'
+  else if (needed < 1.0) status = 'impossible'
+  return { needed, status }
+}
+
+/** Voraussichtlicher Endschnitt, wenn der Rest im Ø `assumed` benotet wird. */
+export function projectedFinal(stats: ProgramStats, assumed: number): number {
+  const f = getForecast(stats)
+  if (f.finalEcts <= 0) return assumed
+  const sum = (stats.gradeAvg ?? 0) * f.gradedEcts
+  return (sum + assumed * f.remainingEcts) / f.finalEcts
 }
