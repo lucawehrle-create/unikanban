@@ -2,23 +2,23 @@ import type { Task } from '@/db/types'
 import { db } from '@/db/db'
 import { createTask } from './actions'
 
-/**
- * Lernplan-Meilensteine: Tage vor der Klausur + Fokus der Session. Bewusst
- * „verteilt" (Spacing) statt alles am Ende – siehe /lernplan-klausurphase.
- */
-const MILESTONES: { daysBefore: number; label: string }[] = [
-  { daysBefore: 21, label: 'Stoff sichten & Überblick' },
-  { daysBefore: 14, label: 'Zusammenfassung erstellen' },
-  { daysBefore: 10, label: 'Vertiefen & üben' },
-  { daysBefore: 7, label: 'Altklausuren rechnen' },
-  { daysBefore: 3, label: 'Schwächen wiederholen' },
-  { daysBefore: 1, label: 'Endspurt-Wiederholung' },
-]
+/** Konfiguration eines individuellen Lernplans. */
+export interface LernplanConfig {
+  /** Wie viele Wochen vor der Klausur beginnen (frühestens heute). */
+  startWeeksBefore: number
+  /** Lern-Wochentage (1 = Mo … 7 = So). */
+  weekdays: number[]
+  /** Uhrzeit der Sessions, "HH:mm". */
+  time: string
+  /** Optionale eigene Themen/Foki – werden der Reihe nach durchlaufen. */
+  topics: string[]
+}
 
-function startOfTodayMs(): number {
-  const d = new Date()
-  d.setHours(0, 0, 0, 0)
-  return d.getTime()
+export const DEFAULT_LERNPLAN: LernplanConfig = {
+  startWeeksBefore: 3,
+  weekdays: [1, 3, 5], // Mo, Mi, Fr
+  time: '18:00',
+  topics: [],
 }
 
 export interface PlannedSession {
@@ -26,21 +26,56 @@ export interface PlannedSession {
   label: string
 }
 
-/** Zukünftige Lern-Sessions für eine Klausur (nur Termine ab heute, vor der Klausur). */
-export function planSessions(examISO: string): PlannedSession[] {
+function startOfTodayMs(): number {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  return d.getTime()
+}
+
+// getDay(): 0=So..6=Sa  →  1=Mo..7=So
+function isoWeekday(d: Date): number {
+  return ((d.getDay() + 6) % 7) + 1
+}
+
+function labelFor(i: number, total: number, topics: string[]): string {
+  if (topics.length) return topics[i % topics.length]
+  if (total > 1 && i === total - 1) return 'Endspurt-Wiederholung'
+  if (i === 0) return 'Überblick & Stoff sichten'
+  return 'Vertiefen & üben'
+}
+
+/** Lern-Sessions nach individueller Konfiguration (nur Termine ab heute, vor der Klausur). */
+export function planSessionsConfig(examISO: string, cfg: LernplanConfig): PlannedSession[] {
   const exam = new Date(examISO)
-  if (isNaN(exam.getTime())) return []
+  if (isNaN(exam.getTime()) || cfg.weekdays.length === 0) return []
   const todayMs = startOfTodayMs()
-  const out: PlannedSession[] = []
-  for (const m of MILESTONES) {
-    const day = new Date(exam)
-    day.setDate(day.getDate() - m.daysBefore)
-    day.setHours(18, 0, 0, 0) // fester Lern-Slot 18:00
-    if (day.getTime() >= todayMs && day.getTime() < exam.getTime()) {
-      out.push({ date: day, label: m.label })
+
+  const examDay = new Date(exam)
+  examDay.setHours(0, 0, 0, 0)
+  const start = new Date(examDay)
+  start.setDate(start.getDate() - Math.max(1, cfg.startWeeksBefore) * 7)
+
+  const [h, m] = cfg.time.split(':').map(Number)
+  const wd = new Set(cfg.weekdays)
+
+  const raw: Date[] = []
+  const cursor = new Date(Math.max(start.getTime(), todayMs))
+  cursor.setHours(0, 0, 0, 0)
+  // Sicherheitslimit gegen versehentliche Flut.
+  while (cursor.getTime() < examDay.getTime() && raw.length < 60) {
+    if (wd.has(isoWeekday(cursor))) {
+      const d = new Date(cursor)
+      d.setHours(h || 18, m || 0, 0, 0)
+      if (d.getTime() >= todayMs) raw.push(d)
     }
+    cursor.setDate(cursor.getDate() + 1)
   }
-  return out
+  return raw.map((date, i) => ({ date, label: labelFor(i, raw.length, cfg.topics) }))
+}
+
+/** Standard-Plan (für „kann man planen?"-Prüfung & Schnellweg). */
+export function planSessions(examISO: string): PlannedSession[] {
+  return planSessionsConfig(examISO, DEFAULT_LERNPLAN)
 }
 
 /** Anzahl bereits angelegter Lern-Sessions zu einer Klausur. */
@@ -48,10 +83,18 @@ export function studyPlanCount(tasks: Task[], examId: string): number {
   return tasks.filter((t) => t.examId === examId).length
 }
 
-/** Lern-Sessions als Aufgaben anlegen (rückwärts vom Klausurtermin). */
-export async function createStudyPlan(exam: Task): Promise<number> {
+/**
+ * Lern-Sessions als Aufgaben anlegen (ersetzt einen evtl. vorhandenen Plan
+ * derselben Klausur, damit „anpassen" sauber funktioniert).
+ */
+export async function createStudyPlan(
+  exam: Task,
+  cfg: LernplanConfig,
+  existing: Task[] = [],
+): Promise<number> {
   if (!exam.dueDate) return 0
-  const sessions = planSessions(exam.dueDate)
+  await removeStudyPlan(existing, exam.id)
+  const sessions = planSessionsConfig(exam.dueDate, cfg)
   for (const s of sessions) {
     await createTask({
       semesterId: exam.semesterId,

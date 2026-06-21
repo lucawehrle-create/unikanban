@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import { GraduationCap, BookOpen, Loader2 } from 'lucide-react'
+import { GraduationCap, BookOpen } from 'lucide-react'
 import { differenceInCalendarDays, format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
+import type { Task } from '@/db/types'
 import { useActiveSemester, useCourses, useTasks } from '@/hooks/data'
 import { useExamStatus, examBadge } from '@/lib/examPhase'
-import { planSessions, studyPlanCount, createStudyPlan, removeStudyPlan } from '@/lib/lernplan'
+import { planSessions, studyPlanCount, removeStudyPlan } from '@/lib/lernplan'
 import { courseMap } from '@/lib/filter'
 import { useUI } from '@/store/ui'
+import { LernplanModal } from './LernplanModal'
 import { cn } from '@/lib/cn'
 
 function examChip(dueISO: string): { label: string; cls: string } {
@@ -40,6 +42,7 @@ export function ExamPhasePanel({ onlyImminent = false }: { onlyImminent?: boolea
   const allTasks = useTasks(semester?.id)
   const editTask = useUI((s) => s.editTask)
   const [busy, setBusy] = useState<string | null>(null)
+  const [planExam, setPlanExam] = useState<Task | null>(null)
   if (!status) return null
   if (onlyImminent && !examBadge(status)) return null
 
@@ -107,13 +110,8 @@ export function ExamPhasePanel({ onlyImminent = false }: { onlyImminent?: boolea
               const course = t.courseId ? byId.get(t.courseId) : undefined
               const chip = examChip(t.dueDate!)
               const planned = studyPlanCount(allTasks, t.id)
-              const canPlan = planned === 0 && planSessions(t.dueDate!).length > 0
+              const canPlan = planSessions(t.dueDate!).length > 0
               const loading = busy === t.id
-              const create = async () => {
-                setBusy(t.id)
-                await createStudyPlan(t)
-                setBusy(null)
-              }
               const remove = async () => {
                 setBusy(t.id)
                 await removeStudyPlan(allTasks, t.id)
@@ -153,8 +151,14 @@ export function ExamPhasePanel({ onlyImminent = false }: { onlyImminent?: boolea
                       {planned > 0 ? (
                         <>
                           <span className="flex items-center gap-1 text-xs font-medium text-indigo-600">
-                            <BookOpen size={12} /> {planned} Lern-Session{planned === 1 ? '' : 's'} geplant
+                            <BookOpen size={12} /> {planned} Lern-Session{planned === 1 ? '' : 's'}
                           </span>
+                          <button
+                            onClick={() => setPlanExam(t)}
+                            className="text-xs font-medium text-stone-500 transition hover:text-stone-800"
+                          >
+                            anpassen
+                          </button>
                           <button
                             onClick={() => void remove()}
                             disabled={loading}
@@ -165,12 +169,10 @@ export function ExamPhasePanel({ onlyImminent = false }: { onlyImminent?: boolea
                         </>
                       ) : (
                         <button
-                          onClick={() => void create()}
-                          disabled={loading}
-                          className="flex items-center gap-1 text-xs font-semibold text-indigo-600 transition hover:text-indigo-700 disabled:opacity-40"
+                          onClick={() => setPlanExam(t)}
+                          className="flex items-center gap-1 text-xs font-semibold text-indigo-600 transition hover:text-indigo-700"
                         >
-                          {loading ? <Loader2 size={12} className="animate-spin" /> : <BookOpen size={12} />}
-                          Lernplan erstellen
+                          <BookOpen size={12} /> Lernplan erstellen
                         </button>
                       )}
                     </div>
@@ -183,6 +185,14 @@ export function ExamPhasePanel({ onlyImminent = false }: { onlyImminent?: boolea
             <div className="mt-1.5 px-1 text-xs text-stone-400">+{exams.length - 6} weitere</div>
           )}
         </div>
+      )}
+
+      {planExam && (
+        <LernplanModal
+          exam={planExam}
+          existing={allTasks}
+          onClose={() => setPlanExam(null)}
+        />
       )}
     </section>
   )
