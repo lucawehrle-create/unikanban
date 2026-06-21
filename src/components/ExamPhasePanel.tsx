@@ -1,8 +1,10 @@
-import { GraduationCap } from 'lucide-react'
+import { useState } from 'react'
+import { GraduationCap, BookOpen, Loader2 } from 'lucide-react'
 import { differenceInCalendarDays, format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
-import { useActiveSemester, useCourses } from '@/hooks/data'
+import { useActiveSemester, useCourses, useTasks } from '@/hooks/data'
 import { useExamStatus, examBadge } from '@/lib/examPhase'
+import { planSessions, studyPlanCount, createStudyPlan, removeStudyPlan } from '@/lib/lernplan'
 import { courseMap } from '@/lib/filter'
 import { useUI } from '@/store/ui'
 import { cn } from '@/lib/cn'
@@ -35,7 +37,9 @@ export function ExamPhasePanel({ onlyImminent = false }: { onlyImminent?: boolea
   const status = useExamStatus()
   const semester = useActiveSemester()
   const courses = useCourses(semester?.id)
+  const allTasks = useTasks(semester?.id)
   const editTask = useUI((s) => s.editTask)
+  const [busy, setBusy] = useState<string | null>(null)
   if (!status) return null
   if (onlyImminent && !examBadge(status)) return null
 
@@ -102,30 +106,76 @@ export function ExamPhasePanel({ onlyImminent = false }: { onlyImminent?: boolea
             {exams.slice(0, 6).map((t) => {
               const course = t.courseId ? byId.get(t.courseId) : undefined
               const chip = examChip(t.dueDate!)
+              const planned = studyPlanCount(allTasks, t.id)
+              const canPlan = planned === 0 && planSessions(t.dueDate!).length > 0
+              const loading = busy === t.id
+              const create = async () => {
+                setBusy(t.id)
+                await createStudyPlan(t)
+                setBusy(null)
+              }
+              const remove = async () => {
+                setBusy(t.id)
+                await removeStudyPlan(allTasks, t.id)
+                setBusy(null)
+              }
               return (
-                <button
-                  key={t.id}
-                  onClick={() => editTask(t.id)}
-                  className="flex w-full items-center gap-2 rounded-lg bg-stone-50 px-3 py-2 text-left transition hover:bg-stone-100"
-                >
-                  <span
-                    className="h-7 w-1.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: course?.color ?? '#a8a29e' }}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-stone-800">
-                      {t.title}
-                    </span>
-                    <span className="block truncate text-xs text-stone-400">
-                      {[course?.name, fmtExamWhen(t.dueDate!)].filter(Boolean).join(' · ')}
-                    </span>
-                  </span>
-                  <span
-                    className={cn('shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold', chip.cls)}
+                <div key={t.id} className="rounded-lg bg-stone-50 px-3 py-2">
+                  <button
+                    onClick={() => editTask(t.id)}
+                    className="flex w-full items-center gap-2 text-left"
                   >
-                    {chip.label}
-                  </span>
-                </button>
+                    <span
+                      className="h-7 w-1.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: course?.color ?? '#a8a29e' }}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-stone-800">
+                        {t.title}
+                      </span>
+                      <span className="block truncate text-xs text-stone-400">
+                        {[course?.name, fmtExamWhen(t.dueDate!)].filter(Boolean).join(' · ')}
+                      </span>
+                    </span>
+                    <span
+                      className={cn(
+                        'shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold',
+                        chip.cls,
+                      )}
+                    >
+                      {chip.label}
+                    </span>
+                  </button>
+
+                  {/* Lernplan-Aktion */}
+                  {(planned > 0 || canPlan) && (
+                    <div className="mt-1.5 flex items-center gap-2 pl-3.5">
+                      {planned > 0 ? (
+                        <>
+                          <span className="flex items-center gap-1 text-xs font-medium text-indigo-600">
+                            <BookOpen size={12} /> {planned} Lern-Session{planned === 1 ? '' : 's'} geplant
+                          </span>
+                          <button
+                            onClick={() => void remove()}
+                            disabled={loading}
+                            className="text-xs text-stone-400 transition hover:text-red-500 disabled:opacity-40"
+                          >
+                            entfernen
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          onClick={() => void create()}
+                          disabled={loading}
+                          className="flex items-center gap-1 text-xs font-semibold text-indigo-600 transition hover:text-indigo-700 disabled:opacity-40"
+                        >
+                          {loading ? <Loader2 size={12} className="animate-spin" /> : <BookOpen size={12} />}
+                          Lernplan erstellen
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               )
             })}
           </div>

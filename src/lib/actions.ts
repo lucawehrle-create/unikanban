@@ -190,6 +190,8 @@ export async function createTask(input: {
   courseId?: string
   dueDate?: string
   priority?: Priority
+  notes?: string
+  examId?: string
 }): Promise<string> {
   const id = uid()
   const task: Task = {
@@ -201,6 +203,8 @@ export async function createTask(input: {
     status: 'offen',
     priority: input.priority,
     dueDate: input.dueDate,
+    notes: input.notes,
+    examId: input.examId,
     phases: makePhases(input.type),
     order: Date.now(),
     createdAt: new Date().toISOString(),
