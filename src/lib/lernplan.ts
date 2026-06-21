@@ -28,8 +28,13 @@ export interface LernplanConfig {
   includeUebung: boolean
   includeTut: boolean
   includeAltklausuren: boolean
+  /** Schwerpunkte (Selbsteinschätzung): schwere Themen bekommen mehr/dichtere
+   *  Wiederholungen kurz vor der Klausur (SM-2-Idee, vereinfacht). */
+  weak: { summary: boolean; uebung: boolean; tut: boolean; altklausuren: boolean }
   /** Eigene Themen – ersetzen die automatischen Inhalte. */
   topics: string[]
+  /** Welche eigenen Themen als „schwer" markiert sind. */
+  weakTopics: string[]
 }
 
 export const DEFAULT_LERNPLAN: LernplanConfig = {
@@ -42,7 +47,9 @@ export const DEFAULT_LERNPLAN: LernplanConfig = {
   includeUebung: true,
   includeTut: true,
   includeAltklausuren: true,
+  weak: { summary: false, uebung: false, tut: false, altklausuren: false },
   topics: [],
+  weakTopics: [],
 }
 
 /** Preset auf eine Konfiguration anwenden (Wochentage + Vorlauf). */
@@ -86,24 +93,34 @@ export function courseMaterial(
   return { uebung, tut }
 }
 
-function materialItems(label: string, count: number): string[] {
+export interface ContentItem {
+  label: string
+  weak: boolean
+}
+
+function materialItems(label: string, count: number, weak: boolean): ContentItem[] {
   if (count <= 0) return []
-  if (count <= 4) return [`${label} wiederholen`]
+  if (count <= 4) return [{ label: `${label} wiederholen`, weak }]
   const half = Math.ceil(count / 2)
-  return [`${label} 1–${half} wiederholen`, `${label} ${half + 1}–${count} wiederholen`]
+  return [
+    { label: `${label} 1–${half} wiederholen`, weak },
+    { label: `${label} ${half + 1}–${count} wiederholen`, weak },
+  ]
 }
 
 /** Lerninhalte – aus Kursmaterial abgeleitet (oder eigene Themen). Retrieval-orientiert. */
-function buildContent(exam: Task, allTasks: Task[], cfg: LernplanConfig): string[] {
-  if (cfg.topics.length) return cfg.topics
+function buildContent(exam: Task, allTasks: Task[], cfg: LernplanConfig): ContentItem[] {
+  if (cfg.topics.length) {
+    return cfg.topics.map((t) => ({ label: t, weak: cfg.weakTopics.includes(t) }))
+  }
   const mat = courseMaterial(allTasks, exam.courseId)
-  const items: string[] = []
-  if (cfg.includeSummary) items.push('Zusammenfassung erstellen')
-  if (cfg.includeUebung) items.push(...materialItems('Übungsblätter', mat.uebung))
-  if (cfg.includeTut) items.push(...materialItems('Tutoriumsblätter', mat.tut))
-  if (cfg.includeAltklausuren) items.push('Altklausuren rechnen')
-  items.push('Aktiv abrufen & Selbsttest')
-  items.push('Endspurt-Wiederholung')
+  const items: ContentItem[] = []
+  if (cfg.includeSummary) items.push({ label: 'Zusammenfassung erstellen', weak: cfg.weak.summary })
+  if (cfg.includeUebung) items.push(...materialItems('Übungsblätter', mat.uebung, cfg.weak.uebung))
+  if (cfg.includeTut) items.push(...materialItems('Tutoriumsblätter', mat.tut, cfg.weak.tut))
+  if (cfg.includeAltklausuren) items.push({ label: 'Altklausuren rechnen', weak: cfg.weak.altklausuren })
+  items.push({ label: 'Aktiv abrufen & Selbsttest', weak: false })
+  items.push({ label: ENDSPURT_LABEL, weak: false })
   return items
 }
 
@@ -188,19 +205,25 @@ const ENDSPURT_LABEL = 'Endspurt-Wiederholung'
 // wiederholt), nicht längere Blöcke.
 const MAX_SESSIONS: Record<Intensity, number> = { locker: 5, normal: 8, endspurt: 12 }
 
-/** n Session-Labels: Kerninhalte ggf. wiederholend, immer mit Endspurt zuletzt. */
-function buildLabels(content: string[], n: number): string[] {
+/** n Session-Labels: jeder Kerninhalt mind. einmal; Extra-Slots (= spätere,
+ *  klausurnähere Sessions) bevorzugt mit als „schwer" markierten Themen. */
+function buildLabels(items: ContentItem[], n: number): string[] {
   if (n <= 1) return [ENDSPURT_LABEL]
-  const core = content.filter((c) => c !== ENDSPURT_LABEL)
+  const core = items.filter((i) => i.label !== ENDSPURT_LABEL)
   const slots = n - 1
   const out: string[] = []
   if (core.length === 0) {
     for (let i = 0; i < slots; i++) out.push('Wiederholung & Selbsttest')
-  } else if (slots >= core.length) {
-    // jeder Inhalt mind. einmal, Rest wiederholt (verteiltes Abrufen)
-    for (let i = 0; i < slots; i++) out.push(core[i % core.length])
+  } else if (slots < core.length) {
+    for (const g of chunkInto(core.map((i) => i.label), slots)) out.push(g.join(' · '))
   } else {
-    for (const g of chunkInto(core, slots)) out.push(g.join(' · '))
+    // jeder Inhalt einmal (chronologisch), dann Wiederholungen mit Schwerpunkt
+    // auf schweren Themen – diese landen in den späteren Sessions vor der Klausur.
+    out.push(...core.map((i) => i.label))
+    const extra = slots - core.length
+    const weakLabels = core.filter((i) => i.weak).map((i) => i.label)
+    const pool = weakLabels.length ? weakLabels : core.map((i) => i.label)
+    for (let i = 0; i < extra; i++) out.push(pool[i % pool.length])
   }
   out.push(ENDSPURT_LABEL)
   return out
@@ -217,12 +240,12 @@ export function planSessionsConfig(
   courses: Course[],
   cfg: LernplanConfig,
 ): PlannedSession[] {
-  const content = buildContent(exam, allTasks, cfg)
+  const items = buildContent(exam, allTasks, cfg)
   const days = availableDays(exam, allTasks, cfg)
-  if (content.length === 0 || days.length === 0) return []
+  if (items.length === 0 || days.length === 0) return []
   const n = Math.min(days.length, MAX_SESSIONS[cfg.intensity])
   const used = pickSpread(days, n)
-  const labels = buildLabels(content, n)
+  const labels = buildLabels(items, n)
   const preferred = toMin(cfg.time)
   return used.map((day, i) => {
     const min = pickSessionTime(courses, day, preferred, cfg.duration)

@@ -42,28 +42,47 @@ function CheckRow({
   checked,
   disabled,
   onChange,
+  weak,
+  onWeak,
 }: {
   label: string
   checked: boolean
   disabled?: boolean
   onChange: (v: boolean) => void
+  weak?: boolean
+  onWeak?: (v: boolean) => void
 }) {
   return (
-    <label
+    <div
       className={cn(
-        'flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm',
+        'flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-sm',
         disabled ? 'opacity-40' : 'hover:bg-stone-100',
       )}
     >
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(e) => onChange(e.target.checked)}
-        className="h-4 w-4 rounded accent-brand-500"
-      />
-      <span className="text-stone-700">{label}</span>
-    </label>
+      <label className="flex flex-1 cursor-pointer items-center gap-2.5">
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.checked)}
+          className="h-4 w-4 rounded accent-brand-500"
+        />
+        <span className="text-stone-700">{label}</span>
+      </label>
+      {checked && !disabled && onWeak && (
+        <button
+          type="button"
+          onClick={() => onWeak(!weak)}
+          title="Als schwer markieren – bekommt mehr Wiederholungen"
+          className={cn(
+            'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold transition',
+            weak ? 'bg-amber-100 text-amber-700' : 'text-stone-400 hover:bg-stone-200',
+          )}
+        >
+          🔥 schwer
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -85,6 +104,7 @@ export function LernplanModal({
 }) {
   const [cfg, setCfg] = useState<LernplanConfig>(DEFAULT_LERNPLAN)
   const [topics, setTopics] = useState<string[]>([])
+  const [weakTopics, setWeakTopics] = useState<string[]>([])
   const [topicInput, setTopicInput] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -99,9 +119,9 @@ export function LernplanModal({
   const usingTopics = allTopics.length > 0
 
   const effective: LernplanConfig = useMemo(
-    () => ({ ...cfg, topics: allTopics }),
+    () => ({ ...cfg, topics: allTopics, weakTopics }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [cfg, topics, topicInput],
+    [cfg, topics, topicInput, weakTopics],
   )
   const sessions = useMemo(
     () => planSessionsConfig(exam, allTasks, courses, effective),
@@ -180,6 +200,8 @@ export function LernplanModal({
               checked={cfg.includeSummary}
               disabled={usingTopics}
               onChange={(v) => set('includeSummary', v)}
+              weak={cfg.weak.summary}
+              onWeak={(v) => set('weak', { ...cfg.weak, summary: v })}
             />
             {mat.uebung > 0 && (
               <CheckRow
@@ -187,6 +209,8 @@ export function LernplanModal({
                 checked={cfg.includeUebung}
                 disabled={usingTopics}
                 onChange={(v) => set('includeUebung', v)}
+                weak={cfg.weak.uebung}
+                onWeak={(v) => set('weak', { ...cfg.weak, uebung: v })}
               />
             )}
             {mat.tut > 0 && (
@@ -195,6 +219,8 @@ export function LernplanModal({
                 checked={cfg.includeTut}
                 disabled={usingTopics}
                 onChange={(v) => set('includeTut', v)}
+                weak={cfg.weak.tut}
+                onWeak={(v) => set('weak', { ...cfg.weak, tut: v })}
               />
             )}
             <CheckRow
@@ -202,8 +228,13 @@ export function LernplanModal({
               checked={cfg.includeAltklausuren}
               disabled={usingTopics}
               onChange={(v) => set('includeAltklausuren', v)}
+              weak={cfg.weak.altklausuren}
+              onWeak={(v) => set('weak', { ...cfg.weak, altklausuren: v })}
             />
           </div>
+          <p className="mt-1 px-0.5 text-[11px] text-stone-400">
+            🔥 markiert schwere Themen – sie bekommen mehr Wiederholungen kurz vor der Klausur.
+          </p>
         </div>
 
         {/* Eigene Themen (Chips) */}
@@ -212,22 +243,41 @@ export function LernplanModal({
             Eigene Themen (optional – ersetzen die Inhalte oben)
           </span>
           <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-stone-200 px-2 py-1.5 focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-400/30">
-            {topics.map((t, i) => (
-              <span
-                key={i}
-                className="flex items-center gap-1 rounded-full bg-stone-900 py-0.5 pl-2.5 pr-1 text-xs font-medium text-white"
-              >
-                {t}
-                <button
-                  type="button"
-                  aria-label={`${t} entfernen`}
-                  onClick={() => setTopics((prev) => prev.filter((_, j) => j !== i))}
-                  className="rounded-full p-0.5 hover:bg-white/20"
+            {topics.map((t, i) => {
+              const w = weakTopics.includes(t)
+              return (
+                <span
+                  key={i}
+                  className={cn(
+                    'flex items-center gap-1 rounded-full py-0.5 pl-2.5 pr-1 text-xs font-medium text-white',
+                    w ? 'bg-amber-500' : 'bg-stone-900',
+                  )}
                 >
-                  <X size={11} />
-                </button>
-              </span>
-            ))}
+                  {t}
+                  <button
+                    type="button"
+                    title="Als schwer markieren – mehr Wiederholungen"
+                    onClick={() =>
+                      setWeakTopics((prev) => (w ? prev.filter((x) => x !== t) : [...prev, t]))
+                    }
+                    className="rounded-full px-0.5 text-[11px] leading-none hover:bg-white/20"
+                  >
+                    🔥
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`${t} entfernen`}
+                    onClick={() => {
+                      setTopics((prev) => prev.filter((_, j) => j !== i))
+                      setWeakTopics((prev) => prev.filter((x) => x !== t))
+                    }}
+                    className="rounded-full p-0.5 hover:bg-white/20"
+                  >
+                    <X size={11} />
+                  </button>
+                </span>
+              )
+            })}
             <input
               value={topicInput}
               onChange={(e) => setTopicInput(e.target.value)}
