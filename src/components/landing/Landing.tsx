@@ -369,7 +369,7 @@ function ShowcasePinned({ container }: { container: React.RefObject<HTMLDivEleme
           {/* Copy – absolut gestapelt, überblendet */}
           <div className="relative min-h-[18rem]">
             {SUPERPOWERS.map((s, i) => (
-              <ShowcaseCopy key={i} sp={s} win={WINDOWS[i]} progress={scrollYProgress} />
+              <ShowcaseCopy key={i} sp={s} win={WINDOWS[i]} progress={scrollYProgress} first={i === 0} />
             ))}
           </div>
           {/* Device – feststehender Rahmen, Screen überblendet */}
@@ -390,13 +390,17 @@ function ShowcaseCopy({
   sp,
   win,
   progress,
+  first,
 }: {
   sp: (typeof SUPERPOWERS)[number]
   win: [number, number, number, number]
   progress: MotionValue<number>
+  first: boolean
 }) {
-  const opacity = useTransform(progress, win, [0, 1, 1, 0])
-  const y = useTransform(progress, win, [26, 0, 0, -26])
+  // Das erste Element ist schon bei Fortschritt 0 voll sichtbar – damit ein
+  // direkter Sprung („Wie's funktioniert") nicht auf einem leeren Frame landet.
+  const opacity = useTransform(progress, win, [first ? 1 : 0, 1, 1, 0])
+  const y = useTransform(progress, win, [first ? 0 : 26, 0, 0, -26])
   const Icon = sp.icon
   return (
     <motion.div style={{ opacity, y }} className="absolute inset-0">
@@ -425,7 +429,7 @@ function ShowcaseDevice({
   progress: MotionValue<number>
   first: boolean
 }) {
-  const opacity = useTransform(progress, win, [0, 1, 1, 0])
+  const opacity = useTransform(progress, win, [first ? 1 : 0, 1, 1, 0])
   return (
     <motion.div style={{ opacity }} className={first ? '' : 'absolute inset-0'}>
       <BrowserFrame src={src} />
