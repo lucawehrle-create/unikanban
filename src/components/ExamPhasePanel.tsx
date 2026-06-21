@@ -110,7 +110,7 @@ export function ExamPhasePanel({ onlyImminent = false }: { onlyImminent?: boolea
               const course = t.courseId ? byId.get(t.courseId) : undefined
               const chip = examChip(t.dueDate!)
               const planned = studyPlanCount(allTasks, t.id)
-              const canPlan = planSessions(t.dueDate!).length > 0
+              const canPlan = planSessions(t, allTasks).length > 0
               const loading = busy === t.id
               const remove = async () => {
                 setBusy(t.id)
@@ -188,11 +188,7 @@ export function ExamPhasePanel({ onlyImminent = false }: { onlyImminent?: boolea
       )}
 
       {planExam && (
-        <LernplanModal
-          exam={planExam}
-          existing={allTasks}
-          onClose={() => setPlanExam(null)}
-        />
+        <LernplanModal exam={planExam} allTasks={allTasks} onClose={() => setPlanExam(null)} />
       )}
     </section>
   )
