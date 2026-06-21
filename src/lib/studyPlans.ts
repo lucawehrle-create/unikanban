@@ -26,16 +26,29 @@ export interface PlanSession {
   kind: ItemKind
 }
 
-const STRATEGY: Record<StudyStrategy, { startFrac: number; chapterReps: number }> = {
-  now: { startFrac: 0, chapterReps: 2 }, // sofort, Kapitel zusätzlich wiederholen
-  breaks: { startFrac: 0.1, chapterReps: 2 }, // etwas später starten, mit Luft
-  later: { startFrac: 0.55, chapterReps: 1 }, // spät, einmal durch
+// Anzahl Wiederholungs-„Wellen" für Kapitel (zusätzlich zum ersten Durchgang).
+// Mehr Wellen = mehr verteilte Wiederholung (Spacing-Effekt).
+const STRATEGY: Record<StudyStrategy, { startFrac: number; chapterReviews: number }> = {
+  now: { startFrac: 0, chapterReviews: 2 }, // sofort & gründlich: 1× lernen + 2× wiederholen
+  breaks: { startFrac: 0.1, chapterReviews: 1 }, // ausgewogen: 1× lernen + 1× wiederholen
+  later: { startFrac: 0.55, chapterReviews: 0 }, // spät: einmal durch
 }
 
 export const STRATEGY_META: Record<StudyStrategy, { title: string; desc: string; reps: string }> = {
-  now: { title: 'Sofort starten', desc: 'Jetzt lernen, früh & gründlich.', reps: 'Kapitel 2×' },
+  now: { title: 'Sofort starten', desc: 'Jetzt lernen, früh & gründlich.', reps: 'Kapitel 3×' },
   breaks: { title: 'Ausgewogen', desc: 'Etwas später, mit Luft zum Atmen.', reps: 'Kapitel 2×' },
   later: { title: 'Später starten', desc: 'Näher an der Klausur, einmal durch.', reps: 'Kapitel 1×' },
+}
+
+// Zeitfenster (Anteil bis Klausur) je Wiederholungs-Welle – spätere Wellen mit
+// größerem Abstand Richtung Klausur (expandierende Intervalle, Spaced Repetition).
+const CHAPTER_REVIEW_WAVES: Record<number, [number, number][]> = {
+  0: [],
+  1: [[0.55, 0.82]],
+  2: [
+    [0.42, 0.65],
+    [0.68, 0.9],
+  ],
 }
 
 function startOfToday(): Date {
@@ -132,17 +145,26 @@ function repPositions(base: number, reps: number, maxPos: number): number[] {
 
 function buildUnits(
   cfg: StudyPlanConfig,
-  chapterReps: number,
+  chapterReviews: number,
   uebungSheets: SheetRef[],
   tutSheets: SheetRef[],
 ): Unit[] {
   const u: Unit[] = []
   const span = (i: number, n: number, a: number, b: number) => lerp(a, b, n <= 1 ? 0.5 : i / (n - 1))
 
+  // Kapitel: erst einmal durchgehen (früh), dann in mehreren Wellen mit
+  // wachsenden Abständen wiederholen (verteiltes Lernen).
+  const waves = CHAPTER_REVIEW_WAVES[chapterReviews] ?? []
   for (let i = 0; i < cfg.chapters; i++) {
-    u.push({ kind: 'kapitel', label: `Kapitel ${i + 1} durchgehen`, durationMin: CHAPTER_MIN, pos: span(i, cfg.chapters, 0.05, 0.45) })
-    if (chapterReps >= 2)
-      u.push({ kind: 'kapitel', label: `Kapitel ${i + 1} wiederholen`, durationMin: Math.round(CHAPTER_MIN * 0.6), pos: span(i, cfg.chapters, 0.6, 0.85) })
+    u.push({ kind: 'kapitel', label: `Kapitel ${i + 1} durchgehen`, durationMin: CHAPTER_MIN, pos: span(i, cfg.chapters, 0.05, 0.4) })
+    waves.forEach((win, w) =>
+      u.push({
+        kind: 'kapitel',
+        label: waves.length > 1 ? `Kapitel ${i + 1} wiederholen (${w + 1}/${waves.length})` : `Kapitel ${i + 1} wiederholen`,
+        durationMin: Math.round(CHAPTER_MIN * 0.55),
+        pos: span(i, cfg.chapters, win[0], win[1]),
+      }),
+    )
   }
 
   // Übungs-/Tutoriumsblätter: schwere bekommen mehr Zeit und mehrere
@@ -270,7 +292,7 @@ export function buildPlan(
   const uebungSheets = resolveSheets(cfg.uebungReviewIds, allTasks)
   const tutSheets = resolveSheets(cfg.tutReviewIds, allTasks)
   let unplaced = 0
-  for (const unit of buildUnits(cfg, s.chapterReps, uebungSheets, tutSheets)) {
+  for (const unit of buildUnits(cfg, s.chapterReviews, uebungSheets, tutSheets)) {
     const targetIdx = Math.max(0, Math.min(days.length - 1, Math.round(unit.pos * (days.length - 1))))
     let placed = false
     for (let off = 0; off < days.length && !placed; off++) {

@@ -1,4 +1,4 @@
-import { Flag, GraduationCap } from 'lucide-react'
+import { Clock, Flag, GraduationCap } from 'lucide-react'
 import type { Course, Task } from '@/db/types'
 import { TASK_TYPES } from '@/lib/taskTypes'
 import { classifyDue, DUE_META, formatDue } from '@/lib/deadline'
@@ -95,6 +95,15 @@ export function TaskCard({ task, course, onClick, dragging }: TaskCardProps) {
             {phasesTotal > 0 && (
               <span className="text-stone-400">
                 {phasesDone}/{phasesTotal} Schritte
+              </span>
+            )}
+
+            {task.duration != null && (
+              <span
+                className="inline-flex items-center gap-1 text-stone-400"
+                title="eingeplante Lernzeit"
+              >
+                <Clock size={11} /> {task.duration} Min
               </span>
             )}
 

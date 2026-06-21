@@ -157,6 +157,22 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
           <DatePicker value={task.dueDate} onChange={(iso) => patch({ dueDate: iso })} />
         </div>
 
+        {/* Eingeplante Lernzeit (v.a. Lernplan-Sessions) */}
+        {(task.examId || task.duration != null) && (
+          <label className="flex items-center gap-2">
+            <span className="text-xs font-medium text-stone-500">Eingeplante Zeit</span>
+            <input
+              type="number"
+              min={5}
+              step={5}
+              defaultValue={task.duration ?? ''}
+              onBlur={(e) => patch({ duration: parseNum(e.target.value) })}
+              className="w-20 rounded-lg border border-stone-200 px-2 py-1 text-sm"
+            />
+            <span className="text-xs text-stone-400">Min</span>
+          </label>
+        )}
+
         {/* Punkte (v.a. Übungsblätter) */}
         {(task.type === 'uebung' || task.points) && (
           <div className="flex items-center gap-2">
