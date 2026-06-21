@@ -2,7 +2,7 @@ import { GraduationCap } from 'lucide-react'
 import { differenceInCalendarDays, format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { useActiveSemester, useCourses } from '@/hooks/data'
-import { useExamStatus } from '@/lib/examPhase'
+import { useExamStatus, examBadge } from '@/lib/examPhase'
 import { courseMap } from '@/lib/filter'
 import { useUI } from '@/store/ui'
 import { cn } from '@/lib/cn'
@@ -28,13 +28,16 @@ function fmtExamWhen(dueISO: string): string {
 }
 
 /** Übersicht zur Klausurphase: Countdown/Status + anstehende Klausuren.
- *  Rendert nur, wenn eine Phase ansteht/läuft oder Klausuren offen sind. */
-export function ExamPhasePanel() {
+ *  - voller Überblick (Studium-Ansicht): immer, wenn etwas ansteht.
+ *  - onlyImminent (Diese-Woche-Ansicht): nur bei Nähe (laufend oder ≤14 Tage),
+ *    damit „Diese Woche" nicht von weit entfernten Terminen dominiert wird. */
+export function ExamPhasePanel({ onlyImminent = false }: { onlyImminent?: boolean }) {
   const status = useExamStatus()
   const semester = useActiveSemester()
   const courses = useCourses(semester?.id)
   const editTask = useUI((s) => s.editTask)
   if (!status) return null
+  if (onlyImminent && !examBadge(status)) return null
 
   const byId = courseMap(courses)
   const { phase, active, daysUntilStart, dayNum, totalDays, daysLeft, exams } = status

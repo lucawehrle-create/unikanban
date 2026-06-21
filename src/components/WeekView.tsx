@@ -66,8 +66,8 @@ export function WeekView({ tasks, courses }: WeekViewProps) {
   return (
     <div className="h-full overflow-y-auto px-5 pb-6">
       <div className="mx-auto max-w-6xl space-y-2.5">
-        {/* Klausurphase: Countdown/Status + anstehende Klausuren */}
-        <ExamPhasePanel />
+        {/* Klausurphase nur, wenn akut (laufend oder ≤14 Tage) */}
+        <ExamPhasePanel onlyImminent />
 
         {/* Überfällig – einklappbarer Aufhol-Stapel (pro Serie gestaffelt) */}
         {overdueAll.length > 0 && (

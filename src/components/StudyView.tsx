@@ -25,6 +25,7 @@ import {
   type ProgramStats,
 } from '@/lib/study'
 import { Modal } from './Modal'
+import { ExamPhasePanel } from './ExamPhasePanel'
 import { DataSection } from './DataSection'
 import { DatePicker } from './DatePicker'
 import { Select } from './ui/Select'
@@ -137,6 +138,9 @@ export function StudyView({ activeProgram }: { activeProgram: Program }) {
 
         {/* Notenprognose */}
         {stats.targetEcts > 0 && <Forecast key={sel.id} stats={stats} />}
+
+        {/* Klausurphase-Überblick (aktives Semester) */}
+        <ExamPhasePanel />
 
         {/* Semester / Transcript */}
         <div className="flex items-center justify-between">
