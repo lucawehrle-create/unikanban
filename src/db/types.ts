@@ -30,6 +30,8 @@ export type TaskTypeId =
   | 'referat'
   | 'lektuere'
   | 'klausur'
+  | 'altklausur'
+  | 'karteikarten'
   | 'sonstiges'
 
 /** Spalten des Boards. */

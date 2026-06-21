@@ -53,6 +53,20 @@ export const TASK_TYPES: Record<TaskTypeId, TaskTypeDef> = {
     phases: ['Lernplan', 'Altklausuren', 'Geschrieben'],
     keywords: ['klausur', 'pruefung', 'prüfung', 'exam', 'test'],
   },
+  altklausur: {
+    id: 'altklausur',
+    label: 'Altklausur',
+    emoji: '🗂️',
+    phases: ['Gerechnet', 'Kontrolliert', 'Verstanden'],
+    keywords: ['altklausur', 'altklausuren', 'probeklausur', 'altfragen', 'oldexam'],
+  },
+  karteikarten: {
+    id: 'karteikarten',
+    label: 'Karteikarten',
+    emoji: '🃏',
+    phases: ['Erstellt', 'Gelernt'],
+    keywords: ['karteikarten', 'karteikarte', 'karten', 'flashcards', 'anki'],
+  },
   sonstiges: {
     id: 'sonstiges',
     label: 'Sonstiges',
