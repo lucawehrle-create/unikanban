@@ -158,16 +158,18 @@ export default function Landing({ onStart }: { onStart: () => void }) {
 
         <div className="relative z-10">
           <Nav onStart={onStart} />
-          <Hero onStart={onStart} progress={scrollYProgress} onHowItWorks={scrollToFeatures} />
-          <Problem />
-          <Showcase container={scrollRef} />
-          <Comparison />
-          <Trust />
-          <SocialProof onStart={onStart} />
-          <Steps />
-          <Founder />
-          <FAQ />
-          <FinalCTA onStart={onStart} />
+          <main>
+            <Hero onStart={onStart} progress={scrollYProgress} onHowItWorks={scrollToFeatures} />
+            <Problem />
+            <Showcase container={scrollRef} />
+            <Comparison />
+            <Trust />
+            <SocialProof onStart={onStart} />
+            <Steps />
+            <Founder />
+            <FAQ />
+            <FinalCTA onStart={onStart} />
+          </main>
           <Footer />
         </div>
       </div>
@@ -188,7 +190,17 @@ function Grain() {
 
 /* ---------------- chrome ---------------- */
 
-function BrowserFrame({ src, className }: { src: string; className?: string }) {
+function BrowserFrame({
+  src,
+  alt,
+  eager,
+  className,
+}: {
+  src: string
+  alt?: string
+  eager?: boolean
+  className?: string
+}) {
   return (
     <div
       className={
@@ -204,7 +216,13 @@ function BrowserFrame({ src, className }: { src: string; className?: string }) {
           semban.de
         </span>
       </div>
-      <img src={src} alt="" aria-hidden loading="lazy" className="block w-full" />
+      <img
+        src={src}
+        alt={alt ?? ''}
+        aria-hidden={alt ? undefined : true}
+        loading={eager ? 'eager' : 'lazy'}
+        className="block w-full"
+      />
     </div>
   )
 }
@@ -307,7 +325,11 @@ function Hero({
           className="relative"
         >
           <div style={{ transform: 'rotateX(6deg) rotateY(-9deg)' }}>
-            <BrowserFrame src="/landing/board.png" />
+            <BrowserFrame
+              src="/landing/board.png"
+              alt="SemBan Kanban-Board mit allen Aufgaben, Fristen und Kursen im Überblick"
+              eager
+            />
           </div>
         </motion.div>
       </motion.div>
@@ -329,7 +351,7 @@ function Problem() {
         <Reveal>
           <p className={eyebrowCls}>Kommt dir bekannt vor?</p>
           <h2 className="mt-3 text-4xl font-bold leading-[1.07] tracking-[-0.02em] sm:text-5xl text-balance" style={{ color: NAVY }}>
-            Drei Tools, sieben Tabs, null Überblick.
+            Studium organisieren: drei Tools, sieben Tabs, null Überblick.
           </h2>
           <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-stone-600">
             Übungsblätter, Tutorien, Hausarbeiten, Referate – verteilt über Mails, PDFs, Moodle und
@@ -360,6 +382,7 @@ const SUPERPOWERS = [
     title: 'Alles, was ansteht.\nAuf einen Blick.',
     body: 'Jede Aufgabe aus jedem Kurs auf einem Board: Übungsblatt, Tutorium, Hausarbeit, Referat. Du siehst sofort, was offen ist, woran du arbeitest und was erledigt ist – mit Fortschritt pro Aufgabe (Hausarbeit: Recherche ✓, Gliederung ✓, Rohfassung …). Wiederkehrende Aufgaben wie wöchentliche Übungsblätter legt SemBan automatisch an.',
     src: '/landing/board.png',
+    alt: 'SemBan Kanban-Board mit Übungsblättern, Hausarbeiten und Fristen aus allen Kursen',
     color: '#6366f1',
   },
   {
@@ -368,6 +391,7 @@ const SUPERPOWERS = [
     title: 'Keine Frist\nmehr verpassen.',
     body: 'Wann ist welche Abgabe? SemBan sortiert alle Fristen über deine Kurse und erinnert dich rechtzeitig – auch wenn die App geschlossen ist. Dein Stundenplan zeigt mit einer Linie, wo du gerade im Tag stehst; pro Termin hakst du ab: vorbereitet, besucht, nachbereitet.',
     src: '/landing/schedule.png',
+    alt: 'SemBan Stundenplan mit Jetzt-Linie und Anwesenheit pro Vorlesung',
     color: '#0ea5e9',
   },
   {
@@ -376,6 +400,7 @@ const SUPERPOWERS = [
     title: 'Dein Schnitt.\nImmer aktuell.',
     body: 'Trag Noten und ECTS ein – SemBan rechnet deinen Durchschnitt fortlaufend übers ganze Studium. Bachelor und Master sauber getrennt. So weißt du immer, wo du stehst – nicht erst beim Abschluss.',
     src: '/landing/study.png',
+    alt: 'SemBan Noten- und ECTS-Übersicht mit Notendurchschnitt fürs Studium',
     color: '#e9633c',
   },
 ]
@@ -443,7 +468,7 @@ function ShowcasePinned({ container }: { container: React.RefObject<HTMLDivEleme
                     i === active ? 'opacity-100' : 'opacity-0',
                   )}
                 >
-                  <BrowserFrame src={s.src} />
+                  <BrowserFrame src={s.src} alt={s.alt} />
                 </div>
               ))}
             </div>
@@ -488,7 +513,7 @@ function ShowcaseStacked() {
             </h2>
             <p className="mx-auto mt-4 max-w-sm text-base leading-relaxed text-stone-600">{s.body}</p>
             <div className="mt-7">
-              <BrowserFrame src={s.src} />
+              <BrowserFrame src={s.src} alt={s.alt} />
             </div>
           </Reveal>
         )
@@ -729,6 +754,9 @@ const FAQS = [
   { q: 'Geht es nur um Übungsblätter?', a: 'Nein – SemBan hilft dir, den Überblick über alle Aufgaben und Fristen deiner Kurse zu behalten: Übungsblätter, Tutorien, Hausarbeiten, Referate, Klausuren. Wöchentliche Übungsblätter sind nur ein Beispiel, das SemBan zusätzlich automatisch anlegt.' },
   { q: 'Für welche Studiengänge eignet sich SemBan?', a: 'Für fast jedes Fach mit mehreren Kursen, Abgaben und Fristen – egal ob Mathe, Informatik, Jura, BWL, Geistes- oder Naturwissenschaften. Stundenplan, Noten und ECTS helfen sowieso überall.' },
   { q: 'Wie schnell ist das eingerichtet?', a: 'In ein paar Minuten. Du trägst einmal deine Kurse, Fristen und den Stundenplan ein – den Rest macht SemBan.' },
+  { q: 'Erinnert mich SemBan an Fristen und Abgaben?', a: 'Ja. SemBan erinnert dich rechtzeitig an anstehende Abgaben – auf Wunsch sogar, wenn die App geschlossen ist. So verpasst du keine Frist mehr, egal über wie viele Kurse sie verteilt sind.' },
+  { q: 'Was ist der Unterschied zu Notion?', a: 'Notion ist mächtig, aber du baust dir alles selbst zusammen und pflegst es ewig. SemBan ist fertig fürs Studium: Aufgaben, Fristen, Stundenplan, Noten & ECTS – ohne Setup, kostenlos und sofort startklar.' },
+  { q: 'Funktioniert SemBan für mehrere Studiengänge (Bachelor & Master)?', a: 'Ja. Du kannst mehrere Studiengänge anlegen; Noten und ECTS werden für Bachelor und Master sauber getrennt kumuliert.' },
 ]
 
 function FAQ() {
@@ -736,9 +764,9 @@ function FAQ() {
     <section className="px-5 py-24 sm:px-6 sm:py-32">
       <div className="mx-auto max-w-3xl">
         <Reveal className="text-center">
-          <p className={eyebrowCls}>Häufige Fragen</p>
+          <p className={eyebrowCls}>FAQ</p>
           <h2 className="mt-3 text-4xl font-bold tracking-[-0.02em] sm:text-5xl" style={{ color: NAVY }}>
-            Gut zu wissen.
+            Häufige Fragen zur Semesterplaner-App
           </h2>
         </Reveal>
         <div className="mt-10 space-y-3">

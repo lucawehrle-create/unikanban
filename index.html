@@ -20,6 +20,8 @@
     />
     <link rel="canonical" href="https://semban.de/" />
     <meta name="robots" content="index, follow" />
+    <!-- LCP: Hero-Screenshot der Landing früh laden -->
+    <link rel="preload" as="image" href="/landing/board.png" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
@@ -79,8 +81,20 @@
           { "@type": "Question", "name": "Funktioniert SemBan auch offline?", "acceptedAnswer": { "@type": "Answer", "text": "Ja. SemBan speichert eine Kopie deiner Daten direkt auf deinem Gerät und funktioniert deshalb auch offline. Die App lässt sich als PWA installieren und gleicht sich automatisch ab, sobald du wieder online bist." } },
           { "@type": "Question", "name": "Brauche ich für SemBan ein Konto?", "acceptedAnswer": { "@type": "Answer", "text": "Ja, für SemBan ist ein kostenloses Konto nötig. Damit werden deine Daten sicher in deinem persönlichen Konto gespeichert und automatisch zwischen Handy, Laptop und Tablet synchron gehalten." } },
           { "@type": "Question", "name": "Wie berechnet SemBan Notendurchschnitt und ECTS?", "acceptedAnswer": { "@type": "Answer", "text": "SemBan berechnet deinen Notendurchschnitt automatisch und summiert deine ECTS kumulativ über das gesamte Studium – Bachelor und Master getrennt. So siehst du jederzeit deinen Fortschritt zum Abschluss." } },
-          { "@type": "Question", "name": "Kann ich SemBan auf dem Handy installieren?", "acceptedAnswer": { "@type": "Answer", "text": "Ja. SemBan ist eine Progressive Web App (PWA) und lässt sich über den Browser direkt auf iPhone, Android oder Desktop installieren – ganz ohne App Store." } }
+          { "@type": "Question", "name": "Kann ich SemBan auf dem Handy installieren?", "acceptedAnswer": { "@type": "Answer", "text": "Ja. SemBan ist eine Progressive Web App (PWA) und lässt sich über den Browser direkt auf iPhone, Android oder Desktop installieren – ganz ohne App Store." } },
+          { "@type": "Question", "name": "Erinnert mich SemBan an Fristen und Abgaben?", "acceptedAnswer": { "@type": "Answer", "text": "Ja. SemBan erinnert dich rechtzeitig an anstehende Abgaben – auf Wunsch sogar, wenn die App geschlossen ist. So verpasst du keine Frist mehr, egal über wie viele Kurse sie verteilt sind." } },
+          { "@type": "Question", "name": "Was ist der Unterschied zwischen SemBan und Notion?", "acceptedAnswer": { "@type": "Answer", "text": "Notion ist mächtig, aber du baust dir alles selbst zusammen und pflegst es ewig. SemBan ist fertig fürs Studium: Aufgaben, Fristen, Stundenplan, Noten und ECTS – ohne Setup, kostenlos und sofort startklar." } }
         ]
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "SemBan",
+        "url": "https://semban.de",
+        "logo": "https://semban.de/apple-touch-icon.png",
+        "description": "SemBan ist eine kostenlose Semesterplaner-App für Studierende: Aufgaben, Fristen, Stundenplan, Noten und ECTS an einem Ort."
       }
     </script>
   </head>
