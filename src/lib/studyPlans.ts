@@ -383,11 +383,17 @@ export function buildGlobalPlan(
     const cfg = c.studyPlan!
     const exam = new Date(cfg.examDate + 'T00:00:00')
     if (diffDays(today, exam) <= 0) continue
-    let prepWeeks = cfg.prepWindowWeeks ?? prepDefault
-    if (cfg.strategy === 'now') prepWeeks += 2
-    else if (cfg.strategy === 'later') prepWeeks = Math.max(1, prepWeeks - 2)
-    let windowOpen = addDays(exam, -prepWeeks * 7)
-    if (windowOpen.getTime() < today.getTime()) windowOpen = today
+    // „Sofort starten" nutzt das gesamte Zeitfenster ab heute; sonst begrenztes
+    // Vorbereitungsfenster vor der Klausur (Später = etwas kürzer).
+    let windowOpen: Date
+    if (cfg.strategy === 'now') {
+      windowOpen = new Date(today)
+    } else {
+      let prepWeeks = cfg.prepWindowWeeks ?? prepDefault
+      if (cfg.strategy === 'later') prepWeeks = Math.max(1, prepWeeks - 2)
+      windowOpen = addDays(exam, -prepWeeks * 7)
+      if (windowOpen.getTime() < today.getTime()) windowOpen = today
+    }
     const winSpan = Math.max(1, diffDays(windowOpen, exam))
     const reviews = STRATEGY[cfg.strategy].chapterReviews
     const uebungSheets = resolveSheets(cfg.uebungReviewIds, allTasks)
@@ -422,19 +428,36 @@ export function buildGlobalPlan(
   const dayItems = new Map<string, Item[]>()
   const isStudyDay = (d: Date) => studyDays.includes(isoWeekday(d)) && !examBlocked.has(dayKey(d))
 
-  const placeOn = (d: Date, it: Item, ignoreDaily: boolean) => {
+  // countCourse=false für Karteikarten: leichte Tagesgewohnheit, zählt NICHT
+  // gegen das „max. Kurse pro Tag"-Limit (das gilt nur für Fokus-Material).
+  const placeOn = (d: Date, it: Item, countCourse = true) => {
     const k = dayKey(d)
     const wk = weekKeyOf(d)
     dailyUsed.set(k, (dailyUsed.get(k) ?? 0) + it.durationMin)
     weeklyUsed.set(wk, (weeklyUsed.get(wk) ?? 0) + it.durationMin)
-    const set = dayCourses.get(k)
-    if (set) set.add(it.courseId)
-    else dayCourses.set(k, new Set([it.courseId]))
+    if (countCourse) {
+      const set = dayCourses.get(k)
+      if (set) set.add(it.courseId)
+      else dayCourses.set(k, new Set([it.courseId]))
+    }
     courseDayUsed.set(`${k}|${it.courseId}`, (courseDayUsed.get(`${k}|${it.courseId}`) ?? 0) + it.durationMin)
     if (!dayItems.has(k)) dayItems.set(k, [])
     dayItems.get(k)!.push(it)
     dayDate.set(k, d)
-    void ignoreDaily
+  }
+
+  // Nächster Lerntag zu `target` im Bereich [lo, hi) – ohne Budget-/Kursprüfung.
+  const nearestStudyDay = (target: Date, lo: Date, hi: Date): Date | null => {
+    const loMs = Math.max(lo.getTime(), today.getTime())
+    const span = Math.max(1, diffDays(new Date(loMs), hi)) + 1
+    for (let dist = 0; dist <= span; dist++) {
+      for (const dir of dist === 0 ? [0] : [1, -1]) {
+        const d = addDays(target, dir * dist)
+        if (d.getTime() < loMs || d.getTime() >= hi.getTime()) continue
+        if (isStudyDay(d)) return d
+      }
+    }
+    return null
   }
 
   const fits = (d: Date, u: GUnit, ignoreDaily: boolean): boolean => {
@@ -477,12 +500,12 @@ export function buildGlobalPlan(
               fallbackUsed = used
             }
             if (used === 0) {
-              placeOn(d, itemOf(u), true)
+              placeOn(d, itemOf(u))
               placed = true
               break
             }
           } else {
-            placeOn(d, itemOf(u), false)
+            placeOn(d, itemOf(u))
             placed = true
             break
           }
@@ -490,21 +513,35 @@ export function buildGlobalPlan(
       }
     }
     if (!placed && bigBlock && fallback) {
-      placeOn(fallback, itemOf(u), true)
+      placeOn(fallback, itemOf(u))
       placed = true
+    }
+    // Altklausuren sind Pflicht (das Wichtigste vor der Klausur): notfalls Limits
+    // überschreiten und auf den nächsten Lerntag im Fenster legen.
+    if (!placed && u.kind === 'altklausur') {
+      const forced =
+        nearestStudyDay(new Date(u.targetMs), new Date(u.windowOpenMs), new Date(u.examMs)) ??
+        nearestStudyDay(new Date(u.targetMs), today, new Date(u.examMs))
+      if (forced) {
+        placeOn(forced, itemOf(u))
+        placed = true
+      }
     }
     if (!placed) dropped.push({ courseId: u.courseId, label: u.label })
   }
 
-  // Karteikarten: nur an Fokus-Tagen des Kurses (nicht jeden Tag für alle Kurse)
+  // Karteikarten: tägliche Gewohnheit AB HEUTE (leichter Kontakt, auch vor dem
+  // intensiven Fenster). Zählt nicht gegen das Kurse-pro-Tag-Limit; nur bei
+  // freiem Tages-/Wochenbudget.
   for (const c of planned) {
     const cfg = c.studyPlan!
     if (cfg.cardsPerDay <= 0) continue
     const cardMin = cardMinutesPerDay(cfg)
     if (cardMin <= 0) continue
-    for (const [k, set] of dayCourses) {
-      if (!set.has(c.id)) continue
-      const d = dayDate.get(k)!
+    const exam = new Date(cfg.examDate + 'T00:00:00')
+    for (let d = new Date(today); d.getTime() < exam.getTime(); d = addDays(d, 1)) {
+      if (!isStudyDay(d)) continue
+      const k = dayKey(d)
       const wk = weekKeyOf(d)
       if ((dailyUsed.get(k) ?? 0) + cardMin > dailyMax) continue
       if ((weeklyUsed.get(wk) ?? 0) + cardMin > weeklyMax - (weeklyReserve.get(wk) ?? 0)) continue
