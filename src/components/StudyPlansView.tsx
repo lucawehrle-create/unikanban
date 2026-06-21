@@ -7,6 +7,7 @@ import {
   CalendarClock,
   ChevronRight,
   RotateCcw,
+  Scale,
 } from 'lucide-react'
 import { parseISO, format, differenceInCalendarDays } from 'date-fns'
 import { de } from 'date-fns/locale'
@@ -22,6 +23,7 @@ import {
   deletePlan,
   planProgress,
   planSessionCount,
+  rebalanceAllPlans,
   rescheduleOverduePlan,
   reviewReps,
   savePlan,
@@ -580,7 +582,10 @@ export function StudyPlansView() {
   const courses = useCourses(semester?.id)
   const allTasks = useTasks(semester?.id)
   const plansCourseId = useUI((s) => s.plansCourseId)
+  const globalMax = useUI((s) => s.studyDailyMaxMin)
   const [selId, setSelId] = useState<string | null>(plansCourseId ?? courses[0]?.id ?? null)
+  const [rebalancing, setRebalancing] = useState(false)
+  const [rebalanceFlash, setRebalanceFlash] = useState('')
 
   // Deep-Link aus der Klausurphasen-Box: vorausgewählten Kurs übernehmen.
   useEffect(() => {
@@ -588,6 +593,15 @@ export function StudyPlansView() {
   }, [plansCourseId])
 
   const sel = courses.find((c) => c.id === selId) ?? courses[0]
+  const plansCount = courses.filter((c) => c.studyPlan).length
+
+  const doRebalance = async () => {
+    setRebalancing(true)
+    const { plans } = await rebalanceAllPlans(courses, allTasks, globalMax)
+    setRebalancing(false)
+    setRebalanceFlash(`${plans} Lernpläne neu ausbalanciert`)
+    setTimeout(() => setRebalanceFlash(''), 3000)
+  }
 
   if (courses.length === 0) {
     return (
@@ -605,6 +619,23 @@ export function StudyPlansView() {
             <BookOpen size={15} />
           </span>
           <h1 className="text-base font-semibold text-stone-800">Lernpläne</h1>
+          {plansCount >= 2 && (
+            <div className="ml-auto flex items-center gap-2">
+              {rebalanceFlash && (
+                <span className="flex items-center gap-1 text-xs text-emerald-600">
+                  <Check size={13} /> {rebalanceFlash}
+                </span>
+              )}
+              <button
+                onClick={() => void doRebalance()}
+                disabled={rebalancing}
+                title="Verteilt alle Kurs-Lernpläne gemeinsam neu, damit der Tagesdeckel über alle Kurse eingehalten wird."
+                className="flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-medium text-stone-600 ring-1 ring-stone-200 transition hover:bg-stone-50 disabled:opacity-40"
+              >
+                <Scale size={13} /> Alle neu ausbalancieren
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Kursauswahl */}

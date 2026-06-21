@@ -137,11 +137,15 @@ export default function App() {
 
   // Im Aufgaben-Board nur aktuell anstehende Lern-Sessions zeigen – zukünftige
   // Plan-Sessions (examId gesetzt, Fälligkeit nach heute) würden es überfüllen.
+  // Klausuren sind Termine (keine Aufgaben) und erscheinen nur in „Diese Woche“,
+  // im Kalender und in der Klausurphase – nicht im Board.
   const startOfTomorrow = new Date()
   startOfTomorrow.setHours(0, 0, 0, 0)
   startOfTomorrow.setDate(startOfTomorrow.getDate() + 1)
   const boardTasks = visible.filter(
-    (t) => !(t.examId && t.dueDate && new Date(t.dueDate).getTime() >= startOfTomorrow.getTime()),
+    (t) =>
+      t.type !== 'klausur' &&
+      !(t.examId && t.dueDate && new Date(t.dueDate).getTime() >= startOfTomorrow.getTime()),
   )
 
   return (

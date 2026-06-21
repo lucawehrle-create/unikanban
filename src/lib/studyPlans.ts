@@ -413,6 +413,31 @@ export async function savePlan(
   return created
 }
 
+/**
+ * Balanciert ALLE Kurs-Lernpläne gemeinsam neu: rechnet sie nacheinander – nach
+ * Klausurdatum (frühere zuerst) – durch, wobei jeder Kurs die frische Last der
+ * bereits verteilten Kurse sieht. So wird der globale Tagesdeckel über alle
+ * Kurse hinweg eingehalten, unabhängig von der Erstellungsreihenfolge.
+ * Erledigte Sessions bleiben erhalten (savePlan).
+ */
+export async function rebalanceAllPlans(
+  courses: Course[],
+  allTasks: Task[],
+  globalMaxMin: number,
+): Promise<{ plans: number; sessions: number }> {
+  const planned = courses
+    .filter((c) => c.studyPlan)
+    .sort((a, b) => (a.studyPlan!.examDate < b.studyPlan!.examDate ? -1 : 1))
+  let sessions = 0
+  let tasks = allTasks
+  for (const c of planned) {
+    sessions += await savePlan(c, c.studyPlan!, courses, tasks, globalMaxMin)
+    // Aufgaben neu laden, damit der nächste Kurs die gerade verteilte Last sieht.
+    tasks = await db.tasks.where('semesterId').equals(c.semesterId).toArray()
+  }
+  return { plans: planned.length, sessions }
+}
+
 export interface PlanProgress {
   total: number
   done: number
