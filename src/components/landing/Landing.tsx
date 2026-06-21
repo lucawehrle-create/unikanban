@@ -32,6 +32,20 @@ const ease = [0.22, 1, 0.36, 1] as const
 
 /* ---------------- helpers ---------------- */
 
+/** true bei reduzierter Bewegung ODER Touch-Geräten. Dann verzichten wir auf
+ *  scroll-/viewport-gebundene Animationen – auf Mobile sind sie die Hauptquelle
+ *  fürs Auftauchen/Verschwinden von Inhalten beim Scrollen. Der Initialwert wird
+ *  synchron gesetzt (kein Flash beim ersten Paint). */
+function useCalmMotion() {
+  const [calm] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      (window.matchMedia('(prefers-reduced-motion: reduce)').matches ||
+        window.matchMedia('(pointer: coarse)').matches),
+  )
+  return calm
+}
+
 function Reveal({
   children,
   delay = 0,
@@ -43,6 +57,9 @@ function Reveal({
   y?: number
   className?: string
 }) {
+  const calm = useCalmMotion()
+  // Auf Touch/Reduced-Motion: statisch sichtbar, keine viewport-gebundene Animation.
+  if (calm) return <div className={className}>{children}</div>
   return (
     <motion.div
       className={className}
@@ -220,7 +237,7 @@ function BrowserFrame({
 
 function Nav({ onStart }: { onStart: () => void }) {
   return (
-    <header className="sticky top-0 z-40 bg-cream-50/50 backdrop-blur-md">
+    <header className="sticky top-0 z-40 bg-cream-50/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3 sm:px-6">
         <div className="flex items-center gap-2.5">
           <Logo size={32} />
@@ -258,12 +275,14 @@ function Hero({
   progress: MotionValue<number>
   onHowItWorks: () => void
 }) {
+  const calm = useCalmMotion()
   const y = useTransform(progress, [0, 0.16], [0, -50])
   const opacity = useTransform(progress, [0, 0.13], [1, 0])
 
   return (
     <section className="relative px-5 pb-20 pt-14 sm:px-6 sm:pt-20">
-      <motion.div style={{ y, opacity }} className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[1.05fr_1fr]">
+      {/* Scroll-Parallax nur auf Nicht-Touch (auf Mobile sonst Flacker-Quelle) */}
+      <motion.div style={calm ? undefined : { y, opacity }} className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[1.05fr_1fr]">
         <motion.div variants={stagger} initial="hidden" animate="show">
           <motion.div variants={item} className="inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-stone-500 shadow-[var(--shadow-soft)] ring-1 ring-stone-200/70 backdrop-blur">
             <Sparkles size={13} className="text-brand-500" /> Dein Semester. Endlich sortiert.

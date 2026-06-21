@@ -34,6 +34,17 @@
   }
 }
 
+/* Touch-Geräte (v. a. iOS Safari): backdrop-filter in einem Scroll-Container
+   lässt einzelne Elemente beim Scrollen flackern bzw. verschwinden und wieder
+   auftauchen. Auf Touch daher abschalten – die Flächen bleiben durch ihre
+   halbtransparente Hintergrundfarbe gut lesbar. */
+@media (pointer: coarse) {
+  [class*='backdrop-blur'] {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+}
+
 :root {
   color-scheme: light;
 }
