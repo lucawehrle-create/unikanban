@@ -25,6 +25,8 @@ interface UIState {
   showCourseManager: boolean
   showCalendar: boolean
   showAccount: boolean
+  /** Vorausgewählter Kurs beim Öffnen der Lernpläne-Ansicht (Deep-Link). */
+  plansCourseId: string | null
   /** true, wenn aktuell die Beispieldaten erkundet werden. */
   isDemo: boolean
   tour: boolean
@@ -34,6 +36,8 @@ interface UIState {
   reflectingTaskId: string | null
 
   setView: (v: ViewId) => void
+  /** Öffnet die Lernpläne-Ansicht, optional mit vorausgewähltem Kurs. */
+  openPlans: (courseId?: string) => void
   setGroupBy: (g: GroupBy) => void
   setSortBy: (s: SortBy) => void
   setSearch: (s: string) => void
@@ -78,6 +82,7 @@ export const useUI = create<UIState>((set) => ({
   showCourseManager: false,
   showCalendar: false,
   showAccount: false,
+  plansCourseId: null,
   isDemo: typeof localStorage !== 'undefined' && localStorage.getItem(DEMO_KEY) === '1',
   tour: false,
   reflectionPrompts:
@@ -85,6 +90,7 @@ export const useUI = create<UIState>((set) => ({
   reflectingTaskId: null,
 
   setView: (view) => set({ view }),
+  openPlans: (plansCourseId = undefined) => set({ view: 'plans', plansCourseId: plansCourseId ?? null }),
   setGroupBy: (groupBy) => set({ groupBy }),
   setSortBy: (sortBy) => set({ sortBy }),
   setSearch: (search) => set({ search }),

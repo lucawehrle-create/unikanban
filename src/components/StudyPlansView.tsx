@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   GraduationCap,
   BookOpen,
@@ -12,6 +12,7 @@ import { parseISO, format, differenceInCalendarDays } from 'date-fns'
 import { de } from 'date-fns/locale'
 import type { Course, StudyPlanConfig, StudyStrategy, Task } from '@/db/types'
 import { useActiveSemester, useCourses, useTasks } from '@/hooks/data'
+import { useUI } from '@/store/ui'
 import {
   KIND_META,
   STRATEGY_META,
@@ -568,7 +569,13 @@ export function StudyPlansView() {
   const semester = useActiveSemester()
   const courses = useCourses(semester?.id)
   const allTasks = useTasks(semester?.id)
-  const [selId, setSelId] = useState<string | null>(courses[0]?.id ?? null)
+  const plansCourseId = useUI((s) => s.plansCourseId)
+  const [selId, setSelId] = useState<string | null>(plansCourseId ?? courses[0]?.id ?? null)
+
+  // Deep-Link aus der Klausurphasen-Box: vorausgewählten Kurs übernehmen.
+  useEffect(() => {
+    if (plansCourseId) setSelId(plansCourseId)
+  }, [plansCourseId])
 
   const sel = courses.find((c) => c.id === selId) ?? courses[0]
 
