@@ -42,6 +42,8 @@ export default defineConfig({
           /^\/ects-rechner/,
           /^\/deadlines-fristen/,
           /^\/notion-alternative-studium/,
+          /^\/studium-organisieren/,
+          /^\/lernplan-klausurphase/,
         ],
         cleanupOutdatedCaches: true,
         clientsClaim: true,

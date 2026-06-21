@@ -12,6 +12,10 @@ SemBan (aus „Semester" + „Kanban") läuft im Browser und lässt sich als App
 - [Deadlines & Fristen im Studium](https://unikanban.vercel.app/deadlines-fristen): Abgaben und Fristen aus allen Kursen an einem Ort, mit Erinnerungen auch bei geschlossener App.
 - [Notion-Alternative fürs Studium](https://unikanban.vercel.app/notion-alternative-studium): Vergleich SemBan vs. Notion – fertige Studium-App ohne aufwendiges Setup.
 
+## Ratgeber & Guides
+- [Studium organisieren](https://unikanban.vercel.app/studium-organisieren): Praktischer Leitfaden in 6 Schritten für mehr Überblick über Fristen, Aufgaben, Stundenplan, Noten und ECTS.
+- [Lernplan für die Klausurphase erstellen](https://unikanban.vercel.app/lernplan-klausurphase): Schritt-für-Schritt vom Klausurtermin rückwärts planen, inkl. Lernmethoden (Spaced Repetition, Active Recall, Pomodoro).
+
 ## Über SemBan
 - [Startseite](https://unikanban.vercel.app/): Überblick über Stundenplan, Aufgaben, Fristen, Noten und ECTS.
 
