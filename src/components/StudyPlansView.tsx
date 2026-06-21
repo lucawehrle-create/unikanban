@@ -464,8 +464,12 @@ function ReviewSection({
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5">
                       {dm && (
-                        <span title={`als ${dm.label} markiert`} className="shrink-0 text-[13px] leading-none">
-                          {dm.emoji}
+                        <span
+                          title={`als ${dm.label} markiert`}
+                          className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-[10px] font-bold text-white"
+                          style={{ backgroundColor: dm.color }}
+                        >
+                          {r!.difficulty}
                         </span>
                       )}
                       <span className="truncate text-stone-700">{t.title}</span>

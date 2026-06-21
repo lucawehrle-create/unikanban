@@ -24,18 +24,17 @@ export const PRESET_TAGS = [
 export const HARD_THRESHOLD = 3
 
 export interface DifficultyMeta {
-  emoji: string
   label: string
   color: string
 }
 
-/** 1 (leicht) … 5 (schwer) – Beschriftung, Emoji und Farbe. */
+/** 1 (leicht) … 5 (schwer) – Beschriftung und Farbe (grün → rot). */
 export const DIFFICULTY: Record<number, DifficultyMeta> = {
-  1: { emoji: '😄', label: 'sehr leicht', color: '#10b981' },
-  2: { emoji: '🙂', label: 'leicht', color: '#84cc16' },
-  3: { emoji: '😐', label: 'mittel', color: '#f5c645' },
-  4: { emoji: '😟', label: 'schwer', color: '#f97316' },
-  5: { emoji: '😣', label: 'sehr schwer', color: '#ef4444' },
+  1: { label: 'sehr leicht', color: '#10b981' },
+  2: { label: 'leicht', color: '#84cc16' },
+  3: { label: 'mittel', color: '#f59e0b' },
+  4: { label: 'schwer', color: '#f97316' },
+  5: { label: 'sehr schwer', color: '#ef4444' },
 }
 
 export function difficultyMeta(d: number): DifficultyMeta {

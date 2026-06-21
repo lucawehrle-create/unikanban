@@ -110,33 +110,40 @@ function ReflectionForm({
         <div>
           <div className="mb-1.5 flex items-baseline justify-between">
             <span className="text-xs font-medium text-stone-500">Wie schwer war es?</span>
-            <span className="flex items-center gap-1.5 text-sm font-medium" style={{ color: meta.color }}>
-              <span className="text-base">{meta.emoji}</span> {meta.label}
+            <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: meta.color }}>
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: meta.color }} />
+              {meta.label}
             </span>
           </div>
-          <input
-            type="range"
-            min={1}
-            max={5}
-            step={1}
-            value={difficulty}
-            onChange={(e) => setDifficulty(Number(e.target.value))}
-            className="slider-grade"
-          />
-          <div className="mt-1 flex justify-between px-0.5 text-base">
-            {Object.keys(DIFFICULTY).map((k) => (
-              <button
-                key={k}
-                onClick={() => setDifficulty(Number(k))}
-                className={cn(
-                  'transition',
-                  Number(k) === difficulty ? 'scale-110' : 'opacity-40 hover:opacity-80',
-                )}
-                aria-label={DIFFICULTY[Number(k)].label}
-              >
-                {DIFFICULTY[Number(k)].emoji}
-              </button>
-            ))}
+          <div className="flex gap-1.5">
+            {Object.keys(DIFFICULTY).map((k) => {
+              const n = Number(k)
+              const dm = DIFFICULTY[n]
+              const on = n === difficulty
+              return (
+                <button
+                  key={k}
+                  onClick={() => setDifficulty(n)}
+                  className={cn(
+                    'flex-1 rounded-xl py-2.5 text-center text-sm font-bold transition',
+                    on ? 'text-white shadow-sm' : 'text-stone-500 hover:opacity-80',
+                  )}
+                  style={
+                    on
+                      ? { backgroundColor: dm.color }
+                      : { backgroundColor: dm.color + '22', color: dm.color }
+                  }
+                  aria-label={dm.label}
+                  aria-pressed={on}
+                >
+                  {n}
+                </button>
+              )
+            })}
+          </div>
+          <div className="mt-1 flex justify-between px-1 text-[10px] text-stone-400">
+            <span>leicht</span>
+            <span>schwer</span>
           </div>
         </div>
 

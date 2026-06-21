@@ -50,6 +50,8 @@ interface UIState {
   setReflectionPrompts: (b: boolean) => void
   /** Öffnet das Reflexions-Popup, falls aktiviert & passender, noch nicht reflektierter Task. */
   maybeReflect: (task: Task) => void
+  /** Öffnet das Reflexions-Popup direkt (Ansehen/Bearbeiten), ohne Bedingungen. */
+  openReflection: (taskId: string) => void
   closeReflection: () => void
 }
 
@@ -127,5 +129,6 @@ export const useUI = create<UIState>((set) => ({
       if (task.reflection) return {}
       return { reflectingTaskId: task.id }
     }),
+  openReflection: (reflectingTaskId) => set({ reflectingTaskId }),
   closeReflection: () => set({ reflectingTaskId: null }),
 }))

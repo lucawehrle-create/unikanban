@@ -3,6 +3,7 @@ import type { Course, Task } from '@/db/types'
 import { TASK_TYPES } from '@/lib/taskTypes'
 import { classifyDue, DUE_META, formatDue } from '@/lib/deadline'
 import { priorityMeta } from '@/lib/priority'
+import { difficultyMeta } from '@/lib/reflection'
 import { cn } from '@/lib/cn'
 
 interface TaskCardProps {
@@ -85,6 +86,16 @@ export function TaskCard({ task, course, onClick, dragging }: TaskCardProps) {
             {phasesTotal > 0 && (
               <span className="text-stone-400">
                 {phasesDone}/{phasesTotal} Schritte
+              </span>
+            )}
+
+            {task.reflection && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 font-medium text-white"
+                style={{ backgroundColor: difficultyMeta(task.reflection.difficulty).color }}
+                title={`Reflexion: ${difficultyMeta(task.reflection.difficulty).label}`}
+              >
+                {difficultyMeta(task.reflection.difficulty).label}
               </span>
             )}
           </div>

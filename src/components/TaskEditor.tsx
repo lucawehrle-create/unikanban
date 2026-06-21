@@ -1,4 +1,4 @@
-import { Trash2 } from 'lucide-react'
+import { Pencil, Sparkles, Trash2 } from 'lucide-react'
 import type { Course, Priority, Task, TaskStatus } from '@/db/types'
 import { TASK_TYPE_LIST, TASK_TYPES } from '@/lib/taskTypes'
 import { changeTaskType, deleteTask, togglePhase, updateTask } from '@/lib/actions'
@@ -8,6 +8,7 @@ import { Modal } from './Modal'
 import { DatePicker } from './DatePicker'
 import { Select } from './ui/Select'
 import { cn } from '@/lib/cn'
+import { difficultyMeta, isReflectableType } from '@/lib/reflection'
 
 const STATUS: { id: TaskStatus; label: string }[] = [
   { id: 'offen', label: 'Offen' },
@@ -201,6 +202,9 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
           </div>
         )}
 
+        {/* Reflexion (Übungs-/Tutoriumsblätter) */}
+        {isReflectableType(task.type) && <ReflectionField task={task} />}
+
         <label className="block">
           <span className="mb-1 block text-xs font-medium text-stone-500">Notizen</span>
           <textarea
@@ -212,5 +216,57 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
         </label>
       </div>
     </Modal>
+  )
+}
+
+/** Anzeige/Bearbeitung der Reflexion innerhalb des Task-Editors. */
+function ReflectionField({ task }: { task: Task }) {
+  const openReflection = useUI((s) => s.openReflection)
+  const r = task.reflection
+
+  if (!r)
+    return (
+      <button
+        onClick={() => openReflection(task.id)}
+        className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-stone-300 px-3 py-2 text-sm font-medium text-stone-500 hover:border-brand-400 hover:text-stone-700"
+      >
+        <Sparkles size={14} /> Reflexion hinzufügen
+      </button>
+    )
+
+  const dm = difficultyMeta(r.difficulty)
+  return (
+    <div className="rounded-xl bg-stone-50 p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-xs font-medium text-stone-500">Reflexion</span>
+        <button
+          onClick={() => openReflection(task.id)}
+          className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700"
+        >
+          <Pencil size={12} /> Bearbeiten
+        </button>
+      </div>
+      <div className="flex items-center gap-2 text-sm">
+        <span
+          className="rounded-full px-2 py-0.5 text-xs font-semibold text-white"
+          style={{ backgroundColor: dm.color }}
+        >
+          {dm.label}
+        </span>
+      </div>
+      {r.tags.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {r.tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded-full bg-white px-2 py-0.5 text-[11px] text-stone-600 ring-1 ring-stone-200"
+            >
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
+      {r.hardParts && <p className="mt-2 text-xs italic text-stone-500">„{r.hardParts}"</p>}
+    </div>
   )
 }
