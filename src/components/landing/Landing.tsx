@@ -3,6 +3,7 @@ import {
   motion,
   useScroll,
   useTransform,
+  useMotionValueEvent,
   MotionConfig,
   type MotionValue,
   type Variants,
@@ -25,6 +26,7 @@ import {
 } from 'lucide-react'
 import { Logo } from '../Logo'
 import { MeshGradient } from './MeshGradient'
+import { cn } from '@/lib/cn'
 
 const NAVY = '#2a2a6e'
 const ease = [0.22, 1, 0.36, 1] as const
@@ -377,37 +379,71 @@ const SUPERPOWERS = [
   },
 ]
 
-const WINDOWS: [number, number, number, number][] = [
-  [0.0, 0.08, 0.28, 0.34],
-  [0.34, 0.4, 0.6, 0.66],
-  [0.66, 0.72, 0.92, 1.0],
-]
+function usePrefersReducedMotion() {
+  const [reduce, setReduce] = useState(false)
+  useEffect(() => {
+    const m = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const f = () => setReduce(m.matches)
+    f()
+    m.addEventListener('change', f)
+    return () => m.removeEventListener('change', f)
+  }, [])
+  return reduce
+}
 
 function Showcase({ container }: { container: React.RefObject<HTMLDivElement | null> }) {
   const isDesktop = useIsDesktop()
-  if (!isDesktop) return <ShowcaseStacked />
+  const reduce = usePrefersReducedMotion()
+  // Kein Desktop ODER reduzierte Bewegung → einfache, gestapelte Variante.
+  if (!isDesktop || reduce) return <ShowcaseStacked />
   return <ShowcasePinned container={container} />
 }
 
 function ShowcasePinned({ container }: { container: React.RefObject<HTMLDivElement | null> }) {
   const ref = useRef<HTMLDivElement>(null)
   const { scrollYProgress } = useScroll({ target: ref, container, offset: ['start start', 'end end'] })
+  // Diskreter aktiver Index statt überlappender Opacity-Kurven: So ist immer
+  // GENAU ein Text/Screen sichtbar (kein Überlappen bei Smooth-Scroll), der
+  // Wechsel ist ein sauberer CSS-Crossfade. Index 0 ist bei Fortschritt 0 aktiv,
+  // damit der „Wie's funktioniert"-Sprung nicht auf einem leeren Frame landet.
+  const [active, setActive] = useState(0)
+  useMotionValueEvent(scrollYProgress, 'change', (v) => {
+    const i = v < 0.34 ? 0 : v < 0.67 ? 1 : 2
+    setActive((prev) => (prev === i ? prev : i))
+  })
 
   return (
     <section id="features" ref={ref} className="relative" style={{ height: '320vh' }}>
       <div className="sticky top-0 flex h-screen items-center overflow-hidden">
         <div className="mx-auto grid w-full max-w-6xl items-center gap-12 px-6 lg:grid-cols-2">
-          {/* Copy – absolut gestapelt, überblendet */}
-          <div className="relative min-h-[18rem]">
+          {/* Copy – gestapelt, exakt eine sichtbar */}
+          <div className="relative min-h-[20rem]">
             {SUPERPOWERS.map((s, i) => (
-              <ShowcaseCopy key={i} sp={s} win={WINDOWS[i]} progress={scrollYProgress} first={i === 0} />
+              <div
+                key={i}
+                className={cn(
+                  'absolute inset-0 transition-opacity duration-500',
+                  i === active ? 'opacity-100' : 'opacity-0 pointer-events-none',
+                )}
+              >
+                <ShowcaseCopy sp={s} />
+              </div>
             ))}
           </div>
-          {/* Device – feststehender Rahmen, Screen überblendet */}
+          {/* Device – fester Rahmen, Screen wechselt */}
           <div style={{ perspective: 1800 }} className="relative">
             <div className="relative" style={{ transform: 'rotateX(5deg) rotateY(-8deg)' }}>
               {SUPERPOWERS.map((s, i) => (
-                <ShowcaseDevice key={i} src={s.src} win={WINDOWS[i]} progress={scrollYProgress} first={i === 0} />
+                <div
+                  key={i}
+                  className={cn(
+                    i === 0 ? '' : 'absolute inset-0',
+                    'transition-opacity duration-500',
+                    i === active ? 'opacity-100' : 'opacity-0',
+                  )}
+                >
+                  <BrowserFrame src={s.src} />
+                </div>
               ))}
             </div>
           </div>
@@ -417,24 +453,10 @@ function ShowcasePinned({ container }: { container: React.RefObject<HTMLDivEleme
   )
 }
 
-function ShowcaseCopy({
-  sp,
-  win,
-  progress,
-  first,
-}: {
-  sp: (typeof SUPERPOWERS)[number]
-  win: [number, number, number, number]
-  progress: MotionValue<number>
-  first: boolean
-}) {
-  // Das erste Element ist schon bei Fortschritt 0 voll sichtbar – damit ein
-  // direkter Sprung („Wie's funktioniert") nicht auf einem leeren Frame landet.
-  const opacity = useTransform(progress, win, [first ? 1 : 0, 1, 1, 0])
-  const y = useTransform(progress, win, [first ? 0 : 26, 0, 0, -26])
+function ShowcaseCopy({ sp }: { sp: (typeof SUPERPOWERS)[number] }) {
   const Icon = sp.icon
   return (
-    <motion.div style={{ opacity, y }} className="absolute inset-0">
+    <>
       <span
         className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-white"
         style={{ backgroundColor: sp.color }}
@@ -445,26 +467,7 @@ function ShowcaseCopy({
         {sp.title}
       </h2>
       <p className="mt-5 max-w-md text-lg leading-relaxed text-stone-600">{sp.body}</p>
-    </motion.div>
-  )
-}
-
-function ShowcaseDevice({
-  src,
-  win,
-  progress,
-  first,
-}: {
-  src: string
-  win: [number, number, number, number]
-  progress: MotionValue<number>
-  first: boolean
-}) {
-  const opacity = useTransform(progress, win, [first ? 1 : 0, 1, 1, 0])
-  return (
-    <motion.div style={{ opacity }} className={first ? '' : 'absolute inset-0'}>
-      <BrowserFrame src={src} />
-    </motion.div>
+    </>
   )
 }
 
