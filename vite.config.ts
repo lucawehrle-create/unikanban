@@ -36,6 +36,13 @@ export default defineConfig({
         // würden sonst den App-Install unnötig aufblähen).
         globIgnores: ['**/landing/**'],
         navigateFallback: '/index.html',
+        // Statische SEO-/Tool-Seiten NICHT auf die SPA umleiten (eigene HTML-Dateien).
+        navigateFallbackDenylist: [
+          /^\/notendurchschnitt-berechnen/,
+          /^\/ects-rechner/,
+          /^\/deadlines-fristen/,
+          /^\/notion-alternative-studium/,
+        ],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
       },

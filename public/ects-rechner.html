@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ECTS-Rechner – Credits &amp; Studienfortschritt berechnen | SemBan</title>
+    <meta
+      name="description"
+      content="ECTS-Rechner fürs Studium: Erreichte Credits zusammenzählen, Fortschritt zum Abschluss berechnen und sehen, wie viele ECTS noch fehlen. Kostenlos, ohne Anmeldung."
+    />
+    <link rel="canonical" href="https://unikanban.vercel.app/ects-rechner" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#f7c948" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SemBan" />
+    <meta property="og:title" content="ECTS-Rechner – Credits & Fortschritt berechnen" />
+    <meta property="og:description" content="Erreichte ECTS zusammenzählen und Fortschritt zum Abschluss sehen – kostenlos." />
+    <meta property="og:url" content="https://unikanban.vercel.app/ects-rechner" />
+    <meta property="og:image" content="https://unikanban.vercel.app/og-image.png" />
+    <link rel="stylesheet" href="/seo.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "ECTS-Rechner",
+        "url": "https://unikanban.vercel.app/ects-rechner",
+        "applicationCategory": "EducationApplication",
+        "operatingSystem": "Web",
+        "inLanguage": "de",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+        "description": "Kostenloser ECTS-Rechner: Credits zusammenzählen und Studienfortschritt berechnen."
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          { "@type": "Question", "name": "Was sind ECTS?", "acceptedAnswer": { "@type": "Answer", "text": "ECTS (European Credit Transfer System) sind Leistungspunkte. Ein Credit Point steht für rund 25–30 Stunden Arbeitsaufwand. Ein Bachelor hat meist 180 ECTS, ein Master 120 ECTS." } },
+          { "@type": "Question", "name": "Wie viele ECTS sind ein Semester?", "acceptedAnswer": { "@type": "Answer", "text": "Ein Vollzeit-Semester umfasst in der Regel 30 ECTS. Bei 180 ECTS im Bachelor sind das sechs Semester Regelstudienzeit." } },
+          { "@type": "Question", "name": "Wie berechne ich meinen Studienfortschritt?", "acceptedAnswer": { "@type": "Answer", "text": "Teile deine erreichten ECTS durch die Ziel-ECTS deines Studiengangs und multipliziere mit 100. Beispiel: 60 von 180 ECTS = 33 % geschafft." } }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <header class="site">
+      <div class="wrap row">
+        <a class="brand" href="/"><span class="dot">S</span> SemBan</a>
+        <a class="btn small" href="/">Zur App</a>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <p class="crumbs"><a href="/">Start</a> › ECTS-Rechner</p>
+      <h1>ECTS-Rechner: Credits &amp; Fortschritt berechnen</h1>
+      <p class="lead">
+        Wie weit bist du schon? Zähl deine erreichten ECTS zusammen und sieh sofort deinen
+        Fortschritt zum Abschluss – kostenlos und ohne Anmeldung.
+      </p>
+
+      <div class="card">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+          <label>Erreichte ECTS
+            <input id="have" inputmode="numeric" value="60" />
+          </label>
+          <label>Ziel (Abschluss)
+            <select id="goal">
+              <option value="180">Bachelor – 180 ECTS</option>
+              <option value="120">Master – 120 ECTS</option>
+              <option value="210">Bachelor – 210 ECTS</option>
+              <option value="240">Diplom/lang – 240 ECTS</option>
+              <option value="300">Bachelor+Master – 300 ECTS</option>
+            </select>
+          </label>
+        </div>
+        <div class="result">
+          <div class="big"><span id="pct">33</span>%</div>
+          <div class="sub"><span id="haveOut">60</span> von <span id="goalOut">180</span> ECTS · noch <span id="left">120</span> ECTS bis zum Abschluss</div>
+          <div class="bar"><span id="barfill" style="width:33%"></span></div>
+          <div class="sub" style="margin-top:8px">Bei 30 ECTS/Semester: noch ca. <span id="sem">4</span> Semester</div>
+        </div>
+      </div>
+
+      <div class="cta">
+        <h2>ECTS automatisch übers ganze Studium mittracken</h2>
+        <p>SemBan summiert deine Credits Semester für Semester – Bachelor und Master getrennt.</p>
+        <a class="btn" href="/">SemBan kostenlos starten →</a>
+      </div>
+
+      <h2>Was sind ECTS?</h2>
+      <p>
+        ECTS (European Credit Transfer System) sind Leistungspunkte, die den Arbeitsaufwand eines
+        Moduls messen. <strong>Ein Credit Point entspricht etwa 25–30 Stunden</strong> Aufwand
+        (Vorlesung, Übung, Selbststudium, Prüfung). Ein Vollzeit-Semester umfasst in der Regel
+        <strong>30 ECTS</strong>.
+      </p>
+      <h3>Wie viele ECTS pro Abschluss?</h3>
+      <ul class="checks">
+        <li>Bachelor: meist 180 ECTS (6 Semester), teils 210 ECTS</li>
+        <li>Master: meist 120 ECTS (4 Semester), teils 60–90 ECTS</li>
+        <li>Pro Vollzeit-Semester: rund 30 ECTS</li>
+      </ul>
+
+      <h2>Häufige Fragen</h2>
+      <details><summary>Wie viele Stunden ist ein ECTS-Punkt?</summary><p>Rund 25–30 Stunden Gesamtaufwand pro Credit Point – inklusive Selbststudium und Prüfungsvorbereitung.</p></details>
+      <details><summary>Wie viele ECTS pro Semester sind normal?</summary><p>Im Vollzeitstudium etwa 30 ECTS pro Semester. Weniger ist okay, verlängert aber die Studienzeit.</p></details>
+      <details><summary>Zählen ECTS aus dem Auslandssemester?</summary><p>Ja, sofern sie anerkannt werden – genau dafür wurde das ECTS-System geschaffen (Transfer zwischen Hochschulen).</p></details>
+    </main>
+
+    <footer class="site">
+      <div class="wrap">
+        <nav>
+          <a href="/">Start</a>
+          <a href="/notendurchschnitt-berechnen">Notendurchschnitt-Rechner</a>
+          <a href="/deadlines-fristen">Fristen im Blick</a>
+          <a href="/notion-alternative-studium">Notion-Alternative</a>
+        </nav>
+        <p class="muted">SemBan · kostenloser Semesterplaner fürs Studium · von Studis für Studis</p>
+      </div>
+    </footer>
+
+    <script>
+      (function () {
+        var have = document.getElementById('have'), goal = document.getElementById('goal')
+        function calc() {
+          var h = Math.max(0, parseInt(have.value, 10) || 0)
+          var g = parseInt(goal.value, 10) || 180
+          var pct = Math.min(100, Math.round((h / g) * 100))
+          var left = Math.max(0, g - h)
+          document.getElementById('pct').textContent = pct
+          document.getElementById('haveOut').textContent = h
+          document.getElementById('goalOut').textContent = g
+          document.getElementById('left').textContent = left
+          document.getElementById('barfill').style.width = pct + '%'
+          document.getElementById('sem').textContent = Math.ceil(left / 30)
+        }
+        have.addEventListener('input', calc)
+        goal.addEventListener('change', calc)
+        calc()
+      })()
+    </script>
+  </body>
+</html>

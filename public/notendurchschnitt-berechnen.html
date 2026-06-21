@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Notendurchschnitt berechnen (Studium) – kostenloser Rechner | SemBan</title>
+    <meta
+      name="description"
+      content="Berechne deinen Notendurchschnitt im Studium in Sekunden – ECTS-gewichtet, kostenlos und ohne Anmeldung. Inkl. Formel, Beispiel und Tipps zum Noten-Tracking."
+    />
+    <link rel="canonical" href="https://unikanban.vercel.app/notendurchschnitt-berechnen" />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#f7c948" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SemBan" />
+    <meta property="og:title" content="Notendurchschnitt berechnen – kostenloser Rechner" />
+    <meta property="og:description" content="ECTS-gewichteten Notendurchschnitt sofort berechnen – kostenlos, ohne Anmeldung." />
+    <meta property="og:url" content="https://unikanban.vercel.app/notendurchschnitt-berechnen" />
+    <meta property="og:image" content="https://unikanban.vercel.app/og-image.png" />
+    <link rel="stylesheet" href="/seo.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Notendurchschnitt-Rechner",
+        "url": "https://unikanban.vercel.app/notendurchschnitt-berechnen",
+        "applicationCategory": "EducationApplication",
+        "operatingSystem": "Web",
+        "inLanguage": "de",
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+        "description": "Kostenloser Rechner für den ECTS-gewichteten Notendurchschnitt im Studium."
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          { "@type": "Question", "name": "Wie wird der Notendurchschnitt im Studium berechnet?", "acceptedAnswer": { "@type": "Answer", "text": "An den meisten Hochschulen wird der Notendurchschnitt nach ECTS gewichtet: Jede Note wird mit den Credit Points des Moduls multipliziert, alles summiert und durch die Summe aller Credits geteilt. Module mit mehr ECTS zählen also stärker." } },
+          { "@type": "Question", "name": "Was ist ein gewichteter Notendurchschnitt?", "acceptedAnswer": { "@type": "Answer", "text": "Beim gewichteten Schnitt fließt jede Note mit dem Gewicht ihres Moduls (meist die ECTS) ein. Eine 1,0 in einem 12-ECTS-Modul wirkt sich stärker aus als eine 1,0 in einem 3-ECTS-Modul." } },
+          { "@type": "Question", "name": "Zählen nicht bestandene oder unbenotete Module in den Schnitt?", "acceptedAnswer": { "@type": "Answer", "text": "Unbenotete (mit „bestanden\" bewertete) Module zählen in der Regel nicht in den Notenschnitt, bringen aber ECTS. Wie nicht bestandene Versuche gewertet werden, regelt deine Prüfungsordnung." } }
+        ]
+      }
+    </script>
+  </head>
+  <body>
+    <header class="site">
+      <div class="wrap row">
+        <a class="brand" href="/"><span class="dot">S</span> SemBan</a>
+        <a class="btn small" href="/">Zur App</a>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <p class="crumbs"><a href="/">Start</a> › Notendurchschnitt berechnen</p>
+      <h1>Notendurchschnitt berechnen – kostenlos &amp; ohne Anmeldung</h1>
+      <p class="lead">
+        Trag deine Noten und die ECTS pro Modul ein – dein <strong>gewichteter Notendurchschnitt</strong>
+        wird sofort berechnet. Keine Anmeldung, keine Werbung.
+      </p>
+
+      <div class="card">
+        <div class="calc-head"><span>Note (1,0–5,0)</span><span>ECTS</span><span></span></div>
+        <div id="rows"></div>
+        <button class="linkbtn" id="add" type="button">+ Modul hinzufügen</button>
+        <div class="result">
+          <div class="big"><span id="avg">–</span></div>
+          <div class="sub"><span id="sum">0</span> ECTS · gewichteter Durchschnitt</div>
+        </div>
+      </div>
+
+      <div class="cta">
+        <h2>Schnitt dauerhaft im Blick statt jedes Mal neu rechnen</h2>
+        <p>SemBan trackt deinen Notendurchschnitt automatisch übers ganze Studium – kostenlos.</p>
+        <a class="btn" href="/">SemBan kostenlos starten →</a>
+      </div>
+
+      <h2>Wie wird der Notendurchschnitt berechnet?</h2>
+      <p>
+        Der gängige Weg an Hochschulen ist der <strong>ECTS-gewichtete Durchschnitt</strong>. Jede
+        Note wird mit den Credit Points (ECTS) ihres Moduls multipliziert. Die Summe teilst du durch
+        die Summe aller ECTS:
+      </p>
+      <p class="card" style="font-family: ui-monospace, monospace; color: var(--navy)">
+        Schnitt = Σ (Note × ECTS) ∕ Σ ECTS
+      </p>
+      <h3>Beispiel</h3>
+      <p>
+        Analysis (2,0 · 9 ECTS), Programmierung (1,3 · 6 ECTS), Statistik (2,7 · 5 ECTS):<br />
+        (2,0·9 + 1,3·6 + 2,7·5) ∕ (9+6+5) = 39,3 ∕ 20 ≈ <strong>1,96</strong>.
+      </p>
+
+      <h2>Häufige Fragen</h2>
+      <details>
+        <summary>Wird der Schnitt gewichtet oder einfach gemittelt?</summary>
+        <p>An den meisten Unis gewichtet nach ECTS – größere Module zählen stärker. Dieser Rechner nutzt die gewichtete Methode.</p>
+      </details>
+      <details>
+        <summary>Zählen unbenotete Module rein?</summary>
+        <p>Mit „bestanden" bewertete Module bringen ECTS, fließen aber meist nicht in den Notenschnitt. Im Zweifel hilft deine Prüfungsordnung.</p>
+      </details>
+      <details>
+        <summary>Bachelor- und Masterschnitt getrennt?</summary>
+        <p>Ja – beide werden üblicherweise getrennt ausgewiesen. In SemBan trackst du sie automatisch getrennt.</p>
+      </details>
+    </main>
+
+    <footer class="site">
+      <div class="wrap">
+        <nav>
+          <a href="/">Start</a>
+          <a href="/ects-rechner">ECTS-Rechner</a>
+          <a href="/deadlines-fristen">Fristen im Blick</a>
+          <a href="/notion-alternative-studium">Notion-Alternative</a>
+        </nav>
+        <p class="muted">SemBan · kostenloser Semesterplaner fürs Studium · von Studis für Studis</p>
+      </div>
+    </footer>
+
+    <script>
+      (function () {
+        var rows = document.getElementById('rows')
+        var defaults = [['2,0', '9'], ['1,3', '6'], ['2,7', '5']]
+        function num(v) { return parseFloat(String(v).replace(',', '.')) }
+        function addRow(note, ects) {
+          var div = document.createElement('div')
+          div.className = 'calc-row'
+          div.innerHTML =
+            '<input inputmode="decimal" placeholder="z. B. 2,0" aria-label="Note" value="' + (note || '') + '">' +
+            '<input inputmode="numeric" placeholder="ECTS" aria-label="ECTS" value="' + (ects || '') + '">' +
+            '<button class="iconbtn" type="button" aria-label="Entfernen">×</button>'
+          div.querySelector('.iconbtn').onclick = function () { div.remove(); calc() }
+          div.querySelectorAll('input').forEach(function (i) { i.addEventListener('input', calc) })
+          rows.appendChild(div)
+        }
+        function calc() {
+          var rs = rows.querySelectorAll('.calc-row'), wsum = 0, esum = 0
+          rs.forEach(function (r) {
+            var ins = r.querySelectorAll('input')
+            var n = num(ins[0].value), e = num(ins[1].value)
+            if (!isNaN(n) && !isNaN(e) && e > 0) { wsum += n * e; esum += e }
+          })
+          document.getElementById('sum').textContent = esum ? String(esum) : '0'
+          document.getElementById('avg').textContent = esum ? (wsum / esum).toFixed(2).replace('.', ',') : '–'
+        }
+        defaults.forEach(function (d) { addRow(d[0], d[1]) })
+        document.getElementById('add').onclick = function () { addRow('', ''); calc() }
+        calc()
+      })()
+    </script>
+  </body>
+</html>
