@@ -167,6 +167,37 @@ export function planSessions(exam: Task, allTasks: Task[]): PlannedSession[] {
   return planSessionsConfig(exam, allTasks, DEFAULT_LERNPLAN)
 }
 
+/**
+ * Auslastung je Wochentag (1=Mo…7=So) im Lern-Zeitraum: zählt bereits belegte
+ * Termine (andere Klausuren, fremde Lern-Sessions, offene Abgaben) – damit man
+ * beim Planen sieht, welche Tage noch Kapazität haben. Eigene Sessions dieser
+ * Klausur und Erledigtes zählen nicht.
+ */
+export function loadByWeekday(
+  exam: Task,
+  allTasks: Task[],
+  cfg: LernplanConfig,
+): Record<number, number> {
+  const res: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0 }
+  if (!exam.dueDate) return res
+  const examDay = new Date(exam.dueDate)
+  if (isNaN(examDay.getTime())) return res
+  examDay.setHours(0, 0, 0, 0)
+  const start = new Date(examDay)
+  start.setDate(start.getDate() - Math.max(1, cfg.startWeeksBefore) * 7)
+  const from = Math.max(start.getTime(), startOfTodayMs())
+
+  for (const t of allTasks) {
+    if (!t.dueDate || t.status === 'erledigt') continue
+    if (t.id === exam.id || t.examId === exam.id) continue
+    const d = new Date(t.dueDate)
+    const day = new Date(d)
+    day.setHours(0, 0, 0, 0)
+    if (day.getTime() >= from && day.getTime() < examDay.getTime()) res[isoWeekday(d)]++
+  }
+  return res
+}
+
 /** Anzahl bereits angelegter Lern-Sessions zu einer Klausur. */
 export function studyPlanCount(tasks: Task[], examId: string): number {
   return tasks.filter((t) => t.examId === examId).length

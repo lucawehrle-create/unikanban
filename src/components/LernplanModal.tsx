@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { BookOpen, CalendarClock, Info } from 'lucide-react'
+import { BookOpen, CalendarClock, Info, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 import type { Task } from '@/db/types'
@@ -7,6 +7,7 @@ import {
   DEFAULT_LERNPLAN,
   courseMaterial,
   createStudyPlan,
+  loadByWeekday,
   planSessionsConfig,
   type LernplanConfig,
 } from '@/lib/lernplan'
@@ -59,7 +60,11 @@ function CheckRow({
   )
 }
 
-/** Ganzheitlicher Lernplan-Konfigurator mit Inhalten & Live-Vorschau. */
+function loadColor(n: number): string {
+  return n === 0 ? 'text-stone-300' : n <= 2 ? 'text-amber-500' : 'text-red-500'
+}
+
+/** Ganzheitlicher Lernplan-Konfigurator mit Inhalten, Auslastung & Vorschau. */
 export function LernplanModal({
   exam,
   allTasks,
@@ -70,20 +75,25 @@ export function LernplanModal({
   onClose: () => void
 }) {
   const [cfg, setCfg] = useState<LernplanConfig>(DEFAULT_LERNPLAN)
-  const [topicsText, setTopicsText] = useState('')
+  const [topics, setTopics] = useState<string[]>([])
+  const [topicInput, setTopicInput] = useState('')
   const [busy, setBusy] = useState(false)
 
   const mat = useMemo(() => courseMaterial(allTasks, exam.courseId), [allTasks, exam.courseId])
-  const customTopics = topicsText
-    .split('\n')
-    .map((t) => t.trim())
-    .filter(Boolean)
-  const usingTopics = customTopics.length > 0
+  const load = useMemo(
+    () => loadByWeekday(exam, allTasks, cfg),
+    [exam, allTasks, cfg.startWeeksBefore],
+  )
+
+  // Auch ein getipptes, noch nicht bestätigtes Thema zählt schon für die Vorschau.
+  const pending = topicInput.trim()
+  const allTopics = pending ? [...topics, pending] : topics
+  const usingTopics = allTopics.length > 0
 
   const effective: LernplanConfig = useMemo(
-    () => ({ ...cfg, topics: customTopics }),
+    () => ({ ...cfg, topics: allTopics }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [cfg, topicsText],
+    [cfg, topics, topicInput],
   )
 
   const sessions = useMemo(
@@ -91,6 +101,8 @@ export function LernplanModal({
     [exam, allTasks, effective],
   )
 
+  const set = <K extends keyof LernplanConfig>(k: K, v: LernplanConfig[K]) =>
+    setCfg((c) => ({ ...c, [k]: v }))
   const toggleDay = (id: number) =>
     setCfg((c) => ({
       ...c,
@@ -98,8 +110,20 @@ export function LernplanModal({
         ? c.weekdays.filter((d) => d !== id)
         : [...c.weekdays, id].sort((a, b) => a - b),
     }))
-  const set = <K extends keyof LernplanConfig>(k: K, v: LernplanConfig[K]) =>
-    setCfg((c) => ({ ...c, [k]: v }))
+
+  const addTopic = () => {
+    const v = topicInput.trim()
+    if (v) setTopics((prev) => (prev.includes(v) ? prev : [...prev, v]))
+    setTopicInput('')
+  }
+  const onTopicKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault()
+      addTopic()
+    } else if (e.key === 'Backspace' && !topicInput && topics.length) {
+      setTopics((prev) => prev.slice(0, -1))
+    }
+  }
 
   const save = async () => {
     setBusy(true)
@@ -151,19 +175,38 @@ export function LernplanModal({
           </div>
         </div>
 
-        {/* Eigene Themen (Override) */}
-        <label className="block">
+        {/* Eigene Themen (Chip-Eingabe, Override) */}
+        <div>
           <span className="mb-1 block text-xs font-medium text-stone-500">
             Eigene Themen (optional – ersetzen die Inhalte oben)
           </span>
-          <textarea
-            value={topicsText}
-            onChange={(e) => setTopicsText(e.target.value)}
-            rows={2}
-            placeholder={'z. B.\nKapitel 1–3\nBeweise üben'}
-            className="w-full resize-none rounded-lg border border-stone-200 px-2 py-1.5 text-sm placeholder:text-stone-300"
-          />
-        </label>
+          <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-stone-200 px-2 py-1.5 focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-400/30">
+            {topics.map((t, i) => (
+              <span
+                key={i}
+                className="flex items-center gap-1 rounded-full bg-stone-900 py-0.5 pl-2.5 pr-1 text-xs font-medium text-white"
+              >
+                {t}
+                <button
+                  type="button"
+                  aria-label={`${t} entfernen`}
+                  onClick={() => setTopics((prev) => prev.filter((_, j) => j !== i))}
+                  className="rounded-full p-0.5 hover:bg-white/20"
+                >
+                  <X size={11} />
+                </button>
+              </span>
+            ))}
+            <input
+              value={topicInput}
+              onChange={(e) => setTopicInput(e.target.value)}
+              onKeyDown={onTopicKey}
+              onBlur={addTopic}
+              placeholder={topics.length ? 'weiteres Thema…' : 'Thema eingeben & Enter'}
+              className="min-w-[8rem] flex-1 bg-transparent py-0.5 text-sm outline-none placeholder:text-stone-300"
+            />
+          </div>
+        </div>
 
         {/* Zeitliche Einstellungen */}
         <div className="grid grid-cols-2 gap-3">
@@ -186,23 +229,34 @@ export function LernplanModal({
           </label>
         </div>
 
+        {/* Lern-Tage mit Auslastung */}
         <div>
-          <span className="mb-1 block text-xs font-medium text-stone-500">Lern-Tage</span>
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-xs font-medium text-stone-500">Lern-Tage</span>
+            <span className="text-[10px] text-stone-400">Zahl = schon belegt im Zeitraum</span>
+          </div>
           <div className="flex flex-wrap gap-1.5">
             {WD.map((d) => {
               const on = cfg.weekdays.includes(d.id)
+              const n = load[d.id] ?? 0
               return (
-                <button
-                  key={d.id}
-                  type="button"
-                  onClick={() => toggleDay(d.id)}
-                  className={cn(
-                    'h-9 w-10 rounded-lg text-sm font-semibold transition',
-                    on ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200',
-                  )}
-                >
-                  {d.label}
-                </button>
+                <div key={d.id} className="flex flex-col items-center gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => toggleDay(d.id)}
+                    className={cn(
+                      'h-9 w-10 rounded-lg text-sm font-semibold transition',
+                      on
+                        ? 'bg-stone-900 text-white'
+                        : 'bg-stone-100 text-stone-500 hover:bg-stone-200',
+                    )}
+                  >
+                    {d.label}
+                  </button>
+                  <span className={cn('text-[10px] font-semibold tabular-nums', loadColor(n))}>
+                    {n === 0 ? 'frei' : n}
+                  </span>
+                </div>
               )
             })}
           </div>
