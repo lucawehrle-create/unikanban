@@ -34,6 +34,14 @@ interface UIState {
   reflectionPrompts: boolean
   /** Globaler Tagesdeckel für Lern-Sessions über ALLE Kurse (Minuten). */
   studyDailyMaxMin: number
+  /** Globaler Wochendeckel für Lern-Sessions über ALLE Kurse (Minuten). */
+  studyWeeklyMaxMin: number
+  /** Lerntage (ISO 1=Mo … 7=So). Tage außerhalb = Ruhetage. */
+  studyDays: number[]
+  /** Max. Kurse pro Lern-Tag (Fokus-Blöcke statt Häppchen). */
+  studyMaxCoursesPerDay: number
+  /** Standard-Vorbereitungsfenster vor der Klausur (Wochen). */
+  studyPrepWindowWeeks: number
   /** id der Aufgabe, für die gerade das Reflexions-Popup offen ist. */
   reflectingTaskId: string | null
 
@@ -59,6 +67,10 @@ interface UIState {
   setTour: (b: boolean) => void
   setReflectionPrompts: (b: boolean) => void
   setStudyDailyMaxMin: (n: number) => void
+  setStudyWeeklyMaxMin: (n: number) => void
+  setStudyDays: (d: number[]) => void
+  setStudyMaxCoursesPerDay: (n: number) => void
+  setStudyPrepWindowWeeks: (n: number) => void
   /** Öffnet das Reflexions-Popup, falls aktiviert & passender, noch nicht reflektierter Task. */
   maybeReflect: (task: Task) => void
   /** Öffnet das Reflexions-Popup direkt (Ansehen/Bearbeiten), ohne Bedingungen. */
@@ -69,13 +81,39 @@ interface UIState {
 const DEMO_KEY = 'semban:demo'
 const REFLECT_KEY = 'semban:reflectionPrompts'
 const STUDY_MAX_KEY = 'semban:studyDailyMax'
+const STUDY_WEEKLY_KEY = 'semban:studyWeeklyMax'
+const STUDY_DAYS_KEY = 'semban:studyDays'
+const STUDY_MAXCOURSES_KEY = 'semban:studyMaxCourses'
+const STUDY_PREPWEEKS_KEY = 'semban:studyPrepWeeks'
 
-function loadStudyMax(): number {
+function loadNum(key: string, def: number, min: number): number {
   try {
-    const n = Number(localStorage.getItem(STUDY_MAX_KEY))
-    return Number.isFinite(n) && n >= 60 ? n : 180
+    const n = Number(localStorage.getItem(key))
+    return Number.isFinite(n) && n >= min ? n : def
   } catch {
-    return 180
+    return def
+  }
+}
+function loadStudyDays(): number[] {
+  try {
+    const raw = localStorage.getItem(STUDY_DAYS_KEY)
+    if (!raw) return [1, 2, 3, 4, 5, 6]
+    const arr = JSON.parse(raw) as number[]
+    return Array.isArray(arr) && arr.length ? arr.filter((n) => n >= 1 && n <= 7) : [1, 2, 3, 4, 5, 6]
+  } catch {
+    return [1, 2, 3, 4, 5, 6]
+  }
+}
+
+/** Lernplan-Einstellungen als Objekt (für den Scheduler). */
+export function getStudySettings() {
+  const s = useUI.getState()
+  return {
+    dailyMaxMin: s.studyDailyMaxMin,
+    weeklyMaxMin: s.studyWeeklyMaxMin,
+    studyDays: s.studyDays,
+    maxCoursesPerDay: s.studyMaxCoursesPerDay,
+    prepWindowWeeks: s.studyPrepWindowWeeks,
   }
 }
 
@@ -100,7 +138,11 @@ export const useUI = create<UIState>((set) => ({
   tour: false,
   reflectionPrompts:
     typeof localStorage === 'undefined' || localStorage.getItem(REFLECT_KEY) !== '0',
-  studyDailyMaxMin: loadStudyMax(),
+  studyDailyMaxMin: loadNum(STUDY_MAX_KEY, 180, 60),
+  studyWeeklyMaxMin: loadNum(STUDY_WEEKLY_KEY, 900, 60),
+  studyDays: loadStudyDays(),
+  studyMaxCoursesPerDay: loadNum(STUDY_MAXCOURSES_KEY, 2, 1),
+  studyPrepWindowWeeks: loadNum(STUDY_PREPWEEKS_KEY, 4, 1),
   reflectingTaskId: null,
 
   setView: (view) => set({ view }),
@@ -155,6 +197,38 @@ export const useUI = create<UIState>((set) => ({
       /* ignore */
     }
     set({ studyDailyMaxMin })
+  },
+  setStudyWeeklyMaxMin: (studyWeeklyMaxMin) => {
+    try {
+      localStorage.setItem(STUDY_WEEKLY_KEY, String(studyWeeklyMaxMin))
+    } catch {
+      /* ignore */
+    }
+    set({ studyWeeklyMaxMin })
+  },
+  setStudyDays: (studyDays) => {
+    try {
+      localStorage.setItem(STUDY_DAYS_KEY, JSON.stringify(studyDays))
+    } catch {
+      /* ignore */
+    }
+    set({ studyDays })
+  },
+  setStudyMaxCoursesPerDay: (studyMaxCoursesPerDay) => {
+    try {
+      localStorage.setItem(STUDY_MAXCOURSES_KEY, String(studyMaxCoursesPerDay))
+    } catch {
+      /* ignore */
+    }
+    set({ studyMaxCoursesPerDay })
+  },
+  setStudyPrepWindowWeeks: (studyPrepWindowWeeks) => {
+    try {
+      localStorage.setItem(STUDY_PREPWEEKS_KEY, String(studyPrepWindowWeeks))
+    } catch {
+      /* ignore */
+    }
+    set({ studyPrepWindowWeeks })
   },
   maybeReflect: (task) =>
     set((s) => {

@@ -154,6 +154,11 @@ export interface StudyPlanConfig {
   /** Optionales Tageslimit NUR für diesen Kurs (Minuten). Der globale Deckel
    *  über alle Kurse liegt in den Einstellungen. */
   dailyMaxMin?: number
+  /** Länge des intensiven Vorbereitungsfensters vor der Klausur (Wochen).
+   *  undefined = globaler Standard aus den Einstellungen. */
+  prepWindowWeeks?: number
+  /** Relatives Gewicht für die Priorisierung (1–3). undefined = aus ECTS. */
+  weight?: number
   /** Bevorzugte Uhrzeit der Sessions (HH:mm). */
   time: string
 }

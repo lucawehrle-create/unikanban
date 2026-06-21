@@ -153,37 +153,137 @@ function SignedIn({
   )
 }
 
-const STUDY_MAX_OPTS = [120, 180, 240, 300, 360].map((m) => ({
+const STUDY_MAX_OPTS = [120, 180, 240, 300, 360].map((m) => ({ value: String(m), label: `${m / 60} h` }))
+const STUDY_WEEK_OPTS = [600, 900, 1200, 1500, 1800, 2400].map((m) => ({
   value: String(m),
   label: `${m / 60} h`,
 }))
+const WEEKDAY_LABELS = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+const selectCls = 'mt-0.5 shrink-0 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm'
 
 function PreferencesSection() {
   const reflectionPrompts = useUI((s) => s.reflectionPrompts)
   const setReflectionPrompts = useUI((s) => s.setReflectionPrompts)
   const studyDailyMaxMin = useUI((s) => s.studyDailyMaxMin)
   const setStudyDailyMaxMin = useUI((s) => s.setStudyDailyMaxMin)
+  const studyWeeklyMaxMin = useUI((s) => s.studyWeeklyMaxMin)
+  const setStudyWeeklyMaxMin = useUI((s) => s.setStudyWeeklyMaxMin)
+  const studyDays = useUI((s) => s.studyDays)
+  const setStudyDays = useUI((s) => s.setStudyDays)
+  const maxCourses = useUI((s) => s.studyMaxCoursesPerDay)
+  const setMaxCourses = useUI((s) => s.setStudyMaxCoursesPerDay)
+  const prepWeeks = useUI((s) => s.studyPrepWindowWeeks)
+  const setPrepWeeks = useUI((s) => s.setStudyPrepWindowWeeks)
+
+  const toggleDay = (iso: number) =>
+    setStudyDays(
+      studyDays.includes(iso)
+        ? studyDays.filter((d) => d !== iso)
+        : [...studyDays, iso].sort((a, b) => a - b),
+    )
+
   return (
     <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70">
-      <h3 className="text-sm font-semibold text-stone-700">Lernen</h3>
+      <h3 className="text-sm font-semibold text-stone-700">Lernplan</h3>
 
       <label className="mt-2 flex items-start justify-between gap-3">
         <span>
-          <span className="block text-sm font-medium text-stone-700">
-            Max. Lernzeit pro Tag (über alle Kurse)
-          </span>
+          <span className="block text-sm font-medium text-stone-700">Max. Lernzeit pro Tag</span>
           <span className="block text-xs text-stone-400">
-            Gesamtdeckel für alle Lernpläne zusammen – kein Tag wird überladen.
+            Gesamtdeckel über alle Kurse – kein Tag wird überladen.
           </span>
         </span>
         <select
           value={String(studyDailyMaxMin)}
           onChange={(e) => setStudyDailyMaxMin(Number(e.target.value))}
-          className="mt-0.5 shrink-0 rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-sm"
+          className={selectCls}
         >
           {STUDY_MAX_OPTS.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="mt-3 flex items-start justify-between gap-3">
+        <span>
+          <span className="block text-sm font-medium text-stone-700">Max. Lernzeit pro Woche</span>
+          <span className="block text-xs text-stone-400">Wochendeckel über alle Kurse.</span>
+        </span>
+        <select
+          value={String(studyWeeklyMaxMin)}
+          onChange={(e) => setStudyWeeklyMaxMin(Number(e.target.value))}
+          className={selectCls}
+        >
+          {STUDY_WEEK_OPTS.map((o) => (
+            <option key={o.value} value={o.value}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <div className="mt-3">
+        <span className="block text-sm font-medium text-stone-700">Lerntage</span>
+        <span className="mb-1.5 block text-xs text-stone-400">
+          Tage außerhalb bleiben Ruhetage – dann wird nicht geplant.
+        </span>
+        <div className="flex gap-1.5">
+          {WEEKDAY_LABELS.map((lbl, i) => {
+            const iso = i + 1
+            const on = studyDays.includes(iso)
+            return (
+              <button
+                key={iso}
+                onClick={() => toggleDay(iso)}
+                className={cn(
+                  'h-8 w-8 rounded-full text-xs font-medium transition',
+                  on ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-500 hover:bg-stone-200',
+                )}
+              >
+                {lbl}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      <label className="mt-3 flex items-start justify-between gap-3">
+        <span>
+          <span className="block text-sm font-medium text-stone-700">Kurse pro Tag (max.)</span>
+          <span className="block text-xs text-stone-400">
+            Weniger Kurse = längere Fokus-Blöcke, weniger Wechsel.
+          </span>
+        </span>
+        <select
+          value={String(maxCourses)}
+          onChange={(e) => setMaxCourses(Number(e.target.value))}
+          className={selectCls}
+        >
+          {[1, 2, 3].map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="mt-3 flex items-start justify-between gap-3">
+        <span>
+          <span className="block text-sm font-medium text-stone-700">Vorbereitungsfenster</span>
+          <span className="block text-xs text-stone-400">
+            Wie viele Wochen vor der Klausur intensiv gelernt wird (pro Kurs anpassbar).
+          </span>
+        </span>
+        <select
+          value={String(prepWeeks)}
+          onChange={(e) => setPrepWeeks(Number(e.target.value))}
+          className={selectCls}
+        >
+          {[2, 3, 4, 6, 8].map((n) => (
+            <option key={n} value={n}>
+              {n} Wochen
             </option>
           ))}
         </select>

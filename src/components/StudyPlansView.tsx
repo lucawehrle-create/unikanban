@@ -13,11 +13,11 @@ import { parseISO, format, differenceInCalendarDays } from 'date-fns'
 import { de } from 'date-fns/locale'
 import type { Course, StudyPlanConfig, StudyStrategy, Task } from '@/db/types'
 import { useActiveSemester, useCourses, useTasks } from '@/hooks/data'
-import { useUI } from '@/store/ui'
+import { useUI, getStudySettings } from '@/store/ui'
 import {
   KIND_META,
   STRATEGY_META,
-  buildPlan,
+  previewCoursePlan,
   cardMinutesPerDay,
   defaultPlanConfig,
   deletePlan,
@@ -31,6 +31,7 @@ import {
   timeline,
   type DayBar,
   type ItemKind,
+  type StudySettings,
 } from '@/lib/studyPlans'
 import { DatePicker } from './DatePicker'
 import { Select } from './ui/Select'
@@ -151,7 +152,15 @@ function PlanEditor({
   })
   const [busy, setBusy] = useState(false)
   const [flash, setFlash] = useState('')
-  const globalMax = useUI((s) => s.studyDailyMaxMin)
+  const dailyMaxMin = useUI((s) => s.studyDailyMaxMin)
+  const weeklyMaxMin = useUI((s) => s.studyWeeklyMaxMin)
+  const studyDays = useUI((s) => s.studyDays)
+  const maxCoursesPerDay = useUI((s) => s.studyMaxCoursesPerDay)
+  const prepWindowWeeks = useUI((s) => s.studyPrepWindowWeeks)
+  const settings: StudySettings = useMemo(
+    () => ({ dailyMaxMin, weeklyMaxMin, studyDays, maxCoursesPerDay, prepWindowWeeks }),
+    [dailyMaxMin, weeklyMaxMin, studyDays, maxCoursesPerDay, prepWindowWeeks],
+  )
 
   const set = <K extends keyof StudyPlanConfig>(k: K, v: StudyPlanConfig[K]) =>
     setCfg((c) => ({ ...c, [k]: v }))
@@ -159,10 +168,15 @@ function PlanEditor({
   const variants = useMemo(
     () =>
       (['now', 'breaks', 'later'] as StudyStrategy[]).map((strategy) => {
-        const r = buildPlan({ ...cfg, strategy }, course.id, courses, allTasks, globalMax)
-        return { strategy, sessions: r.sessions, unplaced: r.unplaced, summary: summarize(r.sessions) }
+        const r = previewCoursePlan(course, { ...cfg, strategy }, courses, allTasks, settings)
+        return {
+          strategy,
+          sessions: r.sessions,
+          unplaced: r.dropped.length,
+          summary: summarize(r.sessions),
+        }
       }),
-    [cfg, course.id, courses, allTasks, globalMax],
+    [cfg, course, courses, allTasks, settings],
   )
   const active = variants.find((v) => v.strategy === cfg.strategy) ?? variants[0]
   const bars = useMemo(() => timeline(cfg, active.sessions), [cfg, active.sessions])
@@ -173,7 +187,7 @@ function PlanEditor({
 
   const catchUp = async () => {
     setBusy(true)
-    const n = await rescheduleOverduePlan(course, cfg, courses, allTasks, globalMax)
+    const n = await rescheduleOverduePlan(course, cfg, courses, allTasks, getStudySettings())
     setBusy(false)
     setFlash(n > 0 ? `${n} überfällige Sessions verschoben` : 'Nichts aufzuholen')
     setTimeout(() => setFlash(''), 3000)
@@ -181,7 +195,7 @@ function PlanEditor({
 
   const save = async () => {
     setBusy(true)
-    const n = await savePlan(course, cfg, courses, allTasks, globalMax)
+    const n = await savePlan(course, cfg, courses, allTasks, getStudySettings())
     setBusy(false)
     setFlash(`${n} Lern-Sessions angelegt`)
     setTimeout(() => setFlash(''), 3000)
@@ -291,8 +305,28 @@ function PlanEditor({
           onChange={(v) => set('dailyMaxMin', v ? Number(v) : undefined)}
         />
         <span className="mt-1 block text-[11px] text-stone-400">
-          Der gesamte Tagesdeckel über alle Kurse ({Math.round(globalMax / 60)} h) wird in den
-          Einstellungen festgelegt. Lern-Sessions anderer Kurse zählen dort mit.
+          Der gesamte Tagesdeckel über alle Kurse ({Math.round(dailyMaxMin / 60)} h) &amp; das
+          Wochenlimit ({Math.round(weeklyMaxMin / 60)} h) liegen in den Einstellungen.
+        </span>
+      </label>
+
+      {/* Vorbereitungsfenster (pro Kurs) */}
+      <label className="block sm:max-w-xs">
+        <span className="mb-1 block text-xs font-medium text-stone-500">Vorbereitungsfenster</span>
+        <Select
+          value={cfg.prepWindowWeeks != null ? String(cfg.prepWindowWeeks) : ''}
+          options={[
+            { value: '', label: `Standard (${prepWindowWeeks} Wochen)` },
+            { value: '2', label: '2 Wochen' },
+            { value: '3', label: '3 Wochen' },
+            { value: '4', label: '4 Wochen' },
+            { value: '6', label: '6 Wochen' },
+            { value: '8', label: '8 Wochen' },
+          ]}
+          onChange={(v) => set('prepWindowWeeks', v ? Number(v) : undefined)}
+        />
+        <span className="mt-1 block text-[11px] text-stone-400">
+          So lange vor der Klausur startet das intensive Lernen. Davor nur leichter Kontakt.
         </span>
       </label>
 
@@ -582,7 +616,6 @@ export function StudyPlansView() {
   const courses = useCourses(semester?.id)
   const allTasks = useTasks(semester?.id)
   const plansCourseId = useUI((s) => s.plansCourseId)
-  const globalMax = useUI((s) => s.studyDailyMaxMin)
   const [selId, setSelId] = useState<string | null>(plansCourseId ?? courses[0]?.id ?? null)
   const [rebalancing, setRebalancing] = useState(false)
   const [rebalanceFlash, setRebalanceFlash] = useState('')
@@ -597,7 +630,7 @@ export function StudyPlansView() {
 
   const doRebalance = async () => {
     setRebalancing(true)
-    const { plans } = await rebalanceAllPlans(courses, allTasks, globalMax)
+    const { plans } = await rebalanceAllPlans(courses, allTasks, getStudySettings())
     setRebalancing(false)
     setRebalanceFlash(`${plans} Lernpläne neu ausbalanciert`)
     setTimeout(() => setRebalanceFlash(''), 3000)

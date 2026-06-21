@@ -6,7 +6,7 @@ import { useActiveSemester, useCourses, useTasks } from '@/hooks/data'
 import { useExamStatus, examBadge } from '@/lib/examPhase'
 import { planProgress, rescheduleOverduePlan } from '@/lib/studyPlans'
 import { courseMap } from '@/lib/filter'
-import { useUI } from '@/store/ui'
+import { useUI, getStudySettings } from '@/store/ui'
 import { cn } from '@/lib/cn'
 
 function examChip(dueISO: string): { label: string; cls: string } {
@@ -40,7 +40,6 @@ export function ExamPhasePanel({ onlyImminent = false }: { onlyImminent?: boolea
   const allTasks = useTasks(semester?.id)
   const editTask = useUI((s) => s.editTask)
   const openPlans = useUI((s) => s.openPlans)
-  const globalMax = useUI((s) => s.studyDailyMaxMin)
   const [busy, setBusy] = useState<string | null>(null)
   if (!status) return null
   if (onlyImminent && !examBadge(status)) return null
@@ -116,7 +115,7 @@ export function ExamPhasePanel({ onlyImminent = false }: { onlyImminent?: boolea
               const catchUp = async () => {
                 if (!course?.studyPlan) return
                 setBusy(t.id)
-                await rescheduleOverduePlan(course, course.studyPlan, courses, allTasks, globalMax)
+                await rescheduleOverduePlan(course, course.studyPlan, courses, allTasks, getStudySettings())
                 setBusy(null)
               }
               return (

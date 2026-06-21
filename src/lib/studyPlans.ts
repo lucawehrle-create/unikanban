@@ -26,6 +26,22 @@ export interface PlanSession {
   kind: ItemKind
   /** Übergeordnetes Lernziel der Session (für die Notizen). */
   focus: string
+  /** Kurs, zu dem die Session gehört (im globalen Plan gesetzt). */
+  courseId?: string
+}
+
+/** Lernplan-Einstellungen für den globalen Scheduler. */
+export interface StudySettings {
+  /** Tagesdeckel über ALLE Kurse (Minuten). */
+  dailyMaxMin: number
+  /** Wochendeckel über ALLE Kurse (Minuten). */
+  weeklyMaxMin: number
+  /** Lerntage (ISO 1=Mo … 7=So). */
+  studyDays: number[]
+  /** Max. Kurse pro Tag (Fokus-Blöcke). */
+  maxCoursesPerDay: number
+  /** Standard-Vorbereitungsfenster vor der Klausur (Wochen). */
+  prepWindowWeeks: number
 }
 
 // Übergeordnete Lernziele je Session-Art – erklären dem Nutzer den ZWECK
@@ -267,127 +283,277 @@ function foreignLoadMin(courseId: string, allTasks: Task[]): Map<string, number>
   return m
 }
 
-export interface PlanResult {
-  sessions: PlanSession[]
-  /** Einheiten, die wegen Tagesbudget/Zeitfenster nicht untergebracht wurden. */
-  unplaced: number
+/** Reservierte Zeit pro offenem Übungs-/Tutoriumsblatt-Termin (Tagesgeschäft). */
+const RECURRING_RESERVE_MIN = 60
+const WEEK_REF = new Date(2020, 0, 6).getTime() // ein Montag als Referenz
+
+function sodMs(d: Date): number {
+  const x = new Date(d)
+  x.setHours(0, 0, 0, 0)
+  return x.getTime()
+}
+function weekKeyOf(d: Date): number {
+  return Math.floor((sodMs(d) - WEEK_REF) / 604800000)
+}
+function isoWeekday(d: Date): number {
+  return ((d.getDay() + 6) % 7) + 1
+}
+function ectsWeight(ects?: number): number {
+  if (ects == null) return 2
+  if (ects >= 8) return 3
+  if (ects >= 5) return 2
+  return 1
+}
+function importanceOf(u: Unit): number {
+  if (u.kind === 'altklausur') return 1
+  if ((u.kind === 'uebung' || u.kind === 'tut') && u.label.includes('(')) return 0.8
+  if (u.kind === 'uebung' || u.kind === 'tut') return 0.6
+  if (u.kind === 'kapitel') return u.label.includes('wiederholen') ? 0.6 : 0.5
+  return 0.3
+}
+
+export interface DroppedUnit {
+  courseId: string
+  label: string
+}
+
+export interface GlobalPlan {
+  sessionsByCourse: Map<string, PlanSession[]>
+  /** Einheiten, die in keinem Vorbereitungsfenster/Budget Platz fanden. */
+  dropped: DroppedUnit[]
+}
+
+interface GUnit {
+  courseId: string
+  kind: ItemKind
+  label: string
+  durationMin: number
+  focus: string
+  examMs: number
+  targetMs: number
+  windowOpenMs: number
+  priority: number
+  perCourseDailyMax?: number
 }
 
 /**
- * Budget-basierter Scheduler: verteilt Material gemäß Phase, deckelt die
- * Lernzeit pro Tag (inkl. anderer Kurse) und legt Sessions in freie Slots.
+ * Globaler Scheduler über ALLE Kurse zugleich:
+ *  - intensives Lernen nur im Vorbereitungsfenster vor jeder Klausur,
+ *  - Fokus-Blöcke: höchstens `maxCoursesPerDay` Kurse pro Tag (rotierend),
+ *  - Tages- UND Wochendeckel, Lerntage/Ruhetage, Tagesgeschäft reserviert,
+ *  - Priorisierung (Klausur-Nähe × Gewicht × Wichtigkeit); Unwichtiges fällt raus.
  */
-export function buildPlan(
-  cfg: StudyPlanConfig,
-  courseId: string,
+export function buildGlobalPlan(
   courses: Course[],
   allTasks: Task[],
-  globalMaxMin: number,
-): PlanResult {
-  const exam = new Date(cfg.examDate + 'T00:00:00')
-  if (isNaN(exam.getTime())) return { sessions: [], unplaced: 0 }
-  const today = startOfToday()
-  const total = diffDays(today, exam)
-  if (total <= 0) return { sessions: [], unplaced: 0 }
+  settings: StudySettings,
+  today: Date = startOfToday(),
+): GlobalPlan {
+  const dailyMax = Math.max(60, settings.dailyMaxMin)
+  const weeklyMax = Math.max(dailyMax, settings.weeklyMaxMin)
+  const studyDays = settings.studyDays.length ? settings.studyDays : [1, 2, 3, 4, 5, 6]
+  const maxCourses = Math.max(1, settings.maxCoursesPerDay)
+  const prepDefault = Math.max(1, settings.prepWindowWeeks)
 
-  const s = STRATEGY[cfg.strategy]
-  const start = addDays(today, Math.floor(s.startFrac * total))
-  const examKeys = examDayKeys(courseId, allTasks)
-  const foreign = foreignLoadMin(courseId, allTasks)
-  // Globaler Tagesdeckel (über alle Kurse) und optionales Kurs-Limit.
-  const globalBudget = Math.max(60, globalMaxMin)
-  const courseBudget = cfg.dailyMaxMin
-  // Größter Einzelblock, der überhaupt an einem Tag möglich ist.
-  const budget = courseBudget != null ? Math.min(globalBudget, courseBudget) : globalBudget
+  const sessionsByCourse = new Map<string, PlanSession[]>()
+  const dropped: DroppedUnit[] = []
+  const courseById = new Map(courses.map((c) => [c.id, c]))
+  const planned = courses.filter(
+    (c) => c.studyPlan && !isNaN(new Date(c.studyPlan.examDate + 'T00:00:00').getTime()),
+  )
+  if (!planned.length) return { sessionsByCourse, dropped }
 
-  // Plan-Tage (ohne fremde Klausurtage)
-  const days: Date[] = []
-  for (let d = new Date(start); d.getTime() < exam.getTime(); d = addDays(d, 1)) {
-    if (!examKeys.has(dayKey(d))) days.push(new Date(d))
-  }
-  if (days.length === 0) return { sessions: [], unplaced: 0 }
+  // Gesperrte Klausurtage (alle Kurse)
+  const examBlocked = new Set<string>()
+  for (const t of allTasks) if (t.type === 'klausur' && t.dueDate) examBlocked.add(dayKey(new Date(t.dueDate)))
 
-  // belegte Minuten je Tag (eigene Planung), startet mit fremder Last
-  type Item = { kind: ItemKind; label: string; durationMin: number; focus: string }
-  const used = new Map<string, number>()
-  const perDay = new Map<string, Item[]>()
-  // Restkapazität für DIESEN Kurs an einem Tag: durch globalen Deckel (inkl.
-  // fremder Last) UND optionales Kurs-Limit begrenzt.
-  const free = (k: string) => {
-    const u = used.get(k) ?? 0
-    const globalFree = globalBudget - (foreign.get(k) ?? 0) - u
-    const courseFree = courseBudget != null ? courseBudget - u : Infinity
-    return Math.min(globalFree, courseFree)
-  }
-  const add = (day: Date, it: Item) => {
-    const k = dayKey(day)
-    used.set(k, (used.get(k) ?? 0) + it.durationMin)
-    if (!perDay.has(k)) perDay.set(k, [])
-    perDay.get(k)!.push(it)
+  // Tagesgeschäft (Übungen/Tutorien) als reservierte Wochenlast
+  const weeklyReserve = new Map<number, number>()
+  for (const t of allTasks) {
+    if ((t.type === 'uebung' || t.type === 'tutoriumsblatt') && t.status !== 'erledigt' && t.dueDate) {
+      const d = new Date(t.dueDate)
+      if (d.getTime() >= today.getTime())
+        weeklyReserve.set(weekKeyOf(d), (weeklyReserve.get(weekKeyOf(d)) ?? 0) + RECURRING_RESERVE_MIN)
+    }
   }
 
-  // Karteikarten: tägliche Gewohnheit zuerst (kleiner Block, darf knapp übers Budget)
-  const cardMin = cardMinutesPerDay(cfg)
-  if (cfg.cardsPerDay > 0 && cardMin > 0) {
-    for (const day of days) add(day, { kind: 'karten', label: `Karteikarten (${cfg.cardsPerDay})`, durationMin: cardMin, focus: CARD_FOCUS })
+  // Einheiten über alle Kurse erzeugen (mit Fenster, Zieltag, Priorität)
+  const units: GUnit[] = []
+  for (const c of planned) {
+    const cfg = c.studyPlan!
+    const exam = new Date(cfg.examDate + 'T00:00:00')
+    if (diffDays(today, exam) <= 0) continue
+    let prepWeeks = cfg.prepWindowWeeks ?? prepDefault
+    if (cfg.strategy === 'now') prepWeeks += 2
+    else if (cfg.strategy === 'later') prepWeeks = Math.max(1, prepWeeks - 2)
+    let windowOpen = addDays(exam, -prepWeeks * 7)
+    if (windowOpen.getTime() < today.getTime()) windowOpen = today
+    const winSpan = Math.max(1, diffDays(windowOpen, exam))
+    const reviews = STRATEGY[cfg.strategy].chapterReviews
+    const uebungSheets = resolveSheets(cfg.uebungReviewIds, allTasks)
+    const tutSheets = resolveSheets(cfg.tutReviewIds, allTasks)
+    const weight = cfg.weight ?? ectsWeight(c.ects)
+    const prox = 1 / (1 + Math.max(0, diffDays(today, exam)) / 7)
+    for (const u of buildUnits(cfg, reviews, uebungSheets, tutSheets)) {
+      units.push({
+        courseId: c.id,
+        kind: u.kind,
+        label: u.label,
+        durationMin: u.durationMin,
+        focus: u.focus,
+        examMs: exam.getTime(),
+        windowOpenMs: windowOpen.getTime(),
+        targetMs: addDays(windowOpen, Math.round(u.pos * winSpan)).getTime(),
+        priority: 0.5 * prox + 0.3 * (weight / 3) + 0.2 * importanceOf(u),
+        perCourseDailyMax: cfg.dailyMaxMin,
+      })
+    }
+  }
+  // Wichtigstes zuerst (Gleichstand: frühere Klausur)
+  units.sort((a, b) => b.priority - a.priority || a.examMs - b.examMs)
+
+  // Tageskapazitäten
+  const dailyUsed = new Map<string, number>()
+  const weeklyUsed = new Map<number, number>()
+  const dayCourses = new Map<string, Set<string>>()
+  const courseDayUsed = new Map<string, number>()
+  const dayDate = new Map<string, Date>()
+  type Item = { courseId: string; kind: ItemKind; label: string; durationMin: number; focus: string }
+  const dayItems = new Map<string, Item[]>()
+  const isStudyDay = (d: Date) => studyDays.includes(isoWeekday(d)) && !examBlocked.has(dayKey(d))
+
+  const placeOn = (d: Date, it: Item, ignoreDaily: boolean) => {
+    const k = dayKey(d)
+    const wk = weekKeyOf(d)
+    dailyUsed.set(k, (dailyUsed.get(k) ?? 0) + it.durationMin)
+    weeklyUsed.set(wk, (weeklyUsed.get(wk) ?? 0) + it.durationMin)
+    const set = dayCourses.get(k)
+    if (set) set.add(it.courseId)
+    else dayCourses.set(k, new Set([it.courseId]))
+    courseDayUsed.set(`${k}|${it.courseId}`, (courseDayUsed.get(`${k}|${it.courseId}`) ?? 0) + it.durationMin)
+    if (!dayItems.has(k)) dayItems.set(k, [])
+    dayItems.get(k)!.push(it)
+    dayDate.set(k, d)
+    void ignoreDaily
   }
 
-  // Material phasenweise platzieren, nächstgelegenen Tag mit Restbudget suchen
-  const uebungSheets = resolveSheets(cfg.uebungReviewIds, allTasks)
-  const tutSheets = resolveSheets(cfg.tutReviewIds, allTasks)
-  let unplaced = 0
-  for (const unit of buildUnits(cfg, s.chapterReviews, uebungSheets, tutSheets)) {
-    const targetIdx = Math.max(0, Math.min(days.length - 1, Math.round(unit.pos * (days.length - 1))))
+  const fits = (d: Date, u: GUnit, ignoreDaily: boolean): boolean => {
+    if (d.getTime() < u.windowOpenMs || d.getTime() < today.getTime() || d.getTime() >= u.examMs) return false
+    if (!isStudyDay(d)) return false
+    const k = dayKey(d)
+    const set = dayCourses.get(k)
+    if (set && !set.has(u.courseId) && set.size >= maxCourses) return false
+    if (!ignoreDaily && (dailyUsed.get(k) ?? 0) + u.durationMin > dailyMax) return false
+    const wk = weekKeyOf(d)
+    if ((weeklyUsed.get(wk) ?? 0) + u.durationMin > weeklyMax - (weeklyReserve.get(wk) ?? 0)) return false
+    if (u.perCourseDailyMax != null && (courseDayUsed.get(`${k}|${u.courseId}`) ?? 0) + u.durationMin > u.perCourseDailyMax)
+      return false
+    return true
+  }
+
+  const itemOf = (u: GUnit): Item => ({
+    courseId: u.courseId,
+    kind: u.kind,
+    label: u.label,
+    durationMin: u.durationMin,
+    focus: u.focus,
+  })
+
+  for (const u of units) {
+    const bigBlock = u.durationMin > dailyMax // z. B. Altklausur: eigener, schwerer Tag
+    const maxDist = Math.max(1, diffDays(new Date(u.windowOpenMs), new Date(u.examMs))) + 1
     let placed = false
-    for (let off = 0; off < days.length && !placed; off++) {
-      for (const dir of off === 0 ? [0] : [1, -1]) {
-        const idx = targetIdx + dir * off
-        if (idx < 0 || idx >= days.length) continue
-        if (free(dayKey(days[idx])) >= unit.durationMin) {
-          add(days[idx], { kind: unit.kind, label: unit.label, durationMin: unit.durationMin, focus: unit.focus })
-          placed = true
-          break
+    let fallback: Date | null = null
+    let fallbackUsed = Infinity
+    for (let dist = 0; dist <= maxDist && !placed; dist++) {
+      for (const dir of dist === 0 ? [0] : [1, -1]) {
+        const d = addDays(new Date(u.targetMs), dir * dist)
+        if (fits(d, u, bigBlock)) {
+          if (bigBlock) {
+            // nächstgelegenen, möglichst leeren Tag wählen
+            const used = dailyUsed.get(dayKey(d)) ?? 0
+            if (used < fallbackUsed) {
+              fallback = d
+              fallbackUsed = used
+            }
+            if (used === 0) {
+              placeOn(d, itemOf(u), true)
+              placed = true
+              break
+            }
+          } else {
+            placeOn(d, itemOf(u), false)
+            placed = true
+            break
+          }
         }
       }
     }
-    // Großer Block (z. B. Altklausur, Dauer > Tagesbudget): bekommt einen eigenen,
-    // schwereren Tag – den mit dem meisten Restbudget nahe der Ziel-Phase.
-    if (!placed && unit.durationMin > budget) {
-      let bestIdx = -1
-      let bestFree = -Infinity
-      for (let i = 0; i < days.length; i++) {
-        const f = free(dayKey(days[i])) - Math.abs(i - targetIdx) * 0.01 // leichte Nähe-Präferenz
-        if (f > bestFree) {
-          bestFree = f
-          bestIdx = i
-        }
-      }
-      if (bestIdx >= 0) {
-        add(days[bestIdx], { kind: unit.kind, label: unit.label, durationMin: unit.durationMin, focus: unit.focus })
-        placed = true
-      }
+    if (!placed && bigBlock && fallback) {
+      placeOn(fallback, itemOf(u), true)
+      placed = true
     }
-    if (!placed) unplaced++
+    if (!placed) dropped.push({ courseId: u.courseId, label: u.label })
   }
 
-  // Sessions je Tag sequentiell in freie Stundenplan-Lücken legen
-  const pref = toMin(cfg.time)
-  const sessions: PlanSession[] = []
-  for (const day of days) {
-    const items = perDay.get(dayKey(day))
-    if (!items || items.length === 0) continue
-    // Karteikarten zuerst, dann Material in Phasen-Reihenfolge (perDay-Reihenfolge passt grob)
+  // Karteikarten: nur an Fokus-Tagen des Kurses (nicht jeden Tag für alle Kurse)
+  for (const c of planned) {
+    const cfg = c.studyPlan!
+    if (cfg.cardsPerDay <= 0) continue
+    const cardMin = cardMinutesPerDay(cfg)
+    if (cardMin <= 0) continue
+    for (const [k, set] of dayCourses) {
+      if (!set.has(c.id)) continue
+      const d = dayDate.get(k)!
+      const wk = weekKeyOf(d)
+      if ((dailyUsed.get(k) ?? 0) + cardMin > dailyMax) continue
+      if ((weeklyUsed.get(wk) ?? 0) + cardMin > weeklyMax - (weeklyReserve.get(wk) ?? 0)) continue
+      if (cfg.dailyMaxMin != null && (courseDayUsed.get(`${k}|${c.id}`) ?? 0) + cardMin > cfg.dailyMaxMin) continue
+      placeOn(d, { courseId: c.id, kind: 'karten', label: `Karteikarten (${cfg.cardsPerDay})`, durationMin: cardMin, focus: CARD_FOCUS }, false)
+    }
+  }
+
+  // Uhrzeiten je Tag vergeben (Karteikarten zuerst), nach Kurs gruppieren
+  for (const [k, items] of dayItems) {
+    const day = dayDate.get(k)!
     const ordered = [...items].sort((a, b) => (a.kind === 'karten' ? -1 : b.kind === 'karten' ? 1 : 0))
-    let cursor = pickSessionTime(courses, day, pref, ordered[0].durationMin)
+    const prefMin = Math.min(
+      ...ordered.map((it) => toMin(courseById.get(it.courseId)?.studyPlan?.time ?? '18:00')),
+    )
+    let cursor = pickSessionTime(courses, day, prefMin, ordered[0].durationMin)
     for (const it of ordered) {
       const date = new Date(day)
       date.setHours(Math.floor(cursor / 60), cursor % 60, 0, 0)
-      sessions.push({ date, durationMin: it.durationMin, label: it.label, kind: it.kind, focus: it.focus })
+      const arr = sessionsByCourse.get(it.courseId) ?? []
+      arr.push({ date, durationMin: it.durationMin, label: it.label, kind: it.kind, focus: it.focus, courseId: it.courseId })
+      sessionsByCourse.set(it.courseId, arr)
       cursor += it.durationMin
     }
   }
-  sessions.sort((a, b) => a.date.getTime() - b.date.getTime())
-  return { sessions, unplaced }
+  for (const arr of sessionsByCourse.values()) arr.sort((a, b) => a.date.getTime() - b.date.getTime())
+  return { sessionsByCourse, dropped }
+}
+
+/** Vorschau für EINEN Kurs im globalen Kontext (für die Editor-Varianten). */
+export function previewCoursePlan(
+  course: Course,
+  cfg: StudyPlanConfig,
+  courses: Course[],
+  allTasks: Task[],
+  settings: StudySettings,
+): { sessions: PlanSession[]; dropped: DroppedUnit[] } {
+  let found = false
+  const temp = courses.map((c) => {
+    if (c.id !== course.id) return c
+    found = true
+    return { ...c, studyPlan: cfg }
+  })
+  if (!found) temp.push({ ...course, studyPlan: cfg })
+  const gp = buildGlobalPlan(temp, allTasks, settings)
+  return {
+    sessions: gp.sessionsByCourse.get(course.id) ?? [],
+    dropped: gp.dropped.filter((d) => d.courseId === course.id),
+  }
 }
 
 export interface PlanSummary {
@@ -441,73 +607,96 @@ const KIND_TASK_TYPE: Partial<Record<ItemKind, TaskTypeId>> = {
 }
 
 /**
- * Legt/aktualisiert den Plan. Bereits **erledigte** Sessions bleiben als
- * Verlauf erhalten (für den Fortschritt) – nur offene werden neu verteilt.
- * Schon erledigtes Material (außer Karteikarten) wird nicht erneut eingeplant.
+ * Schreibt einen bereits berechneten globalen Plan in die Aufgaben.
+ * Bereits **erledigte** Sessions bleiben als Verlauf erhalten (Fortschritt) –
+ * nur offene werden ersetzt; erledigtes Material wird nicht erneut eingeplant.
+ */
+async function writeGlobalPlan(
+  planned: Course[],
+  allTasks: Task[],
+  gp: GlobalPlan,
+): Promise<{ plans: number; sessions: number; byCourse: Map<string, number> }> {
+  // erledigte Labels pro Kurs merken
+  const doneByCourse = new Map<string, Set<string>>()
+  for (const c of planned) {
+    const prefix = titlePrefix(c)
+    doneByCourse.set(
+      c.id,
+      new Set(
+        allTasks
+          .filter((t) => t.examId === c.id && t.status === 'erledigt')
+          .map((t) => (t.title.startsWith(prefix) ? t.title.slice(prefix.length) : t.title)),
+      ),
+    )
+  }
+  // offene Plan-Sessions aller geplanten Kurse löschen
+  const plannedIds = new Set(planned.map((c) => c.id))
+  const openIds = allTasks
+    .filter((t) => t.examId && plannedIds.has(t.examId) && t.status !== 'erledigt')
+    .map((t) => t.id)
+  if (openIds.length) await db.tasks.bulkDelete(openIds)
+
+  const byCourse = new Map<string, number>()
+  let total = 0
+  for (const c of planned) {
+    const prefix = titlePrefix(c)
+    const done = doneByCourse.get(c.id)!
+    let created = 0
+    for (const s of gp.sessionsByCourse.get(c.id) ?? []) {
+      if (s.kind !== 'karten' && done.has(s.label)) continue
+      await createTask({
+        semesterId: c.semesterId,
+        title: `${prefix}${s.label}`,
+        type: KIND_TASK_TYPE[s.kind] ?? 'sonstiges',
+        courseId: c.id,
+        dueDate: s.date.toISOString(),
+        duration: s.durationMin,
+        notes: `🎯 ${s.focus}\n\n${s.durationMin} Min · Lernplan ${c.name}`,
+        examId: c.id,
+      })
+      created++
+    }
+    byCourse.set(c.id, created)
+    total += created
+  }
+  return { plans: planned.length, sessions: total, byCourse }
+}
+
+/**
+ * Legt/aktualisiert den Plan EINES Kurses – und balanciert dabei alle anderen
+ * Kurspläne gemeinsam neu (ein globaler Durchlauf). Gibt die Anzahl neu
+ * angelegter Sessions für diesen Kurs zurück.
  */
 export async function savePlan(
   course: Course,
   cfg: StudyPlanConfig,
   courses: Course[],
   allTasks: Task[],
-  globalMaxMin: number,
+  settings: StudySettings,
 ): Promise<number> {
-  const prefix = titlePrefix(course)
-  const doneLabels = new Set(
-    allTasks
-      .filter((t) => t.examId === course.id && t.status === 'erledigt')
-      .map((t) => (t.title.startsWith(prefix) ? t.title.slice(prefix.length) : t.title)),
-  )
-  // nur offene Plan-Sessions löschen, erledigte behalten
-  const openIds = allTasks
-    .filter((t) => t.examId === course.id && t.status !== 'erledigt')
-    .map((t) => t.id)
-  if (openIds.length) await db.tasks.bulkDelete(openIds)
-
-  const { sessions } = buildPlan(cfg, course.id, courses, allTasks, globalMaxMin)
-  let created = 0
-  for (const s of sessions) {
-    // bereits erledigtes Material nicht doppeln (Karteikarten laufen täglich weiter)
-    if (s.kind !== 'karten' && doneLabels.has(s.label)) continue
-    await createTask({
-      semesterId: course.semesterId,
-      title: `${prefix}${s.label}`,
-      type: KIND_TASK_TYPE[s.kind] ?? 'sonstiges',
-      courseId: course.id,
-      dueDate: s.date.toISOString(),
-      duration: s.durationMin,
-      notes: `🎯 ${s.focus}\n\n${s.durationMin} Min · Lernplan ${course.name}`,
-      examId: course.id,
-    })
-    created++
-  }
   await db.courses.update(course.id, { studyPlan: cfg })
-  return created
+  const updated = courses.map((c) => (c.id === course.id ? { ...c, studyPlan: cfg } : c))
+  if (!updated.some((c) => c.id === course.id)) updated.push({ ...course, studyPlan: cfg })
+  const planned = updated.filter((c) => c.studyPlan)
+  const gp = buildGlobalPlan(planned, allTasks, settings)
+  const r = await writeGlobalPlan(planned, allTasks, gp)
+  return r.byCourse.get(course.id) ?? 0
 }
 
 /**
- * Balanciert ALLE Kurs-Lernpläne gemeinsam neu: rechnet sie nacheinander – nach
- * Klausurdatum (frühere zuerst) – durch, wobei jeder Kurs die frische Last der
- * bereits verteilten Kurse sieht. So wird der globale Tagesdeckel über alle
- * Kurse hinweg eingehalten, unabhängig von der Erstellungsreihenfolge.
- * Erledigte Sessions bleiben erhalten (savePlan).
+ * Balanciert ALLE Kurs-Lernpläne gemeinsam neu (ein globaler Durchlauf).
+ * Erledigte Sessions bleiben erhalten.
  */
 export async function rebalanceAllPlans(
   courses: Course[],
   allTasks: Task[],
-  globalMaxMin: number,
+  settings: StudySettings,
 ): Promise<{ plans: number; sessions: number }> {
-  const planned = courses
-    .filter((c) => c.studyPlan)
-    .sort((a, b) => (a.studyPlan!.examDate < b.studyPlan!.examDate ? -1 : 1))
-  let sessions = 0
-  let tasks = allTasks
-  for (const c of planned) {
-    sessions += await savePlan(c, c.studyPlan!, courses, tasks, globalMaxMin)
-    // Aufgaben neu laden, damit der nächste Kurs die gerade verteilte Last sieht.
-    tasks = await db.tasks.where('semesterId').equals(c.semesterId).toArray()
-  }
-  return { plans: planned.length, sessions }
+  const planned = courses.filter((c) => c.studyPlan)
+  if (!planned.length) return { plans: 0, sessions: 0 }
+  const gp = buildGlobalPlan(planned, allTasks, settings)
+  const r = await writeGlobalPlan(planned, allTasks, gp)
+  return { plans: r.plans, sessions: r.sessions }
 }
 
 export interface PlanProgress {
@@ -544,7 +733,7 @@ export async function rescheduleOverduePlan(
   cfg: StudyPlanConfig,
   courses: Course[],
   allTasks: Task[],
-  globalMaxMin: number,
+  settings: StudySettings,
 ): Promise<number> {
   const today = startOfToday()
   const exam = new Date(cfg.examDate + 'T00:00:00')
@@ -561,13 +750,14 @@ export async function rescheduleOverduePlan(
     .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
   if (!overdue.length) return 0
 
-  const globalBudget = Math.max(60, globalMaxMin)
+  const globalBudget = Math.max(60, settings.dailyMaxMin)
   const courseBudget = cfg.dailyMaxMin
+  const studyDays = settings.studyDays.length ? settings.studyDays : [1, 2, 3, 4, 5, 6]
   const examKeys = examDayKeys(course.id, allTasks)
   const foreign = foreignLoadMin(course.id, allTasks)
   const days: Date[] = []
   for (let d = new Date(today); d.getTime() < exam.getTime(); d = addDays(d, 1)) {
-    if (!examKeys.has(dayKey(d))) days.push(new Date(d))
+    if (!examKeys.has(dayKey(d)) && studyDays.includes(isoWeekday(d))) days.push(new Date(d))
   }
   if (!days.length) return 0
 
