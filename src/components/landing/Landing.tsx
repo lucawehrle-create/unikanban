@@ -267,15 +267,15 @@ function Hero({
             Verpass nie wieder eine Abgabe.
           </motion.h1>
           <motion.p variants={item} className="mt-6 max-w-xl text-lg leading-relaxed text-stone-600 sm:text-xl text-pretty">
-            SemBan bündelt alle Fristen und Aufgaben aus all deinen Kursen an einem Ort –
-            Übungsblätter, Tutorien, Hausarbeiten, Referate. Du siehst auf einen Blick, was ansteht,
-            wie weit du bist und was als Nächstes dran ist. Stundenplan, Noten und ECTS inklusive.
+            Schluss mit zehn Tabs: SemBan sammelt alle Abgaben, Fristen und Aufgaben deiner Kurse an
+            einem Ort – Übungsblätter, Hausarbeiten, Referate, Klausuren. Du siehst sofort, was
+            ansteht, wo du stehst und was als Nächstes kommt. Stundenplan, Noten und ECTS – alles dabei.
           </motion.p>
           <motion.ul variants={item} className="mt-6 space-y-2.5">
             {[
-              'Alle Abgaben & Fristen aus allen Kursen an einem Ort',
-              'Sieh sofort, was ansteht und wie weit du bist',
-              'Stundenplan, Noten & ECTS inklusive – kostenlos',
+              'Alle Abgaben und Fristen – auf einen Blick',
+              'Du siehst sofort, was ansteht und wo du stehst',
+              'Stundenplan, Noten & ECTS – alles dabei, kostenlos',
             ].map((t) => (
               <li key={t} className="flex items-center gap-2.5 text-[15px] text-stone-700">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-400 text-stone-900">
@@ -287,7 +287,7 @@ function Hero({
           </motion.ul>
           <motion.div variants={item} className="mt-8 flex flex-wrap items-center gap-3">
             <button onClick={onStart} className={btnPrimary}>
-              Kostenlos loslegen
+              Jetzt loslegen
               <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
             </button>
             <button type="button" onClick={onHowItWorks} className={btnSecondary}>
@@ -333,7 +333,8 @@ function Problem() {
           </h2>
           <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-stone-600">
             Übungsblätter, Tutorien, Hausarbeiten, Referate – verteilt über Mails, PDFs, Moodle und
-            drei Apps. Bei mehreren Kursen verliert man da schnell den Faden. Genau da setzt SemBan an.
+            drei Apps. Bei fünf oder sechs Kursen verliert man da schnell den Faden. Genau da setzt
+            SemBan an.
           </p>
         </Reveal>
         <div className="mt-10 grid gap-3 sm:grid-cols-3">
@@ -354,26 +355,26 @@ function Problem() {
 
 const SUPERPOWERS = [
   {
-    eyebrow: 'Superkraft 01',
+    eyebrow: 'Überblick',
     icon: ListChecks,
     title: 'Alles, was ansteht.\nAuf einen Blick.',
-    body: 'Jede Aufgabe aus jedem Kurs auf einem Board: Übungsblatt, Tutorium, Hausarbeit, Referat. Du siehst sofort, was offen ist, woran du arbeitest und was erledigt ist – mit Fortschritt pro Aufgabe (Hausarbeit: Recherche ✓, Gliederung ✓, Rohfassung …). Wiederkehrendes wie Wochenblätter legt SemBan automatisch an.',
+    body: 'Jede Aufgabe aus jedem Kurs auf einem Board: Übungsblatt, Tutorium, Hausarbeit, Referat. Du siehst sofort, was offen ist, woran du arbeitest und was erledigt ist – mit Fortschritt pro Aufgabe (Hausarbeit: Recherche ✓, Gliederung ✓, Rohfassung …). Wiederkehrende Aufgaben wie wöchentliche Übungsblätter legt SemBan automatisch an.',
     src: '/landing/board.png',
     color: '#6366f1',
   },
   {
-    eyebrow: 'Superkraft 02',
+    eyebrow: 'Fristen',
     icon: CalendarClock,
     title: 'Keine Frist\nmehr verpassen.',
-    body: 'Wann ist welche Abgabe? SemBan sortiert alle Fristen über deine Kurse und erinnert dich rechtzeitig – auch wenn die App geschlossen ist. Dein Stundenplan mit Live-Linie zeigt dir den Tag; pro Termin hakst du ab: vorbereitet, besucht, nachbereitet.',
+    body: 'Wann ist welche Abgabe? SemBan sortiert alle Fristen über deine Kurse und erinnert dich rechtzeitig – auch wenn die App geschlossen ist. Dein Stundenplan zeigt mit einer Linie, wo du gerade im Tag stehst; pro Termin hakst du ab: vorbereitet, besucht, nachbereitet.',
     src: '/landing/schedule.png',
     color: '#0ea5e9',
   },
   {
-    eyebrow: 'Superkraft 03',
+    eyebrow: 'Noten & ECTS',
     icon: GraduationCap,
     title: 'Dein Schnitt.\nImmer aktuell.',
-    body: 'Trag Noten und ECTS ein – SemBan rechnet deinen Durchschnitt fortlaufend übers ganze Studium. Bachelor und Master sauber getrennt. Keine bösen Überraschungen vorm Abschluss.',
+    body: 'Trag Noten und ECTS ein – SemBan rechnet deinen Durchschnitt fortlaufend übers ganze Studium. Bachelor und Master sauber getrennt. So weißt du immer, wo du stehst – nicht erst beim Abschluss.',
     src: '/landing/study.png',
     color: '#e9633c',
   },
@@ -621,9 +622,9 @@ function SocialProof({ onStart }: { onStart: () => void }) {
         </h2>
         <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-stone-600">
           Haben wir nicht. SemBan ist frisch gestartet – also gibt's hier ehrliche{' '}
-          <strong className="text-stone-700">null Bewertungen</strong> statt ausgedachter
-          Lobeshymnen von „Max&nbsp;M., begeisterter Nutzer". Sei lieber die*der{' '}
-          <strong className="text-stone-700">Erste</strong>, die*der SemBan wirklich testet.
+          <strong className="text-stone-700">null Bewertungen</strong> statt erfundener
+          Lobeshymnen von „Max&nbsp;M., total begeistert". Probier's aus – und wenn's dir hilft,
+          bist du die <strong className="text-stone-700">erste echte Stimme</strong> hier.
         </p>
 
         <div className="mx-auto mt-8 max-w-md rounded-3xl border-2 border-dashed border-stone-300 bg-white/40 p-6">
@@ -635,7 +636,7 @@ function SocialProof({ onStart }: { onStart: () => void }) {
         </div>
 
         <button onClick={onStart} className={btnPrimary + ' mt-8'}>
-          Erste*r sein
+          Jetzt ausprobieren
           <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
         </button>
       </Reveal>
@@ -664,8 +665,8 @@ function Founder() {
           <p className="mt-5 text-lg leading-relaxed text-stone-600 text-pretty">
             „Hi! 👋 Ich studiere selbst und hatte mein Semester-Chaos – Übungsblätter, Fristen, Noten
             verteilt auf zehn Tabs – irgendwann satt. Keine App brachte das zusammen, also hab ich
-            SemBan gebaut. Wenn dir etwas fehlt oder nervt: schreib mir einfach. Ich lese wirklich
-            jede Nachricht."
+            SemBan gebaut. Wenn dir etwas fehlt oder nervt: schreib mir einfach. Ich lese jede
+            Nachricht und antworte dir meist innerhalb eines Tages."
           </p>
           <a
             href="mailto:lucawehrle@gmail.com?subject=Feedback%20zu%20SemBan"
@@ -692,7 +693,7 @@ function Steps() {
     <section className="px-5 py-20 sm:px-6 sm:py-24">
       <div className="mx-auto max-w-6xl">
         <Reveal className="mx-auto max-w-2xl text-center">
-          <p className={eyebrowCls}>In 3 Minuten startklar</p>
+          <p className={eyebrowCls}>In wenigen Minuten eingerichtet</p>
           <h2 className="mt-3 text-4xl font-bold tracking-[-0.02em] sm:text-5xl" style={{ color: NAVY }}>
             So einfach geht's.
           </h2>
@@ -725,9 +726,9 @@ const FAQS = [
   { q: 'Sind meine Daten sicher? Wo werden sie gespeichert?', a: 'Deine Daten liegen geschützt in deinem persönlichen Konto und sind so abgesichert, dass nur du darauf zugreifen kannst. Auf deinem Gerät bleibt zusätzlich eine Kopie, damit alles schnell und offline läuft.' },
   { q: 'Funktioniert das offline?', a: 'Ja. SemBan speichert eine Kopie direkt auf deinem Gerät und läuft deshalb auch im Funkloch der Bib oder im Zug. Sobald du wieder online bist, gleicht sich alles automatisch ab.' },
   { q: 'Kann ich Handy und Laptop nutzen?', a: 'Klar. Mit deinem Konto sind alle Geräte automatisch im Gleichstand – einmal eintragen, überall aktuell.' },
-  { q: 'Geht es nur um Übungsblätter?', a: 'Nein – SemBan hilft dir, den Überblick über alle Aufgaben und Fristen deiner Kurse zu behalten: Übungsblätter, Tutorien, Hausarbeiten, Referate, Klausuren. Wöchentliche Blätter sind nur ein Beispiel, das SemBan zusätzlich automatisch anlegt.' },
+  { q: 'Geht es nur um Übungsblätter?', a: 'Nein – SemBan hilft dir, den Überblick über alle Aufgaben und Fristen deiner Kurse zu behalten: Übungsblätter, Tutorien, Hausarbeiten, Referate, Klausuren. Wöchentliche Übungsblätter sind nur ein Beispiel, das SemBan zusätzlich automatisch anlegt.' },
   { q: 'Für welche Studiengänge eignet sich SemBan?', a: 'Für fast jedes Fach mit mehreren Kursen, Abgaben und Fristen – egal ob Mathe, Informatik, Jura, BWL, Geistes- oder Naturwissenschaften. Stundenplan, Noten und ECTS helfen sowieso überall.' },
-  { q: 'Wie schnell ist das eingerichtet?', a: 'In ein paar Minuten. Du tippst einmal das Gerüst deines Semesters ein – SemBan generiert den Rest.' },
+  { q: 'Wie schnell ist das eingerichtet?', a: 'In ein paar Minuten. Du trägst einmal deine Kurse, Fristen und den Stundenplan ein – den Rest macht SemBan.' },
 ]
 
 function FAQ() {
@@ -794,7 +795,7 @@ function FinalCTA({ onStart }: { onStart: () => void }) {
             className="pointer-events-none absolute -bottom-16 -left-16 h-64 w-64 rounded-full bg-[#e9633c]/25 blur-3xl"
           />
           <p className="relative text-xs font-semibold uppercase tracking-[0.12em] text-indigo-300">
-            Bereit fürs sortierte Semester?
+            Bereit, endlich den Überblick zu haben?
           </p>
           <h2 className="relative mt-3 text-4xl font-extrabold tracking-[-0.02em] text-white sm:text-5xl text-balance">
             Hol dir dein Semester zurück.
@@ -804,10 +805,10 @@ function FinalCTA({ onStart }: { onStart: () => void }) {
             deinen Geräten synchron.
           </p>
           <button onClick={onStart} className={btnPrimary + ' relative mt-8'}>
-            Kostenlos loslegen <ArrowRight size={16} />
+            Jetzt loslegen <ArrowRight size={16} />
           </button>
           <p className="relative mt-4 text-xs text-indigo-300">
-            Kostenlos · in 30 Sekunden startklar · jederzeit wieder löschbar
+            Kostenlos · werbefrei · jederzeit wieder löschbar
           </p>
         </div>
       </Reveal>
