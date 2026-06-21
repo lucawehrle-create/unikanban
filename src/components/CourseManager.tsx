@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Clock, GraduationCap, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react'
 import type { Course, CourseSlot, RecurringConfig, Semester, Task } from '@/db/types'
 import { uid } from '@/db/db'
-import { TASK_TYPE_LIST } from '@/lib/taskTypes'
+import { SELECTABLE_TASK_TYPES } from '@/lib/taskTypes'
 import {
   createTask,
   deleteCourse,
@@ -51,9 +51,17 @@ function newSeries(): RecurringConfig {
     time: '12:00',
     count: 12,
     startWeek: 1,
+    intervalWeeks: 1,
     maxPoints: undefined,
   }
 }
+
+const INTERVAL_OPTS = [
+  { value: '1', label: 'jede Woche' },
+  { value: '2', label: 'alle 2 Wochen' },
+  { value: '3', label: 'alle 3 Wochen' },
+  { value: '4', label: 'alle 4 Wochen' },
+]
 
 /** Frühester Klausur-Termin eines Kurses (primäre Klausur). */
 function primaryExam(tasks: Task[], courseId: string): Task | undefined {
@@ -127,7 +135,8 @@ export function CourseManager({
     // Basis für den Lernplan).
     const existing = primaryExam(tasks, draft.id)
     if (examDate) {
-      if (existing) await updateTask(existing.id, { dueDate: examDate })
+      if (existing)
+        await updateTask(existing.id, { dueDate: examDate, duration: draft.examDurationMin })
       else
         await createTask({
           semesterId: semester.id,
@@ -135,6 +144,7 @@ export function CourseManager({
           type: 'klausur',
           title: `Klausur ${draft.name || draft.short}`,
           dueDate: examDate,
+          duration: draft.examDurationMin,
         })
     } else if (existing) {
       await deleteTask(existing.id)
@@ -253,20 +263,38 @@ export function CourseManager({
             <p className="mt-1 text-xs text-stone-500">
               Erscheint im Stundenplan &amp; Kalender und ist die Basis für den Lernplan.
             </p>
-            <div className="mt-2">
-              <DatePicker value={examDate} onChange={setExamDate} />
+            <div className="mt-2 flex flex-wrap items-end gap-3">
+              <div className="min-w-0 flex-1">
+                <DatePicker value={examDate} onChange={setExamDate} />
+              </div>
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium text-stone-500">Dauer (Min)</span>
+                <input
+                  type="number"
+                  min={15}
+                  step={15}
+                  value={draft.examDurationMin ?? ''}
+                  placeholder="120"
+                  onChange={(e) =>
+                    set('examDurationMin', e.target.value ? Number(e.target.value) : undefined)
+                  }
+                  className="w-24 rounded-lg border border-stone-200 px-2 py-1.5 text-sm"
+                />
+              </label>
             </div>
           </div>
 
-          {/* Wochen-Serien (mehrere möglich: z.B. Übungsblatt UND Tutoriumsblatt) */}
+          {/* Serien (mehrere möglich: z.B. Übungsblatt UND Tutoriumsblatt; auch
+              mehrmals pro Woche durch mehrere Serien an verschiedenen Tagen) */}
           <div className="rounded-xl bg-stone-50 p-3">
             <div className="flex items-center gap-2 text-sm font-medium text-stone-700">
               <Sparkles size={15} className="text-brand-500" />
-              Wöchentliche Aufgaben
+              Regelmäßige Aufgaben
             </div>
             <p className="mt-1 text-xs text-stone-500">
-              Richte z. B. Übungsblätter einmal ein – SemBan erstellt daraus automatisch eine Aufgabe
-              pro Woche fürs ganze Semester.
+              Richte z. B. Übungsblätter einmal ein – SemBan erstellt daraus automatisch die Aufgaben
+              fürs ganze Semester. Der Rhythmus ist frei wählbar (für mehrmals pro Woche einfach eine
+              zweite Serie anlegen).
             </p>
 
             <div className="mt-2 space-y-2">
@@ -295,7 +323,7 @@ export function CourseManager({
                       <span className="mb-1 block text-xs text-stone-500">Typ</span>
                       <Select
                         value={r.type}
-                        options={TYPE_OPTS_REC(TASK_TYPE_LIST)}
+                        options={TYPE_OPTS_REC(SELECTABLE_TASK_TYPES)}
                         onChange={(v) => updateSeries(r.id, { type: v as RecurringConfig['type'] })}
                       />
                     </label>
@@ -305,6 +333,14 @@ export function CourseManager({
                         value={String(r.weekday)}
                         options={WEEKDAY_OPTS}
                         onChange={(v) => updateSeries(r.id, { weekday: Number(v) })}
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="mb-1 block text-xs text-stone-500">Rhythmus</span>
+                      <Select
+                        value={String(r.intervalWeeks ?? 1)}
+                        options={INTERVAL_OPTS}
+                        onChange={(v) => updateSeries(r.id, { intervalWeeks: Number(v) })}
                       />
                     </label>
                     <label className="block">

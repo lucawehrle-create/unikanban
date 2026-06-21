@@ -8,8 +8,9 @@ function tasksForSeries(cfg: RecurringConfig, course: Course, semester: Semester
   const tasks: Task[] = []
   const now = new Date().toISOString()
 
+  const step = Math.max(1, cfg.intervalWeeks ?? 1)
   for (let i = 0; i < cfg.count; i++) {
-    const week = cfg.startWeek + i
+    const week = cfg.startWeek + i * step
     if (week > semester.weeks) break
 
     const date = withTime(dateForWeekday(semester, week, cfg.weekday), cfg.time)

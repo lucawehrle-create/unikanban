@@ -78,15 +78,23 @@ export const TASK_TYPES: Record<TaskTypeId, TaskTypeDef> = {
 
 export const TASK_TYPE_LIST: TaskTypeDef[] = Object.values(TASK_TYPES)
 
+/**
+ * Vom Nutzer wählbare Aufgabentypen. „Klausur" ist ein Termin (wird am Kurs
+ * gepflegt), keine Aufgabe – daher hier ausgenommen.
+ */
+export const SELECTABLE_TASK_TYPES: TaskTypeDef[] = TASK_TYPE_LIST.filter(
+  (t) => t.id !== 'klausur',
+)
+
 /** Erzeugt frische Phasen-Objekte für einen Aufgaben-Typ. */
 export function makePhases(type: TaskTypeId): Phase[] {
   return TASK_TYPES[type].phases.map((label) => ({ label, done: false }))
 }
 
-/** Findet einen Typ anhand eines @tokens (z.B. "übung", "ha"). */
+/** Findet einen wählbaren Typ anhand eines @tokens (z.B. "übung", "ha"). */
 export function matchTaskType(token: string): TaskTypeId | undefined {
   const t = token.toLowerCase()
-  for (const def of TASK_TYPE_LIST) {
+  for (const def of SELECTABLE_TASK_TYPES) {
     if (def.id === t || def.keywords.includes(t)) return def.id
   }
   return undefined

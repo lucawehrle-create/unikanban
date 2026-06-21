@@ -2,7 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { Plus, CornerDownLeft } from 'lucide-react'
 import type { Course } from '@/db/types'
 import { parseQuickAdd } from '@/lib/quickAdd'
-import { TASK_TYPES, TASK_TYPE_LIST } from '@/lib/taskTypes'
+import { SELECTABLE_TASK_TYPES, TASK_TYPES } from '@/lib/taskTypes'
 import { formatDue } from '@/lib/deadline'
 import { priorityMeta } from '@/lib/priority'
 import { createTask } from '@/lib/actions'
@@ -86,7 +86,7 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
         .map((c) => ({ insert: `#${c.short}`, primary: c.short, secondary: c.name, dot: c.color }))
     }
     if (trigger === '@') {
-      return TASK_TYPE_LIST.filter(
+      return SELECTABLE_TASK_TYPES.filter(
         (d) =>
           !q ||
           d.label.toLowerCase().includes(q) ||

@@ -1,6 +1,6 @@
 import { Check, Filter, GraduationCap, Layers, Search, SlidersHorizontal, X } from 'lucide-react'
 import type { Course } from '@/db/types'
-import { TASK_TYPE_LIST } from '@/lib/taskTypes'
+import { SELECTABLE_TASK_TYPES } from '@/lib/taskTypes'
 import { useUI, type ExamPrepFilter, type GroupBy, type SortBy } from '@/store/ui'
 import { Popover } from './ui/Popover'
 import { cn } from '@/lib/cn'
@@ -110,7 +110,7 @@ export function FilterBar({ courses }: { courses: Course[] }) {
                 Typen
               </div>
               <div className="flex flex-wrap gap-1.5">
-                {TASK_TYPE_LIST.filter((t) => t.id !== 'sonstiges').map((t) => {
+                {SELECTABLE_TASK_TYPES.filter((t) => t.id !== 'sonstiges').map((t) => {
                   const active = ui.filterTypes.includes(t.id)
                   return (
                     <button

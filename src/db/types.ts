@@ -96,7 +96,7 @@ export interface CourseSlot {
   room?: string
 }
 
-/** Konfiguration für eine automatisch generierte Wochen-Serie (z.B. Übungsblätter). */
+/** Konfiguration für eine automatisch generierte Serie (z.B. Übungsblätter). */
 export interface RecurringConfig {
   id: string
   type: TaskTypeId // meist 'uebung'/'tutoriumsblatt'/'lektuere'
@@ -106,6 +106,8 @@ export interface RecurringConfig {
   time?: string // "12:00"
   count: number // Anzahl Blätter
   startWeek: number // ab welcher Semesterwoche (1-basiert)
+  /** Rhythmus: alle wie viele Wochen (1 = wöchentlich, 2 = zweiwöchentlich …). */
+  intervalWeeks?: number
   maxPoints?: number // Punkte pro Blatt (optional)
 }
 
@@ -121,6 +123,8 @@ export interface Course {
   ects?: number
   grade?: number // 1.0 – 5.0
   status?: CourseStatus // default: 'laufend'
+  /** Klausurdauer in Minuten (Standard für den Lernplan, Altklausur-Budget). */
+  examDurationMin?: number
   slots: CourseSlot[]
   /** Mehrere Wochen-Serien (z.B. Übungsblatt UND Tutoriumsblatt). */
   recurring?: RecurringConfig[]

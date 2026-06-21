@@ -1,6 +1,6 @@
 import { Pencil, Sparkles, Trash2 } from 'lucide-react'
 import type { Course, Priority, Task, TaskStatus } from '@/db/types'
-import { TASK_TYPE_LIST, TASK_TYPES } from '@/lib/taskTypes'
+import { SELECTABLE_TASK_TYPES, TASK_TYPES } from '@/lib/taskTypes'
 import { changeTaskType, deleteTask, togglePhase, updateTask } from '@/lib/actions'
 import { useTask } from '@/hooks/data'
 import { useUI } from '@/store/ui'
@@ -143,7 +143,10 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
             <span className="mb-1 block text-xs font-medium text-stone-500">Typ</span>
             <Select
               value={task.type}
-              options={TASK_TYPE_LIST.map((t) => ({ value: t.id, label: `${t.emoji} ${t.label}` }))}
+              options={(task.type === 'klausur'
+                ? [TASK_TYPES.klausur, ...SELECTABLE_TASK_TYPES]
+                : SELECTABLE_TASK_TYPES
+              ).map((t) => ({ value: t.id, label: `${t.emoji} ${t.label}` }))}
               onChange={(v) => void changeTaskType(id, v as Task['type'])}
             />
           </label>

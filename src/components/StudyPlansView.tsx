@@ -134,11 +134,15 @@ function PlanEditor({
     examTask?.dueDate?.slice(0, 10) ??
     new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)
 
-  const [cfg, setCfg] = useState<StudyPlanConfig>(
-    () =>
-      course.studyPlan ??
-      defaultPlanConfig(initialDate, defaultReviewIds(uebungTasks), defaultReviewIds(tutTasks)),
-  )
+  const [cfg, setCfg] = useState<StudyPlanConfig>(() => {
+    if (course.studyPlan) return course.studyPlan
+    const base = defaultPlanConfig(
+      initialDate,
+      defaultReviewIds(uebungTasks),
+      defaultReviewIds(tutTasks),
+    )
+    return course.examDurationMin ? { ...base, examDurationMin: course.examDurationMin } : base
+  })
   const [busy, setBusy] = useState(false)
   const [flash, setFlash] = useState('')
 
