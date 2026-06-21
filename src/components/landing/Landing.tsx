@@ -19,6 +19,9 @@ import {
   Coffee,
   Plus,
   Minus,
+  Check,
+  Star,
+  Quote,
 } from 'lucide-react'
 import { Logo } from '../Logo'
 import { MeshGradient } from './MeshGradient'
@@ -156,8 +159,11 @@ export default function Landing({ onStart }: { onStart: () => void }) {
           <Hero onStart={onStart} progress={scrollYProgress} onHowItWorks={scrollToFeatures} />
           <Problem />
           <Showcase container={scrollRef} />
+          <Comparison />
           <Trust />
+          <SocialProof onStart={onStart} />
           <Steps />
+          <Founder />
           <FAQ />
           <FinalCTA onStart={onStart} />
           <Footer />
@@ -211,9 +217,20 @@ function Nav({ onStart }: { onStart: () => void }) {
             SemBan
           </span>
         </div>
-        <button onClick={onStart} className="rounded-full bg-stone-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-stone-700 active:scale-[.98]">
-          Anmelden
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onStart}
+            className="hidden text-sm font-medium text-stone-500 transition hover:text-stone-800 sm:inline"
+          >
+            Anmelden
+          </button>
+          <button
+            onClick={onStart}
+            className="rounded-full bg-brand-400 px-4 py-2 text-sm font-semibold text-stone-900 shadow-[0_8px_20px_-8px_rgba(247,201,72,0.7)] transition hover:bg-brand-300 active:scale-[.98]"
+          >
+            Kostenlos starten
+          </button>
+        </div>
       </div>
     </header>
   )
@@ -252,6 +269,20 @@ function Hero({
             Semester – und zeigt dir nur, was als Nächstes dran ist. Stundenplan, Noten und ECTS
             gleich mit dabei.
           </motion.p>
+          <motion.ul variants={item} className="mt-6 space-y-2.5">
+            {[
+              'Übungsblätter fürs ganze Semester – automatisch erzeugt',
+              'Stundenplan, Noten & ECTS an einem Ort',
+              'In 30 Sekunden startklar, komplett kostenlos',
+            ].map((t) => (
+              <li key={t} className="flex items-center gap-2.5 text-[15px] text-stone-700">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-400 text-stone-900">
+                  <Check size={13} strokeWidth={3} />
+                </span>
+                {t}
+              </li>
+            ))}
+          </motion.ul>
           <motion.div variants={item} className="mt-8 flex flex-wrap items-center gap-3">
             <button onClick={onStart} className={btnPrimary}>
               Kostenlos loslegen
@@ -506,6 +537,145 @@ function Trust() {
   )
 }
 
+/* ---------------- comparison (Einwand: „reicht doch X") ---------------- */
+
+const ALTERNATIVES = [
+  { name: 'Notion & Co.', body: 'Mächtig – aber du baust dir alles selbst zusammen und pflegst es ewig.' },
+  { name: 'Excel / Kalender', body: 'Schnell unübersichtlich, vergisst Fristen und rechnet deinen Schnitt nicht mit.' },
+  { name: 'Die Uni-App', body: 'Zeigt den Stundenplan – und sonst ziemlich genau nichts.' },
+]
+
+function Comparison() {
+  return (
+    <section className="px-5 py-24 sm:px-6 sm:py-32">
+      <div className="mx-auto max-w-5xl">
+        <Reveal className="mx-auto max-w-2xl text-center">
+          <p className={eyebrowCls}>„Reicht doch Notion …"</p>
+          <h2 className="mt-3 text-4xl font-bold leading-[1.07] tracking-[-0.02em] sm:text-5xl text-balance" style={{ color: NAVY }}>
+            Klar. Aber willst du das wirklich selbst basteln?
+          </h2>
+          <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-stone-600">
+            SemBan ist für genau eine Sache gemacht – dein Studium – und macht die Fleißarbeit von
+            allein.
+          </p>
+        </Reveal>
+        <div className="mt-12 grid gap-4 md:grid-cols-2">
+          <div className="grid gap-3">
+            {ALTERNATIVES.map((a, i) => (
+              <Reveal key={a.name} delay={i * 0.06}>
+                <div className="rounded-2xl bg-white/60 p-5 ring-1 ring-stone-200/70 backdrop-blur">
+                  <div className="text-sm font-semibold text-stone-500">{a.name}</div>
+                  <p className="mt-1 text-sm leading-relaxed text-stone-500">{a.body}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+          <Reveal delay={0.1}>
+            <div className="flex h-full flex-col justify-center rounded-3xl p-7 text-white shadow-[var(--shadow-float)]" style={{ backgroundColor: NAVY }}>
+              <div className="inline-flex w-fit items-center gap-1.5 rounded-full bg-brand-400 px-3 py-1 text-xs font-bold text-stone-900">
+                <Sparkles size={13} /> SemBan
+              </div>
+              <h3 className="mt-4 text-2xl font-bold leading-snug">
+                Alles fürs Studium an einem Ort – und die Wochenblätter entstehen von selbst.
+              </h3>
+              <ul className="mt-5 space-y-2.5">
+                {[
+                  'Einmal einrichten statt jede Woche tippen',
+                  'Stundenplan, Aufgaben, Noten & ECTS vereint',
+                  'Kostenlos & ohne Werbung',
+                ].map((t) => (
+                  <li key={t} className="flex items-center gap-2.5 text-sm text-indigo-100">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-400 text-stone-900">
+                      <Check size={13} strokeWidth={3} />
+                    </span>
+                    {t}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </Reveal>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+/* ---------------- social proof (ehrlich & augenzwinkernd) ---------------- */
+
+function SocialProof({ onStart }: { onStart: () => void }) {
+  return (
+    <section className="px-5 py-24 sm:px-6 sm:py-32">
+      <Reveal className="mx-auto max-w-2xl text-center">
+        <p className={eyebrowCls}>Ganz ehrlich</p>
+        <div className="mt-4 flex justify-center gap-1.5">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <Star key={i} size={28} className="text-stone-300" />
+          ))}
+        </div>
+        <div className="mt-2 text-sm font-medium text-stone-400">0,0 · noch keine Bewertungen</div>
+        <h2 className="mt-5 text-4xl font-bold leading-[1.08] tracking-[-0.02em] sm:text-5xl text-balance" style={{ color: NAVY }}>
+          Hier stehen sonst erfundene 5-Sterne-Stimmen.
+        </h2>
+        <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-stone-600">
+          Haben wir nicht. SemBan ist frisch gestartet – also gibt's hier ehrliche{' '}
+          <strong className="text-stone-700">null Bewertungen</strong> statt ausgedachter
+          Lobeshymnen von „Max&nbsp;M., begeisterter Nutzer". Sei lieber die*der{' '}
+          <strong className="text-stone-700">Erste</strong>, die*der SemBan wirklich testet.
+        </p>
+
+        <div className="mx-auto mt-8 max-w-md rounded-3xl border-2 border-dashed border-stone-300 bg-white/40 p-6">
+          <Quote size={22} className="mx-auto text-stone-300" />
+          <p className="mt-3 text-base font-medium text-stone-500">
+            „Dein ehrliches Zitat könnte hier stehen."
+          </p>
+          <p className="mt-1 text-xs text-stone-400">— du, hoffentlich bald</p>
+        </div>
+
+        <button onClick={onStart} className={btnPrimary + ' mt-8'}>
+          Erste*r sein
+          <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
+        </button>
+      </Reveal>
+    </section>
+  )
+}
+
+/* ---------------- founder ---------------- */
+
+function Founder() {
+  return (
+    <section className="px-5 py-20 sm:px-6 sm:py-24">
+      <Reveal className="mx-auto max-w-2xl">
+        <div className="rounded-3xl bg-white/70 p-7 shadow-[var(--shadow-card)] ring-1 ring-stone-200/70 backdrop-blur sm:p-9">
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-brand-400 text-xl font-extrabold text-stone-900">
+              L
+            </div>
+            <div>
+              <div className="text-sm font-semibold" style={{ color: NAVY }}>
+                Luca
+              </div>
+              <div className="text-xs text-stone-400">Student & Macher von SemBan</div>
+            </div>
+          </div>
+          <p className="mt-5 text-lg leading-relaxed text-stone-600 text-pretty">
+            „Hi! 👋 Ich studiere selbst und hatte mein Semester-Chaos – Übungsblätter, Fristen, Noten
+            verteilt auf zehn Tabs – irgendwann satt. Keine App brachte das zusammen, also hab ich
+            SemBan gebaut. Wenn dir etwas fehlt oder nervt: schreib mir einfach. Ich lese wirklich
+            jede Nachricht."
+          </p>
+          <a
+            href="mailto:lucawehrle@gmail.com?subject=Feedback%20zu%20SemBan"
+            className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:underline"
+          >
+            Feedback schreiben <ArrowRight size={15} />
+          </a>
+        </div>
+      </Reveal>
+    </section>
+  )
+}
+
 /* ---------------- steps ---------------- */
 
 const STEPS = [
@@ -632,6 +802,9 @@ function FinalCTA({ onStart }: { onStart: () => void }) {
           <button onClick={onStart} className={btnPrimary + ' relative mt-8'}>
             Kostenlos loslegen <ArrowRight size={16} />
           </button>
+          <p className="relative mt-4 text-xs text-indigo-300">
+            Kostenlos · in 30 Sekunden startklar · jederzeit wieder löschbar
+          </p>
         </div>
       </Reveal>
     </section>
