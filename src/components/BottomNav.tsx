@@ -1,4 +1,5 @@
 import { useUI } from '@/store/ui'
+import { useExamStatus, examBadge } from '@/lib/examPhase'
 import { VIEWS } from './Header'
 import { cn } from '@/lib/cn'
 
@@ -6,6 +7,7 @@ import { cn } from '@/lib/cn'
 export function BottomNav() {
   const view = useUI((s) => s.view)
   const setView = useUI((s) => s.setView)
+  const examChip = examBadge(useExamStatus())
 
   return (
     <nav className="shrink-0 border-t border-stone-200/70 bg-white/85 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
@@ -26,11 +28,16 @@ export function BottomNav() {
             >
               <span
                 className={cn(
-                  'flex h-7 w-12 items-center justify-center rounded-full transition',
+                  'relative flex h-7 w-12 items-center justify-center rounded-full transition',
                   active && 'bg-brand-300/70',
                 )}
               >
                 <Icon size={18} />
+                {v.id === 'week' && examChip && (
+                  <span className="absolute -right-0.5 -top-0.5 rounded-full bg-indigo-500 px-1 text-[9px] font-bold leading-tight text-white ring-2 ring-white">
+                    {examChip}
+                  </span>
+                )}
               </span>
               {v.shortLabel}
             </button>

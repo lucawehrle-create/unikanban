@@ -19,6 +19,7 @@ import { de } from 'date-fns/locale'
 import type { Program, Semester } from '@/db/types'
 import { isSyncConfigured } from '@/lib/supabase'
 import { useSync } from '@/lib/sync'
+import { useExamStatus, examBadge } from '@/lib/examPhase'
 import { signOut } from '@/lib/auth'
 import { useUI, type ViewId } from '@/store/ui'
 import { Logo } from './Logo'
@@ -44,6 +45,7 @@ export function Header({ semester, program }: { semester?: Semester; program?: P
   const account = useSync((s) => s.user)
   const syncStatus = useSync((s) => s.status)
   const lastSyncAt = useSync((s) => s.lastSyncAt)
+  const examChip = examBadge(useExamStatus())
 
   return (
     <header className="flex items-center gap-3 px-4 py-3 sm:px-5 sm:py-4">
@@ -78,6 +80,16 @@ export function Header({ semester, program }: { semester?: Semester; program?: P
             >
               <Icon size={15} />
               {v.label}
+              {v.id === 'week' && examChip && (
+                <span
+                  className={cn(
+                    'rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none',
+                    active ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-700',
+                  )}
+                >
+                  {examChip}
+                </span>
+              )}
             </button>
           )
         })}

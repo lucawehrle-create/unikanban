@@ -16,6 +16,7 @@ import { courseMap } from '@/lib/filter'
 import { staggerSeries } from '@/lib/series'
 import { useUI } from '@/store/ui'
 import { TaskCard } from './TaskCard'
+import { ExamPhasePanel } from './ExamPhasePanel'
 import { cn } from '@/lib/cn'
 
 interface WeekViewProps {
@@ -65,6 +66,9 @@ export function WeekView({ tasks, courses }: WeekViewProps) {
   return (
     <div className="h-full overflow-y-auto px-5 pb-6">
       <div className="mx-auto max-w-6xl space-y-2.5">
+        {/* Klausurphase: Countdown/Status + anstehende Klausuren */}
+        <ExamPhasePanel />
+
         {/* Überfällig – einklappbarer Aufhol-Stapel (pro Serie gestaffelt) */}
         {overdueAll.length > 0 && (
           <section className="rounded-2xl border border-red-200 bg-red-50/60 p-3">
