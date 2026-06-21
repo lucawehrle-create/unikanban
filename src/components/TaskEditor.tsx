@@ -79,12 +79,13 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
           {STATUS.map((s) => (
             <button
               key={s.id}
-              onClick={() =>
+              onClick={() => {
                 patch({
                   status: s.id,
                   completedAt: s.id === 'erledigt' ? new Date().toISOString() : undefined,
                 })
-              }
+                if (s.id === 'erledigt') useUI.getState().maybeReflect(task)
+              }}
               className={cn(
                 'flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition',
                 task.status === s.id

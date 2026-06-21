@@ -18,6 +18,7 @@ import { signOut, updateEmail, updatePassword } from '@/lib/auth'
 import { Modal } from './Modal'
 import { SignInPanel } from './SignInPanel'
 import { DataSection } from './DataSection'
+import { cn } from '@/lib/cn'
 
 export function AccountModal() {
   const setShowAccount = useUI((s) => s.setShowAccount)
@@ -132,6 +133,9 @@ function SignedIn({
         </button>
       </section>
 
+      {/* Lernen */}
+      <PreferencesSection />
+
       {/* Daten & Sicherung */}
       <DataSection />
 
@@ -146,6 +150,41 @@ function SignedIn({
         Beim Abmelden werden die Daten von diesem Gerät entfernt – in der Cloud bleiben sie sicher.
       </p>
     </div>
+  )
+}
+
+function PreferencesSection() {
+  const reflectionPrompts = useUI((s) => s.reflectionPrompts)
+  const setReflectionPrompts = useUI((s) => s.setReflectionPrompts)
+  return (
+    <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70">
+      <h3 className="text-sm font-semibold text-stone-700">Lernen</h3>
+      <label className="mt-2 flex items-start justify-between gap-3">
+        <span>
+          <span className="block text-sm font-medium text-stone-700">Reflexion nach Erledigen</span>
+          <span className="block text-xs text-stone-400">
+            Kurzes Popup nach jedem erledigten Übungs-/Tutoriumsblatt (Schwierigkeit & Tags) – fließt
+            in die Lernplan-Auswahl ein.
+          </span>
+        </span>
+        <button
+          role="switch"
+          aria-checked={reflectionPrompts}
+          onClick={() => setReflectionPrompts(!reflectionPrompts)}
+          className={cn(
+            'mt-0.5 h-6 w-11 shrink-0 rounded-full p-0.5 transition',
+            reflectionPrompts ? 'bg-brand-400' : 'bg-stone-300',
+          )}
+        >
+          <span
+            className={cn(
+              'block h-5 w-5 rounded-full bg-white shadow transition-transform',
+              reflectionPrompts && 'translate-x-5',
+            )}
+          />
+        </button>
+      </label>
+    </section>
   )
 }
 

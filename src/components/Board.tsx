@@ -258,7 +258,10 @@ export function Board({ tasks, courses, hasTasks }: BoardProps) {
     if (!e.over) return
     const target = String(e.over.id) as TaskStatus
     const task = tasks.find((t) => t.id === String(e.active.id))
-    if (task && task.status !== target) void setTaskStatus(task.id, target)
+    if (task && task.status !== target) {
+      void setTaskStatus(task.id, target)
+      if (target === 'erledigt') useUI.getState().maybeReflect(task)
+    }
   }
 
   // ---- Desktop: Spalten nebeneinander, Drag & Drop ----
@@ -401,7 +404,10 @@ function MobileMove({ task }: { task: Task }) {
       {others.map((s) => (
         <button
           key={s}
-          onClick={() => void setTaskStatus(task.id, s)}
+          onClick={() => {
+            void setTaskStatus(task.id, s)
+            if (s === 'erledigt') useUI.getState().maybeReflect(task)
+          }}
           className="rounded-full bg-white/60 px-2.5 py-1 text-[11px] font-medium text-stone-500 ring-1 ring-stone-200/70 transition active:bg-stone-100"
         >
           → {STATUS_LABEL[s]}

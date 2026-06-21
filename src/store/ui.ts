@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import type { TaskTypeId } from '@/db/types'
+import type { Task, TaskTypeId } from '@/db/types'
+import { isReflectableType } from '@/lib/reflection'
 
 export type ViewId = 'board' | 'week' | 'schedule' | 'study' | 'plans'
 export type GroupBy = 'status' | 'deadline' | 'course' | 'type' | 'priority'
@@ -24,6 +25,10 @@ interface UIState {
   /** true, wenn aktuell die Beispieldaten erkundet werden. */
   isDemo: boolean
   tour: boolean
+  /** Reflexions-Abfrage nach dem Erledigen von Übungs-/Tutoriumsblättern. */
+  reflectionPrompts: boolean
+  /** id der Aufgabe, für die gerade das Reflexions-Popup offen ist. */
+  reflectingTaskId: string | null
 
   setView: (v: ViewId) => void
   setGroupBy: (g: GroupBy) => void
@@ -42,9 +47,14 @@ interface UIState {
   setShowAccount: (b: boolean) => void
   setDemo: (b: boolean) => void
   setTour: (b: boolean) => void
+  setReflectionPrompts: (b: boolean) => void
+  /** Öffnet das Reflexions-Popup, falls aktiviert & passender, noch nicht reflektierter Task. */
+  maybeReflect: (task: Task) => void
+  closeReflection: () => void
 }
 
 const DEMO_KEY = 'semban:demo'
+const REFLECT_KEY = 'semban:reflectionPrompts'
 
 export const useUI = create<UIState>((set) => ({
   view: 'board',
@@ -63,6 +73,9 @@ export const useUI = create<UIState>((set) => ({
   showAccount: false,
   isDemo: typeof localStorage !== 'undefined' && localStorage.getItem(DEMO_KEY) === '1',
   tour: false,
+  reflectionPrompts:
+    typeof localStorage === 'undefined' || localStorage.getItem(REFLECT_KEY) !== '0',
+  reflectingTaskId: null,
 
   setView: (view) => set({ view }),
   setGroupBy: (groupBy) => set({ groupBy }),
@@ -99,4 +112,20 @@ export const useUI = create<UIState>((set) => ({
     set({ isDemo })
   },
   setTour: (tour) => set({ tour }),
+  setReflectionPrompts: (reflectionPrompts) => {
+    try {
+      localStorage.setItem(REFLECT_KEY, reflectionPrompts ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+    set({ reflectionPrompts })
+  },
+  maybeReflect: (task) =>
+    set((s) => {
+      if (!s.reflectionPrompts) return {}
+      if (!isReflectableType(task.type)) return {}
+      if (task.reflection) return {}
+      return { reflectingTaskId: task.id }
+    }),
+  closeReflection: () => set({ reflectingTaskId: null }),
 }))

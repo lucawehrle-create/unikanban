@@ -19,6 +19,7 @@ import { TaskEditor } from '@/components/TaskEditor'
 import { CourseManager } from '@/components/CourseManager'
 import { CalendarModal } from '@/components/CalendarModal'
 import { AccountModal } from '@/components/AccountModal'
+import { ReflectionModal } from '@/components/ReflectionModal'
 import { AuthGate } from '@/components/AuthGate'
 import { SyncLoading } from '@/components/SyncLoading'
 import { Tour } from '@/components/Tour'
@@ -171,6 +172,7 @@ export default function App() {
       {showCourseManager && semester && <CourseManager courses={courses} semester={semester} />}
       {showCalendar && semester && <CalendarModal semester={semester} courses={courses} tasks={tasks} />}
       {(showAccount || conflict) && <AccountModal />}
+      <ReflectionModal />
       <Tour />
     </div>
   )

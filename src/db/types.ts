@@ -156,6 +156,21 @@ export interface Phase {
   done: boolean
 }
 
+/**
+ * Reflexion nach dem Erledigen eines Übungs-/Tutoriumsblatts. Hilft später bei
+ * der Lernplan-Auswahl (schwere Blätter erkennen, auch lang zurückliegende).
+ */
+export interface TaskReflection {
+  /** 1 = sehr leicht … 5 = sehr schwer. */
+  difficulty: number
+  /** Schlagworte (Presets + eigene), z.B. "Beweise", "Zeitdruck". */
+  tags: string[]
+  /** Freitext: Was ist schwergefallen? */
+  hardParts?: string
+  /** Zeitpunkt der Reflexion (ISO). */
+  reflectedAt: string
+}
+
 export interface Task {
   id: string
   semesterId: string
@@ -179,6 +194,8 @@ export interface Task {
   examId?: string
   /** geplante Dauer in Minuten (Lern-Sessions; für Tagesbudget-Planung). */
   duration?: number
+  /** Reflexion nach dem Erledigen (Übungs-/Tutoriumsblätter). */
+  reflection?: TaskReflection
   createdAt: string
   completedAt?: string
 }

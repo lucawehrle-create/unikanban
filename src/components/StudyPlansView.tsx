@@ -21,6 +21,20 @@ import {
 import { DatePicker } from './DatePicker'
 import { Select } from './ui/Select'
 import { cn } from '@/lib/cn'
+import { HARD_THRESHOLD, difficultyMeta } from '@/lib/reflection'
+
+/**
+ * Standard-Auswahl der zu wiederholenden Blätter: Hat der Nutzer reflektiert,
+ * werden die als schwer markierten (+ noch nicht reflektierten) vorausgewählt –
+ * die explizit als leicht markierten fallen raus. Ohne Reflexionen: alle.
+ */
+function defaultReviewIds(tasks: Task[]): string[] {
+  const anyReflected = tasks.some((t) => t.reflection)
+  if (!anyReflected) return tasks.map((t) => t.id)
+  return tasks
+    .filter((t) => !t.reflection || t.reflection.difficulty >= HARD_THRESHOLD)
+    .map((t) => t.id)
+}
 
 const DAILY_OPTS = [120, 180, 240, 300, 360].map((m) => ({
   value: String(m),
@@ -111,11 +125,7 @@ function PlanEditor({
   const [cfg, setCfg] = useState<StudyPlanConfig>(
     () =>
       course.studyPlan ??
-      defaultPlanConfig(
-        initialDate,
-        uebungTasks.map((t) => t.id),
-        tutTasks.map((t) => t.id),
-      ),
+      defaultPlanConfig(initialDate, defaultReviewIds(uebungTasks), defaultReviewIds(tutTasks)),
   )
   const [busy, setBusy] = useState(false)
   const [flash, setFlash] = useState('')
@@ -373,6 +383,7 @@ function ReviewSection({
   const sel = new Set(selectedIds)
   const chosen = tasks.filter((t) => sel.has(t.id)).length
   const allOn = chosen === tasks.length
+  const hardTasks = tasks.filter((t) => t.reflection && t.reflection.difficulty >= HARD_THRESHOLD)
 
   const toggle = (id: string) => {
     const next = new Set(sel)
@@ -382,6 +393,7 @@ function ReviewSection({
   }
   const toggleAll = () =>
     onChange(allOn ? [] : tasks.map((t) => t.id))
+  const selectHard = () => onChange(hardTasks.map((t) => t.id))
 
   return (
     <div className="rounded-lg bg-white ring-1 ring-stone-200/70">
@@ -397,29 +409,47 @@ function ReviewSection({
           />
           {label}
           <span className="text-stone-400">· {tasks.length} vorhanden</span>
+          {hardTasks.length > 0 && (
+            <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-700">
+              {hardTasks.length} schwer
+            </span>
+          )}
         </span>
         <span className="text-xs font-medium text-stone-500">{chosen} ausgewählt</span>
       </button>
       {open && (
         <div className="border-t border-stone-100 px-2.5 py-2">
-          <button
-            type="button"
-            onClick={toggleAll}
-            className="mb-1.5 text-[11px] font-medium text-indigo-600 hover:text-indigo-700"
-          >
-            {allOn ? 'Keine auswählen' : 'Alle auswählen'}
-          </button>
-          <div className="max-h-44 space-y-0.5 overflow-y-auto">
+          <div className="mb-1.5 flex flex-wrap gap-x-3 gap-y-1">
+            <button
+              type="button"
+              onClick={toggleAll}
+              className="text-[11px] font-medium text-indigo-600 hover:text-indigo-700"
+            >
+              {allOn ? 'Keine auswählen' : 'Alle auswählen'}
+            </button>
+            {hardTasks.length > 0 && (
+              <button
+                type="button"
+                onClick={selectHard}
+                className="text-[11px] font-medium text-orange-600 hover:text-orange-700"
+              >
+                Nur schwer markierte ({hardTasks.length})
+              </button>
+            )}
+          </div>
+          <div className="max-h-56 space-y-0.5 overflow-y-auto">
             {tasks.map((t) => {
               const on = sel.has(t.id)
+              const r = t.reflection
+              const dm = r ? difficultyMeta(r.difficulty) : null
               return (
                 <label
                   key={t.id}
-                  className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-stone-50"
+                  className="flex cursor-pointer items-start gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-stone-50"
                 >
                   <span
                     className={cn(
-                      'flex h-4 w-4 shrink-0 items-center justify-center rounded border transition',
+                      'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition',
                       on ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-300 bg-white',
                     )}
                   >
@@ -431,7 +461,28 @@ function ReviewSection({
                     onChange={() => toggle(t.id)}
                     className="sr-only"
                   />
-                  <span className="truncate text-stone-700">{t.title}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5">
+                      {dm && (
+                        <span title={`als ${dm.label} markiert`} className="shrink-0 text-[13px] leading-none">
+                          {dm.emoji}
+                        </span>
+                      )}
+                      <span className="truncate text-stone-700">{t.title}</span>
+                    </span>
+                    {r && r.tags.length > 0 && (
+                      <span className="mt-0.5 flex flex-wrap gap-1">
+                        {r.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px] text-stone-500"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </span>
+                    )}
+                  </span>
                 </label>
               )
             })}
