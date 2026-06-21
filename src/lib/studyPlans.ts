@@ -1,4 +1,4 @@
-import type { Course, StudyPlanConfig, StudyStrategy, Task } from '@/db/types'
+import type { Course, StudyPlanConfig, StudyStrategy, Task, TaskTypeId } from '@/db/types'
 import { db } from '@/db/db'
 import { createTask, updateTask } from './actions'
 import { pickSessionTime, toMin } from './schedule'
@@ -368,6 +368,12 @@ export function timeline(cfg: StudyPlanConfig, sessions: PlanSession[]): DayBar[
 
 const titlePrefix = (course: Course) => `${course.short}: `
 
+/** Lern-Session-Art → Aufgabentyp (sonst „sonstiges"). */
+const KIND_TASK_TYPE: Partial<Record<ItemKind, TaskTypeId>> = {
+  altklausur: 'altklausur',
+  karten: 'karteikarten',
+}
+
 /**
  * Legt/aktualisiert den Plan. Bereits **erledigte** Sessions bleiben als
  * Verlauf erhalten (für den Fortschritt) – nur offene werden neu verteilt.
@@ -400,7 +406,7 @@ export async function savePlan(
     await createTask({
       semesterId: course.semesterId,
       title: `${prefix}${s.label}`,
-      type: 'sonstiges',
+      type: KIND_TASK_TYPE[s.kind] ?? 'sonstiges',
       courseId: course.id,
       dueDate: s.date.toISOString(),
       duration: s.durationMin,
