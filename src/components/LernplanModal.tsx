@@ -2,13 +2,15 @@ import { useMemo, useState } from 'react'
 import { BookOpen, CalendarClock, Info, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
-import type { Task } from '@/db/types'
+import type { Course, Task } from '@/db/types'
 import {
   DEFAULT_LERNPLAN,
+  applyPreset,
   courseMaterial,
   createStudyPlan,
   loadByWeekday,
   planSessionsConfig,
+  type Intensity,
   type LernplanConfig,
 } from '@/lib/lernplan'
 import { Modal } from './Modal'
@@ -24,11 +26,16 @@ const WD = [
   { id: 6, label: 'Sa' },
   { id: 7, label: 'So' },
 ]
-
 const WEEKS_OPTS = [1, 2, 3, 4, 5, 6, 8].map((w) => ({
   value: String(w),
   label: `${w} Woche${w === 1 ? '' : 'n'} vorher`,
 }))
+const DURATION_OPTS = [45, 60, 90].map((d) => ({ value: String(d), label: `${d} Min` }))
+const PRESET_LABELS: { id: Intensity; label: string; hint: string }[] = [
+  { id: 'locker', label: 'Locker', hint: 'wenige, früh verteilt' },
+  { id: 'normal', label: 'Normal', hint: 'ausgewogen' },
+  { id: 'endspurt', label: 'Endspurt', hint: 'dicht, viele Tage' },
+]
 
 function CheckRow({
   label,
@@ -64,14 +71,16 @@ function loadColor(n: number): string {
   return n === 0 ? 'text-stone-300' : n <= 2 ? 'text-amber-500' : 'text-red-500'
 }
 
-/** Ganzheitlicher Lernplan-Konfigurator mit Inhalten, Auslastung & Vorschau. */
+/** Smarter, individueller Lernplan-Konfigurator mit Live-Vorschau. */
 export function LernplanModal({
   exam,
   allTasks,
+  courses,
   onClose,
 }: {
   exam: Task
   allTasks: Task[]
+  courses: Course[]
   onClose: () => void
 }) {
   const [cfg, setCfg] = useState<LernplanConfig>(DEFAULT_LERNPLAN)
@@ -85,7 +94,6 @@ export function LernplanModal({
     [exam, allTasks, cfg.startWeeksBefore],
   )
 
-  // Auch ein getipptes, noch nicht bestätigtes Thema zählt schon für die Vorschau.
   const pending = topicInput.trim()
   const allTopics = pending ? [...topics, pending] : topics
   const usingTopics = allTopics.length > 0
@@ -95,10 +103,9 @@ export function LernplanModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [cfg, topics, topicInput],
   )
-
   const sessions = useMemo(
-    () => planSessionsConfig(exam, allTasks, effective),
-    [exam, allTasks, effective],
+    () => planSessionsConfig(exam, allTasks, courses, effective),
+    [exam, allTasks, courses, effective],
   )
 
   const set = <K extends keyof LernplanConfig>(k: K, v: LernplanConfig[K]) =>
@@ -110,7 +117,6 @@ export function LernplanModal({
         ? c.weekdays.filter((d) => d !== id)
         : [...c.weekdays, id].sort((a, b) => a - b),
     }))
-
   const addTopic = () => {
     const v = topicInput.trim()
     if (v) setTopics((prev) => (prev.includes(v) ? prev : [...prev, v]))
@@ -124,10 +130,9 @@ export function LernplanModal({
       setTopics((prev) => prev.slice(0, -1))
     }
   }
-
   const save = async () => {
     setBusy(true)
-    await createStudyPlan(exam, allTasks, effective)
+    await createStudyPlan(exam, allTasks, courses, effective)
     setBusy(false)
     onClose()
   }
@@ -137,10 +142,36 @@ export function LernplanModal({
       <div className="space-y-4">
         <p className="text-sm text-stone-500">
           Für <strong className="text-stone-700">{exam.title}</strong>. SemBan verteilt die Inhalte
-          auf freie Lern-Tage – passe alles an deinen Rhythmus an.
+          auf freie Lern-Tage und legt sie in Stundenplan-Lücken.
         </p>
 
-        {/* Inhalte aus dem Kursmaterial */}
+        {/* Intensität-Presets */}
+        <div>
+          <span className="mb-1 block text-xs font-medium text-stone-500">Intensität</span>
+          <div className="grid grid-cols-3 gap-2">
+            {PRESET_LABELS.map((p) => {
+              const on = cfg.intensity === p.id
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setCfg((c) => applyPreset(c, p.id))}
+                  className={cn(
+                    'rounded-xl px-2 py-2 text-center transition',
+                    on ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-600 hover:bg-stone-200',
+                  )}
+                >
+                  <div className="text-sm font-semibold">{p.label}</div>
+                  <div className={cn('text-[10px]', on ? 'text-white/70' : 'text-stone-400')}>
+                    {p.hint}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* Inhalte */}
         <div>
           <span className="mb-1 block text-xs font-medium text-stone-500">Inhalte</span>
           <div className={cn('rounded-xl bg-stone-50 p-1', usingTopics && 'opacity-60')}>
@@ -175,7 +206,7 @@ export function LernplanModal({
           </div>
         </div>
 
-        {/* Eigene Themen (Chip-Eingabe, Override) */}
+        {/* Eigene Themen (Chips) */}
         <div>
           <span className="mb-1 block text-xs font-medium text-stone-500">
             Eigene Themen (optional – ersetzen die Inhalte oben)
@@ -208,10 +239,10 @@ export function LernplanModal({
           </div>
         </div>
 
-        {/* Zeitliche Einstellungen */}
-        <div className="grid grid-cols-2 gap-3">
+        {/* Zeitliche Feineinstellung */}
+        <div className="grid grid-cols-3 gap-3">
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-stone-500">Lernbeginn</span>
+            <span className="mb-1 block text-xs font-medium text-stone-500">Beginn</span>
             <Select
               value={String(cfg.startWeeksBefore)}
               options={WEEKS_OPTS}
@@ -219,12 +250,20 @@ export function LernplanModal({
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-stone-500">Uhrzeit</span>
+            <span className="mb-1 block text-xs font-medium text-stone-500">ab Uhrzeit</span>
             <input
               type="time"
               value={cfg.time}
               onChange={(e) => set('time', e.target.value || '18:00')}
               className="w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-stone-500">Dauer</span>
+            <Select
+              value={String(cfg.duration)}
+              options={DURATION_OPTS}
+              onChange={(v) => set('duration', Number(v))}
             />
           </label>
         </div>
@@ -264,7 +303,8 @@ export function LernplanModal({
 
         <div className="flex items-start gap-1.5 text-xs text-stone-400">
           <Info size={13} className="mt-0.5 shrink-0" />
-          Termine anderer Klausuren und deren Lern-Sessions werden automatisch ausgespart.
+          Andere Klausuren &amp; Vorlesungszeiten werden automatisch ausgespart, die Last über mehrere
+          Klausuren verteilt.
         </div>
 
         {/* Vorschau */}
@@ -282,8 +322,8 @@ export function LernplanModal({
             <div className="max-h-40 space-y-1 overflow-y-auto pr-0.5">
               {sessions.map((s, i) => (
                 <div key={i} className="flex items-center gap-2 text-xs">
-                  <span className="w-28 shrink-0 capitalize text-stone-500">
-                    {format(s.date, 'EEE d. MMM', { locale: de })}
+                  <span className="w-32 shrink-0 capitalize text-stone-500">
+                    {format(s.date, 'EEE d. MMM · HH:mm', { locale: de })}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-stone-700">{s.label}</span>
                 </div>

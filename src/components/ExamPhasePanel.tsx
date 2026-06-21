@@ -1,11 +1,19 @@
 import { useState } from 'react'
-import { GraduationCap, BookOpen } from 'lucide-react'
+import { GraduationCap, BookOpen, Sparkles, RotateCcw } from 'lucide-react'
 import { differenceInCalendarDays, format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import type { Task } from '@/db/types'
 import { useActiveSemester, useCourses, useTasks } from '@/hooks/data'
 import { useExamStatus, examBadge } from '@/lib/examPhase'
-import { planSessions, studyPlanCount, removeStudyPlan } from '@/lib/lernplan'
+import {
+  DEFAULT_LERNPLAN,
+  createStudyPlan,
+  overdueSessions,
+  planSessions,
+  removeStudyPlan,
+  rescheduleOverdue,
+  studyPlanProgress,
+} from '@/lib/lernplan'
 import { courseMap } from '@/lib/filter'
 import { useUI } from '@/store/ui'
 import { LernplanModal } from './LernplanModal'
@@ -109,9 +117,21 @@ export function ExamPhasePanel({ onlyImminent = false }: { onlyImminent?: boolea
             {exams.slice(0, 6).map((t) => {
               const course = t.courseId ? byId.get(t.courseId) : undefined
               const chip = examChip(t.dueDate!)
-              const planned = studyPlanCount(allTasks, t.id)
-              const canPlan = planSessions(t, allTasks).length > 0
+              const progress = studyPlanProgress(allTasks, t.id)
+              const planned = progress.total
+              const overdue = overdueSessions(allTasks, t.id).length
+              const canPlan = planSessions(t, allTasks, courses).length > 0
               const loading = busy === t.id
+              const quickCreate = async () => {
+                setBusy(t.id)
+                await createStudyPlan(t, allTasks, courses, DEFAULT_LERNPLAN)
+                setBusy(null)
+              }
+              const catchUp = async () => {
+                setBusy(t.id)
+                await rescheduleOverdue(t, allTasks, courses)
+                setBusy(null)
+              }
               const remove = async () => {
                 setBusy(t.id)
                 await removeStudyPlan(allTasks, t.id)
@@ -147,12 +167,21 @@ export function ExamPhasePanel({ onlyImminent = false }: { onlyImminent?: boolea
 
                   {/* Lernplan-Aktion */}
                   {(planned > 0 || canPlan) && (
-                    <div className="mt-1.5 flex items-center gap-2 pl-3.5">
+                    <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 pl-3.5">
                       {planned > 0 ? (
                         <>
                           <span className="flex items-center gap-1 text-xs font-medium text-indigo-600">
-                            <BookOpen size={12} /> {planned} Lern-Session{planned === 1 ? '' : 's'}
+                            <BookOpen size={12} /> {progress.done}/{planned} Lern-Sessions
                           </span>
+                          {overdue > 0 && (
+                            <button
+                              onClick={() => void catchUp()}
+                              disabled={loading}
+                              className="flex items-center gap-1 text-xs font-semibold text-amber-600 transition hover:text-amber-700 disabled:opacity-40"
+                            >
+                              <RotateCcw size={12} /> {overdue} aufholen
+                            </button>
+                          )}
                           <button
                             onClick={() => setPlanExam(t)}
                             className="text-xs font-medium text-stone-500 transition hover:text-stone-800"
@@ -168,12 +197,21 @@ export function ExamPhasePanel({ onlyImminent = false }: { onlyImminent?: boolea
                           </button>
                         </>
                       ) : (
-                        <button
-                          onClick={() => setPlanExam(t)}
-                          className="flex items-center gap-1 text-xs font-semibold text-indigo-600 transition hover:text-indigo-700"
-                        >
-                          <BookOpen size={12} /> Lernplan erstellen
-                        </button>
+                        <>
+                          <button
+                            onClick={() => void quickCreate()}
+                            disabled={loading}
+                            className="flex items-center gap-1 text-xs font-semibold text-indigo-600 transition hover:text-indigo-700 disabled:opacity-40"
+                          >
+                            <Sparkles size={12} /> Smart-Lernplan
+                          </button>
+                          <button
+                            onClick={() => setPlanExam(t)}
+                            className="text-xs font-medium text-stone-500 transition hover:text-stone-800"
+                          >
+                            anpassen
+                          </button>
+                        </>
                       )}
                     </div>
                   )}
@@ -188,7 +226,12 @@ export function ExamPhasePanel({ onlyImminent = false }: { onlyImminent?: boolea
       )}
 
       {planExam && (
-        <LernplanModal exam={planExam} allTasks={allTasks} onClose={() => setPlanExam(null)} />
+        <LernplanModal
+          exam={planExam}
+          allTasks={allTasks}
+          courses={courses}
+          onClose={() => setPlanExam(null)}
+        />
       )}
     </section>
   )

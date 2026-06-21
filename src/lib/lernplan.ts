@@ -1,28 +1,43 @@
-import type { Task } from '@/db/types'
+import type { Course, Task } from '@/db/types'
 import { db } from '@/db/db'
-import { createTask } from './actions'
+import { createTask, updateTask } from './actions'
+import { pickSessionTime, toMin } from './schedule'
 
-/** Konfiguration eines individuellen Lernplans. */
+/** Intensität als einfache Voreinstellung – mehr/weniger VERTEILTE Sessions
+ *  (nicht längere Cram-Blöcke; vgl. Lernforschung: Spacing schlägt Cramming). */
+export type Intensity = 'locker' | 'normal' | 'endspurt'
+
+export const PRESETS: Record<Intensity, { weekdays: number[]; startWeeksBefore: number }> = {
+  locker: { weekdays: [2, 4], startWeeksBefore: 4 }, // Di/Do, früh & entspannt
+  normal: { weekdays: [1, 3, 5], startWeeksBefore: 3 }, // Mo/Mi/Fr
+  endspurt: { weekdays: [1, 2, 3, 4, 5], startWeeksBefore: 2 }, // Mo–Fr, dichter
+}
+
 export interface LernplanConfig {
+  intensity: Intensity
   /** Wie viele Wochen vor der Klausur beginnen (frühestens heute). */
   startWeeksBefore: number
   /** Lern-Wochentage (1 = Mo … 7 = So). */
   weekdays: number[]
-  /** Uhrzeit der Sessions, "HH:mm". */
+  /** Bevorzugte (früheste) Uhrzeit, "HH:mm". */
   time: string
-  /** Inhalte automatisch aus dem Kursmaterial einbeziehen. */
+  /** Session-Dauer in Minuten (für freie-Block-Suche). */
+  duration: number
+  /** Inhalte automatisch aus dem Kursmaterial. */
   includeSummary: boolean
   includeUebung: boolean
   includeTut: boolean
   includeAltklausuren: boolean
-  /** Optionale eigene Themen – ersetzen die automatischen Inhalte. */
+  /** Eigene Themen – ersetzen die automatischen Inhalte. */
   topics: string[]
 }
 
 export const DEFAULT_LERNPLAN: LernplanConfig = {
-  startWeeksBefore: 3,
-  weekdays: [1, 3, 5], // Mo, Mi, Fr
+  intensity: 'normal',
+  startWeeksBefore: PRESETS.normal.startWeeksBefore,
+  weekdays: PRESETS.normal.weekdays,
   time: '18:00',
+  duration: 60,
   includeSummary: true,
   includeUebung: true,
   includeTut: true,
@@ -30,27 +45,33 @@ export const DEFAULT_LERNPLAN: LernplanConfig = {
   topics: [],
 }
 
+/** Preset auf eine Konfiguration anwenden (Wochentage + Vorlauf). */
+export function applyPreset(cfg: LernplanConfig, intensity: Intensity): LernplanConfig {
+  return { ...cfg, intensity, ...PRESETS[intensity] }
+}
+
 export interface PlannedSession {
   date: Date
   label: string
 }
+
+// Höchstens so viele FREMDE Lern-Sessions/Termine pro Tag, sonst gilt der Tag
+// als überlastet (Lastausgleich über mehrere Klausuren).
+const DAY_LOAD_CAP = 2
 
 function startOfTodayMs(): number {
   const d = new Date()
   d.setHours(0, 0, 0, 0)
   return d.getTime()
 }
-
-// getDay(): 0=So..6=Sa  →  1=Mo..7=So
 function isoWeekday(d: Date): number {
   return ((d.getDay() + 6) % 7) + 1
 }
-
 function dayKey(d: Date): string {
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`
+  return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`
 }
 
-/** Anzahl Aufgaben eines Typs im jeweiligen Kurs (Material zum Wiederholen). */
+/** Anzahl Übungs-/Tutoriumsblätter des Kurses (Material zum Wiederholen). */
 export function courseMaterial(
   allTasks: Task[],
   courseId: string | undefined,
@@ -72,7 +93,7 @@ function materialItems(label: string, count: number): string[] {
   return [`${label} 1–${half} wiederholen`, `${label} ${half + 1}–${count} wiederholen`]
 }
 
-/** Was gelernt wird – aus Kursmaterial abgeleitet (oder eigene Themen). */
+/** Lerninhalte – aus Kursmaterial abgeleitet (oder eigene Themen). Retrieval-orientiert. */
 function buildContent(exam: Task, allTasks: Task[], cfg: LernplanConfig): string[] {
   if (cfg.topics.length) return cfg.topics
   const mat = courseMaterial(allTasks, exam.courseId)
@@ -81,11 +102,12 @@ function buildContent(exam: Task, allTasks: Task[], cfg: LernplanConfig): string
   if (cfg.includeUebung) items.push(...materialItems('Übungsblätter', mat.uebung))
   if (cfg.includeTut) items.push(...materialItems('Tutoriumsblätter', mat.tut))
   if (cfg.includeAltklausuren) items.push('Altklausuren rechnen')
+  items.push('Aktiv abrufen & Selbsttest')
   items.push('Endspurt-Wiederholung')
   return items
 }
 
-/** Tage, die wegen anderer Klausuren bzw. deren Lern-Sessions tabu sind. */
+/** Tabu-Tage: andere Klausuren bzw. deren Lern-Sessions. */
 function conflictDayKeys(exam: Task, allTasks: Task[]): Set<string> {
   const s = new Set<string>()
   for (const t of allTasks) {
@@ -97,7 +119,20 @@ function conflictDayKeys(exam: Task, allTasks: Task[]): Set<string> {
   return s
 }
 
-/** Freie Lern-Tage im Zeitfenster (Wochentage, ab heute, ohne Konflikte). */
+/** Wie viele FREMDE Lern-Sessions liegen schon auf einem Tag (für den Last-Cap). */
+function foreignSessionLoad(exam: Task, allTasks: Task[]): Map<string, number> {
+  const m = new Map<string, number>()
+  for (const t of allTasks) {
+    if (!t.dueDate || t.status === 'erledigt') continue
+    if (t.examId && t.examId !== exam.id) {
+      const k = dayKey(new Date(t.dueDate))
+      m.set(k, (m.get(k) ?? 0) + 1)
+    }
+  }
+  return m
+}
+
+/** Freie Lern-Tage (Mitternacht-Daten): Wochentage, ab heute, ohne Konflikte, unter Last-Cap. */
 function availableDays(exam: Task, allTasks: Task[], cfg: LernplanConfig): Date[] {
   if (!exam.dueDate || cfg.weekdays.length === 0) return []
   const exam0 = new Date(exam.dueDate)
@@ -107,30 +142,29 @@ function availableDays(exam: Task, allTasks: Task[], cfg: LernplanConfig): Date[
   const start = new Date(examDay)
   start.setDate(start.getDate() - Math.max(1, cfg.startWeeksBefore) * 7)
 
-  const [h, m] = cfg.time.split(':').map(Number)
   const wd = new Set(cfg.weekdays)
   const conflicts = conflictDayKeys(exam, allTasks)
+  const load = foreignSessionLoad(exam, allTasks)
   const todayMs = startOfTodayMs()
 
   const out: Date[] = []
   const cur = new Date(Math.max(start.getTime(), todayMs))
   cur.setHours(0, 0, 0, 0)
   while (cur.getTime() < examDay.getTime() && out.length < 60) {
-    if (wd.has(isoWeekday(cur)) && !conflicts.has(dayKey(cur))) {
-      const d = new Date(cur)
-      d.setHours(h || 18, m || 0, 0, 0)
-      if (d.getTime() >= todayMs) out.push(d)
+    const k = dayKey(cur)
+    if (wd.has(isoWeekday(cur)) && !conflicts.has(k) && (load.get(k) ?? 0) < DAY_LOAD_CAP) {
+      out.push(new Date(cur))
     }
     cur.setDate(cur.getDate() + 1)
   }
   return out
 }
 
-// n Elemente gleichmäßig aus arr wählen (chronologisch).
+// n Elemente gleichmäßig aus arr wählen (chronologisch, ~70 % Puffer durch Lücken).
 function pickSpread<T>(arr: T[], n: number): T[] {
   if (n <= 0) return []
   if (n >= arr.length) return arr.slice()
-  if (n === 1) return [arr[arr.length - 1]] // einzelne Session möglichst nah an der Klausur
+  if (n === 1) return [arr[arr.length - 1]]
   const res: T[] = []
   for (let i = 0; i < n; i++) res.push(arr[Math.round((i * (arr.length - 1)) / (n - 1))])
   return res
@@ -143,35 +177,68 @@ function chunkInto<T>(arr: T[], n: number): T[][] {
   return out
 }
 
+function withTimeOfDay(day: Date, min: number): Date {
+  const d = new Date(day)
+  d.setHours(Math.floor(min / 60), min % 60, 0, 0)
+  return d
+}
+
+const ENDSPURT_LABEL = 'Endspurt-Wiederholung'
+// Mehr Intensität = mehr VERTEILTE Sessions (Kerninhalte werden für Spacing
+// wiederholt), nicht längere Blöcke.
+const MAX_SESSIONS: Record<Intensity, number> = { locker: 5, normal: 8, endspurt: 12 }
+
+/** n Session-Labels: Kerninhalte ggf. wiederholend, immer mit Endspurt zuletzt. */
+function buildLabels(content: string[], n: number): string[] {
+  if (n <= 1) return [ENDSPURT_LABEL]
+  const core = content.filter((c) => c !== ENDSPURT_LABEL)
+  const slots = n - 1
+  const out: string[] = []
+  if (core.length === 0) {
+    for (let i = 0; i < slots; i++) out.push('Wiederholung & Selbsttest')
+  } else if (slots >= core.length) {
+    // jeder Inhalt mind. einmal, Rest wiederholt (verteiltes Abrufen)
+    for (let i = 0; i < slots; i++) out.push(core[i % core.length])
+  } else {
+    for (const g of chunkInto(core, slots)) out.push(g.join(' · '))
+  }
+  out.push(ENDSPURT_LABEL)
+  return out
+}
+
 /**
- * Ganzheitlicher Lernplan: Inhalte aus dem Kursmaterial (Übungs-/Tutoriums-
- * blätter, Altklausuren, Zusammenfassung) verteilt auf freie Lern-Tage –
- * Termine anderer Klausuren werden ausgespart.
+ * Smarter, ganzheitlicher Lernplan: Inhalte aus dem Kursmaterial, gleichmäßig
+ * (Spacing) auf freie Lern-Tage verteilt, in freie Stundenplan-Lücken gelegt,
+ * Termine anderer Klausuren ausgespart, Tageslast über mehrere Klausuren gedeckelt.
  */
 export function planSessionsConfig(
   exam: Task,
   allTasks: Task[],
+  courses: Course[],
   cfg: LernplanConfig,
 ): PlannedSession[] {
   const content = buildContent(exam, allTasks, cfg)
   const days = availableDays(exam, allTasks, cfg)
   if (content.length === 0 || days.length === 0) return []
-  const n = Math.min(content.length, days.length)
+  const n = Math.min(days.length, MAX_SESSIONS[cfg.intensity])
   const used = pickSpread(days, n)
-  const buckets = chunkInto(content, n)
-  return used.map((date, i) => ({ date, label: buckets[i].join(' · ') }))
+  const labels = buildLabels(content, n)
+  const preferred = toMin(cfg.time)
+  return used.map((day, i) => {
+    const min = pickSessionTime(courses, day, preferred, cfg.duration)
+    return { date: withTimeOfDay(day, min), label: labels[i] }
+  })
 }
 
 /** Standard-Plan (für „kann man planen?"-Prüfung & Schnellweg). */
-export function planSessions(exam: Task, allTasks: Task[]): PlannedSession[] {
-  return planSessionsConfig(exam, allTasks, DEFAULT_LERNPLAN)
+export function planSessions(exam: Task, allTasks: Task[], courses: Course[]): PlannedSession[] {
+  return planSessionsConfig(exam, allTasks, courses, DEFAULT_LERNPLAN)
 }
 
 /**
- * Auslastung je Wochentag (1=Mo…7=So) im Lern-Zeitraum: zählt bereits belegte
- * Termine (andere Klausuren, fremde Lern-Sessions, offene Abgaben) – damit man
- * beim Planen sieht, welche Tage noch Kapazität haben. Eigene Sessions dieser
- * Klausur und Erledigtes zählen nicht.
+ * Auslastung je Wochentag (1=Mo…7=So) im Lern-Zeitraum: bereits belegte Termine
+ * (andere Klausuren, fremde Lern-Sessions, offene Abgaben). Eigene Sessions/
+ * Erledigtes zählen nicht.
  */
 export function loadByWeekday(
   exam: Task,
@@ -186,7 +253,6 @@ export function loadByWeekday(
   const start = new Date(examDay)
   start.setDate(start.getDate() - Math.max(1, cfg.startWeeksBefore) * 7)
   const from = Math.max(start.getTime(), startOfTodayMs())
-
   for (const t of allTasks) {
     if (!t.dueDate || t.status === 'erledigt') continue
     if (t.id === exam.id || t.examId === exam.id) continue
@@ -198,20 +264,44 @@ export function loadByWeekday(
   return res
 }
 
-/** Anzahl bereits angelegter Lern-Sessions zu einer Klausur. */
+/** Sessions zu einer Klausur (gesamt & erledigt) – für den Fortschritt. */
+export function studyPlanProgress(tasks: Task[], examId: string): { total: number; done: number } {
+  let total = 0
+  let done = 0
+  for (const t of tasks) {
+    if (t.examId !== examId) continue
+    total++
+    if (t.status === 'erledigt') done++
+  }
+  return { total, done }
+}
+
 export function studyPlanCount(tasks: Task[], examId: string): number {
   return tasks.filter((t) => t.examId === examId).length
+}
+
+/** Überfällige, noch offene Lern-Sessions einer Klausur. */
+export function overdueSessions(tasks: Task[], examId: string): Task[] {
+  const todayMs = startOfTodayMs()
+  return tasks.filter(
+    (t) =>
+      t.examId === examId &&
+      t.status !== 'erledigt' &&
+      !!t.dueDate &&
+      new Date(t.dueDate).getTime() < todayMs,
+  )
 }
 
 /** Lern-Sessions als Aufgaben anlegen (ersetzt einen vorhandenen Plan). */
 export async function createStudyPlan(
   exam: Task,
   allTasks: Task[],
+  courses: Course[],
   cfg: LernplanConfig,
 ): Promise<number> {
   if (!exam.dueDate) return 0
   await removeStudyPlan(allTasks, exam.id)
-  const sessions = planSessionsConfig(exam, allTasks, cfg)
+  const sessions = planSessionsConfig(exam, allTasks, courses, cfg)
   for (const s of sessions) {
     await createTask({
       semesterId: exam.semesterId,
@@ -219,14 +309,38 @@ export async function createStudyPlan(
       type: 'sonstiges',
       courseId: exam.courseId,
       dueDate: s.date.toISOString(),
-      notes: `Vorbereitung auf: ${exam.title}`,
+      notes: `Aktiv abrufen (Selbsttest/Altklausuren) statt nur lesen. · Vorbereitung auf ${exam.title}`,
       examId: exam.id,
     })
   }
   return sessions.length
 }
 
-/** Alle Lern-Sessions zu einer Klausur wieder entfernen. */
+/**
+ * „Aufholen": überfällige, offene Sessions in die nächsten freien Lern-Tage
+ * verschieben (verteidigen & sanft umlegen – keine globale Neuberechnung).
+ */
+export async function rescheduleOverdue(
+  exam: Task,
+  allTasks: Task[],
+  courses: Course[],
+): Promise<number> {
+  const overdue = overdueSessions(allTasks, exam.id).sort(
+    (a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime(),
+  )
+  if (!overdue.length) return 0
+  const days = availableDays(exam, allTasks, DEFAULT_LERNPLAN)
+  const preferred = toMin(DEFAULT_LERNPLAN.time)
+  let moved = 0
+  for (let i = 0; i < overdue.length && i < days.length; i++) {
+    const min = pickSessionTime(courses, days[i], preferred, DEFAULT_LERNPLAN.duration)
+    await updateTask(overdue[i].id, { dueDate: withTimeOfDay(days[i], min).toISOString() })
+    moved++
+  }
+  return moved
+}
+
+/** Alle Lern-Sessions zu einer Klausur entfernen. */
 export async function removeStudyPlan(tasks: Task[], examId: string): Promise<void> {
   const ids = tasks.filter((t) => t.examId === examId).map((t) => t.id)
   if (ids.length) await db.tasks.bulkDelete(ids)
