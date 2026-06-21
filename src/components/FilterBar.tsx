@@ -1,4 +1,13 @@
-import { Check, Filter, GraduationCap, Layers, Search, SlidersHorizontal, X } from 'lucide-react'
+import {
+  CalendarCheck,
+  Check,
+  Filter,
+  GraduationCap,
+  Layers,
+  Search,
+  SlidersHorizontal,
+  X,
+} from 'lucide-react'
 import type { Course } from '@/db/types'
 import { SELECTABLE_TASK_TYPES } from '@/lib/taskTypes'
 import { useUI, type ExamPrepFilter, type GroupBy, type SortBy } from '@/store/ui'
@@ -75,6 +84,21 @@ export function FilterBar({ courses }: { courses: Course[] }) {
           </button>
         )}
       </div>
+
+      {/* Tagesfokus: nur heute fällige & überfällige Aufgaben */}
+      <button
+        onClick={() => ui.setDueToday(!ui.dueToday)}
+        aria-pressed={ui.dueToday}
+        className={cn(
+          'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium shadow-sm ring-1 transition',
+          ui.dueToday
+            ? 'bg-brand-400 text-stone-900 ring-brand-400'
+            : 'bg-white/70 text-stone-600 ring-stone-200/70 backdrop-blur hover:bg-white',
+        )}
+      >
+        <CalendarCheck size={14} className={ui.dueToday ? 'text-stone-900' : 'text-stone-400'} />
+        Heute
+      </button>
 
       <div className="ml-auto flex items-center gap-2">
         {/* Filter-Menü */}

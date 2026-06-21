@@ -17,6 +17,8 @@ interface UIState {
   filterTypes: TaskTypeId[]
   examPrep: ExamPrepFilter
   showDone: boolean
+  /** true = nur heute fällige & überfällige Aufgaben (Tagesfokus). */
+  dueToday: boolean
   /** false = pro Serie nur die nächsten Wochen zeigen (gestaffelt). */
   showAllSeries: boolean
 
@@ -56,6 +58,7 @@ interface UIState {
   setExamPrep: (f: ExamPrepFilter) => void
   clearFilters: () => void
   setShowDone: (b: boolean) => void
+  setDueToday: (b: boolean) => void
   setShowAllSeries: (b: boolean) => void
 
   editTask: (id: string | null) => void
@@ -126,6 +129,7 @@ export const useUI = create<UIState>((set) => ({
   filterTypes: [],
   examPrep: 'all',
   showDone: true,
+  dueToday: false,
   showAllSeries: false,
 
   editingTaskId: null,
@@ -163,8 +167,10 @@ export const useUI = create<UIState>((set) => ({
         : [...s.filterTypes, t],
     })),
   setExamPrep: (examPrep) => set({ examPrep }),
-  clearFilters: () => set({ filterCourseIds: [], filterTypes: [], examPrep: 'all', search: '' }),
+  clearFilters: () =>
+    set({ filterCourseIds: [], filterTypes: [], examPrep: 'all', search: '', dueToday: false }),
   setShowDone: (showDone) => set({ showDone }),
+  setDueToday: (dueToday) => set({ dueToday }),
   setShowAllSeries: (showAllSeries) => set({ showAllSeries }),
 
   editTask: (editingTaskId) => set({ editingTaskId }),

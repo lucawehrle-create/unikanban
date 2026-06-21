@@ -8,6 +8,8 @@ export interface FilterState {
   filterTypes: TaskTypeId[]
   examPrep: ExamPrepFilter
   showDone: boolean
+  /** true = nur heute fällige & überfällige Aufgaben (Tagesfokus). */
+  dueToday: boolean
 }
 
 export function courseMap(courses: Course[]): Map<string, Course> {
@@ -17,9 +19,16 @@ export function courseMap(courses: Course[]): Map<string, Course> {
 export function filterTasks(tasks: Task[], courses: Course[], f: FilterState): Task[] {
   const byId = courseMap(courses)
   const needle = f.search.trim().toLowerCase()
+  // Ende des heutigen Tages – „heute fällig" schließt Überfälliges mit ein.
+  const endOfToday = new Date()
+  endOfToday.setHours(23, 59, 59, 999)
 
   return tasks.filter((t) => {
     if (!f.showDone && t.status === 'erledigt') return false
+    if (f.dueToday) {
+      if (t.status === 'erledigt') return false
+      if (!t.dueDate || new Date(t.dueDate).getTime() > endOfToday.getTime()) return false
+    }
     if (f.examPrep === 'only' && !t.examId) return false
     if (f.examPrep === 'hide' && t.examId) return false
     if (f.filterCourseIds.length && (!t.courseId || !f.filterCourseIds.includes(t.courseId)))

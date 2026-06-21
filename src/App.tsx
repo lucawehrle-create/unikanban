@@ -94,8 +94,18 @@ export default function App() {
         filterTypes: ui.filterTypes,
         examPrep: ui.examPrep,
         showDone: ui.showDone,
+        dueToday: ui.dueToday,
       }),
-    [tasks, courses, ui.search, ui.filterCourseIds, ui.filterTypes, ui.examPrep, ui.showDone],
+    [
+      tasks,
+      courses,
+      ui.search,
+      ui.filterCourseIds,
+      ui.filterTypes,
+      ui.examPrep,
+      ui.showDone,
+      ui.dueToday,
+    ],
   )
 
   if (programCount === undefined) {
