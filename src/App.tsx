@@ -170,7 +170,7 @@ export default function App() {
       <BottomNav />
 
       <TaskEditor courses={courses} />
-      {showCourseManager && semester && <CourseManager courses={courses} semester={semester} />}
+      {showCourseManager && semester && <CourseManager courses={courses} semester={semester} tasks={tasks} />}
       {showCalendar && semester && <CalendarModal semester={semester} courses={courses} tasks={tasks} />}
       {(showAccount || conflict) && <AccountModal />}
       <ReflectionModal />

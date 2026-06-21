@@ -1,12 +1,20 @@
 import { useState } from 'react'
-import { Clock, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react'
-import type { Course, CourseSlot, RecurringConfig, Semester } from '@/db/types'
+import { Clock, GraduationCap, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react'
+import type { Course, CourseSlot, RecurringConfig, Semester, Task } from '@/db/types'
 import { uid } from '@/db/db'
 import { TASK_TYPE_LIST } from '@/lib/taskTypes'
-import { deleteCourse, regenerateRecurring, saveCourse } from '@/lib/actions'
+import {
+  createTask,
+  deleteCourse,
+  deleteTask,
+  regenerateRecurring,
+  saveCourse,
+  updateTask,
+} from '@/lib/actions'
 import { SLOT_KINDS } from '@/lib/slotKinds'
 import { useUI } from '@/store/ui'
 import { Modal } from './Modal'
+import { DatePicker } from './DatePicker'
 import { Select } from './ui/Select'
 import { TimeField } from './ui/TimeField'
 import { cn } from '@/lib/cn'
@@ -47,10 +55,32 @@ function newSeries(): RecurringConfig {
   }
 }
 
-export function CourseManager({ courses, semester }: { courses: Course[]; semester: Semester }) {
+/** Frühester Klausur-Termin eines Kurses (primäre Klausur). */
+function primaryExam(tasks: Task[], courseId: string): Task | undefined {
+  return tasks
+    .filter((t) => t.courseId === courseId && t.type === 'klausur' && t.dueDate)
+    .sort((a, b) => (a.dueDate! < b.dueDate! ? -1 : 1))[0]
+}
+
+export function CourseManager({
+  courses,
+  semester,
+  tasks,
+}: {
+  courses: Course[]
+  semester: Semester
+  tasks: Task[]
+}) {
   const close = () => useUI.getState().setShowCourseManager(false)
   const [draft, setDraft] = useState<Course | null>(null)
+  const [examDate, setExamDate] = useState<string | undefined>(undefined)
   const [flash, setFlash] = useState('')
+
+  // Kurs zum Bearbeiten öffnen und den vorhandenen Klausurtermin laden.
+  const openDraft = (c: Course) => {
+    setDraft(c)
+    setExamDate(primaryExam(tasks, c.id)?.dueDate)
+  }
 
   const set = <K extends keyof Course>(k: K, v: Course[K]) =>
     setDraft((d) => (d ? { ...d, [k]: v } : d))
@@ -92,6 +122,24 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
       const n = await regenerateRecurring(draft, semester)
       if (n > 0) msg = `Kurs gespeichert · ${n} wöchentliche Aufgaben erstellt.`
     }
+
+    // Klausur-Termin als Aufgabe pflegen (erscheint in Stundenplan/Kalender,
+    // Basis für den Lernplan).
+    const existing = primaryExam(tasks, draft.id)
+    if (examDate) {
+      if (existing) await updateTask(existing.id, { dueDate: examDate })
+      else
+        await createTask({
+          semesterId: semester.id,
+          courseId: draft.id,
+          type: 'klausur',
+          title: `Klausur ${draft.name || draft.short}`,
+          dueDate: examDate,
+        })
+    } else if (existing) {
+      await deleteTask(existing.id)
+    }
+
     setDraft(null)
     setFlash(msg)
     setTimeout(() => setFlash(''), 2500)
@@ -125,7 +173,7 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
                 </div>
               </div>
               <button
-                onClick={() => setDraft(structuredClone(c))}
+                onClick={() => openDraft(structuredClone(c))}
                 className="rounded-lg p-2 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
               >
                 <Pencil size={15} />
@@ -139,7 +187,7 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
             </div>
           ))}
           <button
-            onClick={() => setDraft(emptyCourse(semester.id))}
+            onClick={() => openDraft(emptyCourse(semester.id))}
             className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-stone-300 py-2.5 text-sm font-medium text-stone-500 hover:border-brand-400 hover:text-brand-600"
           >
             <Plus size={16} /> Neuer Kurs
@@ -194,6 +242,20 @@ export function CourseManager({ courses, semester }: { courses: Course[]; semest
                 className="w-16 rounded-lg border border-stone-200 px-2 py-1.5 text-sm"
               />
             </label>
+          </div>
+
+          {/* Klausurtermin */}
+          <div className="rounded-xl bg-stone-50 p-3">
+            <div className="flex items-center gap-2 text-sm font-medium text-stone-700">
+              <GraduationCap size={15} className="text-indigo-500" />
+              Klausurtermin
+            </div>
+            <p className="mt-1 text-xs text-stone-500">
+              Erscheint im Stundenplan &amp; Kalender und ist die Basis für den Lernplan.
+            </p>
+            <div className="mt-2">
+              <DatePicker value={examDate} onChange={setExamDate} />
+            </div>
           </div>
 
           {/* Wochen-Serien (mehrere möglich: z.B. Übungsblatt UND Tutoriumsblatt) */}
