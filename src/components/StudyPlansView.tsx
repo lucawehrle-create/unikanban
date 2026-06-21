@@ -1,5 +1,13 @@
 import { useMemo, useState } from 'react'
-import { GraduationCap, BookOpen, Trash2, Check, CalendarClock, ChevronRight } from 'lucide-react'
+import {
+  GraduationCap,
+  BookOpen,
+  Trash2,
+  Check,
+  CalendarClock,
+  ChevronRight,
+  RotateCcw,
+} from 'lucide-react'
 import { parseISO, format, differenceInCalendarDays } from 'date-fns'
 import { de } from 'date-fns/locale'
 import type { Course, StudyPlanConfig, StudyStrategy, Task } from '@/db/types'
@@ -11,7 +19,9 @@ import {
   cardMinutesPerDay,
   defaultPlanConfig,
   deletePlan,
+  planProgress,
   planSessionCount,
+  rescheduleOverduePlan,
   savePlan,
   summarize,
   timeline,
@@ -145,7 +155,16 @@ function PlanEditor({
   const bars = useMemo(() => timeline(cfg, active.sessions), [cfg, active.sessions])
 
   const planned = planSessionCount(allTasks, course.id)
+  const progress = planProgress(allTasks, course.id)
   const examDays = differenceInCalendarDays(parseISO(cfg.examDate), new Date())
+
+  const catchUp = async () => {
+    setBusy(true)
+    const n = await rescheduleOverduePlan(course, cfg, courses, allTasks)
+    setBusy(false)
+    setFlash(n > 0 ? `${n} überfällige Sessions verschoben` : 'Nichts aufzuholen')
+    setTimeout(() => setFlash(''), 3000)
+  }
 
   const save = async () => {
     setBusy(true)
@@ -163,6 +182,43 @@ function PlanEditor({
 
   return (
     <div className="space-y-5">
+      {/* Fortschritt (nur bei aktivem Plan) */}
+      {planned > 0 && (
+        <div className="rounded-xl bg-stone-50 p-3">
+          <div className="mb-1.5 flex items-baseline justify-between text-xs">
+            <span className="font-medium text-stone-600">Dein Fortschritt</span>
+            <span className="text-stone-500">
+              <strong className="text-stone-700">{progress.done}</strong>/{progress.total} Sessions ·{' '}
+              {progress.pct}%
+            </span>
+          </div>
+          <div className="h-2 w-full overflow-hidden rounded-full bg-stone-200">
+            <div
+              className="h-full rounded-full bg-emerald-500 transition-all"
+              style={{ width: `${progress.pct}%` }}
+            />
+          </div>
+          {progress.overdue > 0 ? (
+            <div className="mt-2 flex items-center justify-between gap-2">
+              <span className="text-xs font-medium text-amber-700">
+                {progress.overdue} überfällig – du hängst etwas hinterher
+              </span>
+              <button
+                onClick={() => void catchUp()}
+                disabled={busy}
+                className="flex shrink-0 items-center gap-1.5 rounded-full bg-stone-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-stone-700 disabled:opacity-40"
+              >
+                <RotateCcw size={13} /> Aufholen
+              </button>
+            </div>
+          ) : (
+            progress.open > 0 && (
+              <div className="mt-2 text-xs font-medium text-emerald-600">Du bist im Plan 🎉</div>
+            )
+          )}
+        </div>
+      )}
+
       {/* Eckdaten */}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
@@ -355,7 +411,7 @@ function PlanEditor({
       <p className="text-[11px] leading-relaxed text-stone-400">
         Die Sessions werden echte Aufgaben (erscheinen in „Diese Woche", im Kalender &amp; in
         Erinnerungen). Im Aufgaben-Board siehst du nur die aktuell anstehenden – nicht die ganze
-        Zukunft.
+        Zukunft. Beim Aktualisieren bleiben bereits erledigte Sessions erhalten.
       </p>
     </div>
   )

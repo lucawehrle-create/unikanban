@@ -1,6 +1,6 @@
 import type { Course, StudyPlanConfig, StudyStrategy, Task } from '@/db/types'
 import { db } from '@/db/db'
-import { createTask } from './actions'
+import { createTask, updateTask } from './actions'
 import { pickSessionTime, toMin } from './schedule'
 
 // Zeitbudgets (Minuten)
@@ -302,18 +302,39 @@ export function timeline(cfg: StudyPlanConfig, sessions: PlanSession[]): DayBar[
   return [...map.values()]
 }
 
+const titlePrefix = (course: Course) => `${course.short}: `
+
+/**
+ * Legt/aktualisiert den Plan. Bereits **erledigte** Sessions bleiben als
+ * Verlauf erhalten (für den Fortschritt) – nur offene werden neu verteilt.
+ * Schon erledigtes Material (außer Karteikarten) wird nicht erneut eingeplant.
+ */
 export async function savePlan(
   course: Course,
   cfg: StudyPlanConfig,
   courses: Course[],
   allTasks: Task[],
 ): Promise<number> {
-  await removePlanSessions(course.id, allTasks)
+  const prefix = titlePrefix(course)
+  const doneLabels = new Set(
+    allTasks
+      .filter((t) => t.examId === course.id && t.status === 'erledigt')
+      .map((t) => (t.title.startsWith(prefix) ? t.title.slice(prefix.length) : t.title)),
+  )
+  // nur offene Plan-Sessions löschen, erledigte behalten
+  const openIds = allTasks
+    .filter((t) => t.examId === course.id && t.status !== 'erledigt')
+    .map((t) => t.id)
+  if (openIds.length) await db.tasks.bulkDelete(openIds)
+
   const { sessions } = buildPlan(cfg, course.id, courses, allTasks)
+  let created = 0
   for (const s of sessions) {
+    // bereits erledigtes Material nicht doppeln (Karteikarten laufen täglich weiter)
+    if (s.kind !== 'karten' && doneLabels.has(s.label)) continue
     await createTask({
       semesterId: course.semesterId,
-      title: `${course.short}: ${s.label}`,
+      title: `${prefix}${s.label}`,
       type: 'sonstiges',
       courseId: course.id,
       dueDate: s.date.toISOString(),
@@ -321,9 +342,99 @@ export async function savePlan(
       notes: `Lernplan ${course.name} · ${s.durationMin} Min`,
       examId: course.id,
     })
+    created++
   }
   await db.courses.update(course.id, { studyPlan: cfg })
-  return sessions.length
+  return created
+}
+
+export interface PlanProgress {
+  total: number
+  done: number
+  open: number
+  overdue: number
+  pct: number
+}
+
+/** Fortschritt eines Kurs-Plans (erledigt/offen/überfällig). */
+export function planProgress(allTasks: Task[], courseId: string): PlanProgress {
+  const todayMs = startOfToday().getTime()
+  let total = 0
+  let done = 0
+  let overdue = 0
+  for (const t of allTasks) {
+    if (t.examId !== courseId) continue
+    total++
+    if (t.status === 'erledigt') done++
+    else if (t.dueDate && new Date(t.dueDate).getTime() < todayMs) overdue++
+  }
+  const open = total - done
+  return { total, done, open, overdue, pct: total ? Math.round((done / total) * 100) : 0 }
+}
+
+/**
+ * „Aufholen": überfällige, offene Sessions in die nächsten Tage mit freier
+ * Kapazität verschieben (Tagesbudget & andere Kurse berücksichtigt) – ohne
+ * den ganzen Plan neu zu berechnen.
+ */
+export async function rescheduleOverduePlan(
+  course: Course,
+  cfg: StudyPlanConfig,
+  courses: Course[],
+  allTasks: Task[],
+): Promise<number> {
+  const today = startOfToday()
+  const exam = new Date(cfg.examDate + 'T00:00:00')
+  if (isNaN(exam.getTime()) || diffDays(today, exam) <= 0) return 0
+
+  const overdue = allTasks
+    .filter(
+      (t) =>
+        t.examId === course.id &&
+        t.status !== 'erledigt' &&
+        t.dueDate &&
+        new Date(t.dueDate).getTime() < today.getTime(),
+    )
+    .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
+  if (!overdue.length) return 0
+
+  const budget = Math.max(60, cfg.dailyMaxMin)
+  const examKeys = examDayKeys(course.id, allTasks)
+  const foreign = foreignLoadMin(course.id, allTasks)
+  const days: Date[] = []
+  for (let d = new Date(today); d.getTime() < exam.getTime(); d = addDays(d, 1)) {
+    if (!examKeys.has(dayKey(d))) days.push(new Date(d))
+  }
+  if (!days.length) return 0
+
+  // belegte Minuten: eigene, noch offene Sessions ab heute (nicht die überfälligen selbst)
+  const overdueIds = new Set(overdue.map((t) => t.id))
+  const used = new Map<string, number>()
+  for (const t of allTasks) {
+    if (t.examId === course.id && t.status !== 'erledigt' && t.dueDate && !overdueIds.has(t.id)) {
+      const dd = new Date(t.dueDate)
+      if (dd.getTime() >= today.getTime()) {
+        const k = dayKey(dd)
+        used.set(k, (used.get(k) ?? 0) + (t.duration ?? FALLBACK_SESSION_MIN))
+      }
+    }
+  }
+  const freeCap = (k: string) => budget - (foreign.get(k) ?? 0) - (used.get(k) ?? 0)
+  const pref = toMin(cfg.time)
+
+  let moved = 0
+  for (const t of overdue) {
+    const dur = t.duration ?? FALLBACK_SESSION_MIN
+    const target = days.find((d) => freeCap(dayKey(d)) >= dur) ?? days[0]
+    const k = dayKey(target)
+    used.set(k, (used.get(k) ?? 0) + dur)
+    const min = pickSessionTime(courses, target, pref, dur)
+    const date = new Date(target)
+    date.setHours(Math.floor(min / 60), min % 60, 0, 0)
+    await updateTask(t.id, { dueDate: date.toISOString() })
+    moved++
+  }
+  return moved
 }
 
 export async function removePlanSessions(courseId: string, allTasks: Task[]): Promise<void> {
