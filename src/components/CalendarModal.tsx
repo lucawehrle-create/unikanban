@@ -1,5 +1,17 @@
-import { useMemo, useRef, useState } from 'react'
-import { Download, Upload, Link2, Check, FileDown, CalendarClock, GraduationCap } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import {
+  Download,
+  Upload,
+  Link2,
+  Check,
+  FileDown,
+  CalendarClock,
+  GraduationCap,
+  CalendarPlus,
+  Copy,
+  RefreshCw,
+  Trash2,
+} from 'lucide-react'
 import type { Course, Semester, Task } from '@/db/types'
 import { db, uid } from '@/db/db'
 import {
@@ -12,6 +24,16 @@ import {
   type ImportPlan,
   type PlannedCourse,
 } from '@/lib/ics'
+import {
+  isFeedConfigured,
+  getFeedToken,
+  ensureFeedToken,
+  regenerateFeedToken,
+  disableFeed,
+  feedUrl,
+  webcalUrl,
+} from '@/lib/calendarFeed'
+import { useSync } from '@/lib/sync'
 import { createTask } from '@/lib/actions'
 import { TASK_TYPES } from '@/lib/taskTypes'
 import { useUI } from '@/store/ui'
@@ -28,7 +50,7 @@ interface Props {
   tasks: Task[]
 }
 
-type Tab = 'export' | 'import'
+type Tab = 'subscribe' | 'export' | 'import'
 
 const WD = ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 
@@ -43,7 +65,7 @@ function fmtDate(iso: string, allDay: boolean): string {
 
 export function CalendarModal({ semester, courses, tasks }: Props) {
   const close = () => useUI.getState().setShowCalendar(false)
-  const [tab, setTab] = useState<Tab>('export')
+  const [tab, setTab] = useState<Tab>('subscribe')
 
   // Export
   const [opts, setOpts] = useState<IcsOptions>({ schedule: true, deadlines: true })
@@ -204,6 +226,7 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
       <div className="mb-4 flex rounded-full bg-stone-100 p-1">
         {(
           [
+            ['subscribe', 'Abonnieren', CalendarPlus],
             ['export', 'Exportieren', Download],
             ['import', 'Importieren', Upload],
           ] as const
@@ -221,7 +244,9 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
         ))}
       </div>
 
-      {tab === 'export' ? (
+      {tab === 'subscribe' ? (
+        <SubscribeTab />
+      ) : tab === 'export' ? (
         <div className="space-y-4">
           <p className="text-sm text-stone-500">
             Lade deinen Stundenplan als <strong>.ics</strong>-Datei – sie funktioniert in Apple
@@ -426,6 +451,185 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
         </div>
       )}
     </Modal>
+  )
+}
+
+function SubscribeTab() {
+  const user = useSync((s) => s.user)
+  const [token, setToken] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [busy, setBusy] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    if (!isFeedConfigured || !user) {
+      setLoading(false)
+      return
+    }
+    void getFeedToken().then((t) => {
+      if (alive) {
+        setToken(t)
+        setLoading(false)
+      }
+    })
+    return () => {
+      alive = false
+    }
+  }, [user])
+
+  // Ohne Konto/Cloud kein Abo möglich (Daten müssen serverseitig liegen).
+  if (!isFeedConfigured || !user) {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm text-stone-500">
+          Mit einem Kalender-Abo erscheint dein Stundenplan automatisch – und immer aktuell – in
+          Apple Kalender, Google Kalender oder Outlook. Kein erneuter Export nötig.
+        </p>
+        <div className="rounded-xl bg-stone-50 px-3 py-3 text-sm text-stone-600">
+          Dafür brauchst du ein <strong>kostenloses Konto</strong>, damit dein Plan in der Cloud
+          liegt. Melde dich an – danach kannst du das Abo hier in Sekunden erstellen.
+        </div>
+        <p className="text-xs text-stone-400">
+          Lieber ohne Konto? Im Tab <strong>Exportieren</strong> bekommst du eine .ics-Datei.
+        </p>
+      </div>
+    )
+  }
+
+  const create = async () => {
+    setBusy(true)
+    setToken(await ensureFeedToken())
+    setBusy(false)
+  }
+  const regen = async () => {
+    if (!window.confirm('Neuen Link erzeugen? Der bisherige Abo-Link funktioniert danach nicht mehr.'))
+      return
+    setBusy(true)
+    setToken(await regenerateFeedToken())
+    setBusy(false)
+  }
+  const remove = async () => {
+    if (!window.confirm('Kalender-Abo deaktivieren? Der Link liefert dann keine Termine mehr.')) return
+    setBusy(true)
+    await disableFeed()
+    setToken(null)
+    setBusy(false)
+  }
+  const copy = async () => {
+    if (!token) return
+    try {
+      await navigator.clipboard.writeText(feedUrl(token))
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      /* Clipboard nicht verfügbar – Nutzer kann den Link manuell markieren. */
+    }
+  }
+
+  if (loading) return <p className="py-4 text-center text-sm text-stone-400">Lädt …</p>
+
+  if (!token) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-stone-500">
+          Erstelle einen persönlichen Abo-Link. Dein Kalender holt sich darüber automatisch deinen
+          aktuellen Stundenplan und alle Abgaben – auch spätere Änderungen.
+        </p>
+        <button
+          onClick={() => void create()}
+          disabled={busy}
+          className="flex w-full items-center justify-center gap-2 rounded-full bg-brand-400 px-4 py-2.5 text-sm font-semibold text-stone-900 transition hover:bg-brand-500 disabled:opacity-40"
+        >
+          <CalendarPlus size={17} /> Kalender-Abo erstellen
+        </button>
+      </div>
+    )
+  }
+
+  const url = feedUrl(token)
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-stone-500">
+        Dein persönlicher Abo-Link – einmal im Kalender hinzufügen, danach bleibt er von selbst
+        aktuell.
+      </p>
+      <div className="flex gap-2">
+        <input
+          readOnly
+          value={url}
+          onFocus={(e) => e.currentTarget.select()}
+          className="min-w-0 flex-1 rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-2 text-xs text-stone-600 outline-none"
+          aria-label="Abo-Link"
+        />
+        <button
+          onClick={() => void copy()}
+          className="flex shrink-0 items-center gap-1 rounded-lg bg-stone-900 px-3 py-2 text-sm font-medium text-white hover:bg-stone-700"
+        >
+          {copied ? (
+            <>
+              <Check size={15} /> Kopiert
+            </>
+          ) : (
+            <>
+              <Copy size={15} /> Kopieren
+            </>
+          )}
+        </button>
+      </div>
+      <a
+        href={webcalUrl(token)}
+        className="flex w-full items-center justify-center gap-2 rounded-full bg-brand-400 px-4 py-2.5 text-sm font-semibold text-stone-900 transition hover:bg-brand-500"
+      >
+        <CalendarPlus size={17} /> Im Kalender abonnieren
+      </a>
+
+      <details className="rounded-xl bg-stone-50 px-3 py-2 text-sm text-stone-600">
+        <summary className="cursor-pointer font-medium text-stone-700">So abonnierst du den Link</summary>
+        <ul className="mt-2 space-y-1.5 text-[13px] text-stone-500">
+          <li>
+            <strong>iPhone/Mac:</strong> „Im Kalender abonnieren" tippen – Apple Kalender öffnet den
+            Dialog automatisch.
+          </li>
+          <li>
+            <strong>Google Kalender:</strong> Andere Kalender → „Per URL hinzufügen" → Link einfügen.{' '}
+            <a
+              href="https://calendar.google.com/calendar/u/0/r/settings/addbyurl"
+              target="_blank"
+              rel="noreferrer"
+              className="text-brand-600 underline"
+            >
+              Öffnen
+            </a>
+          </li>
+          <li>
+            <strong>Outlook:</strong> Kalender hinzufügen → „Aus dem Internet abonnieren" → Link
+            einfügen.
+          </li>
+        </ul>
+        <p className="mt-2 text-[12px] text-stone-400">
+          Hinweis: Kalender aktualisieren Abos je nach App nur alle paar Stunden – Änderungen
+          erscheinen also nicht sofort.
+        </p>
+      </details>
+
+      <div className="flex items-center justify-between border-t border-stone-100 pt-3">
+        <button
+          onClick={() => void regen()}
+          disabled={busy}
+          className="flex items-center gap-1.5 text-xs font-medium text-stone-500 transition hover:text-stone-800 disabled:opacity-40"
+        >
+          <RefreshCw size={13} /> Neuen Link erzeugen
+        </button>
+        <button
+          onClick={() => void remove()}
+          disabled={busy}
+          className="flex items-center gap-1.5 text-xs font-medium text-red-500 transition hover:text-red-700 disabled:opacity-40"
+        >
+          <Trash2 size={13} /> Abo deaktivieren
+        </button>
+      </div>
+    </div>
   )
 }
 

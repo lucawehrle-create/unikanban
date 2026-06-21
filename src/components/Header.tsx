@@ -129,7 +129,7 @@ export function Header({ semester, program }: { semester?: Semester; program?: P
                 />
                 <MenuItem
                   icon={CalendarPlus}
-                  label="Kalender importieren"
+                  label="Kalender (Abo, Import & Export)"
                   onClick={() => {
                     setShowCalendar(true)
                     close()
