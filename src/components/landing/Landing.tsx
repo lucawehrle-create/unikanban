@@ -11,7 +11,7 @@ import {
 import Lenis from 'lenis'
 import {
   ArrowRight,
-  Repeat2,
+  ListChecks,
   CalendarClock,
   GraduationCap,
   Sparkles,
@@ -264,18 +264,18 @@ function Hero({
             className="mt-5 text-[clamp(2.6rem,6vw,4.5rem)] font-extrabold leading-[1.02] tracking-[-0.02em] text-balance"
             style={{ color: NAVY }}
           >
-            Schluss mit Übungsblatt-Chaos.
+            Verpass nie wieder eine Abgabe.
           </motion.h1>
           <motion.p variants={item} className="mt-6 max-w-xl text-lg leading-relaxed text-stone-600 sm:text-xl text-pretty">
-            SemBan baut dir aus einem einzigen Setup automatisch alle Wochenblätter fürs ganze
-            Semester – und zeigt dir nur, was als Nächstes dran ist. Stundenplan, Noten und ECTS
-            gleich mit dabei.
+            SemBan bündelt alle Fristen und Aufgaben aus all deinen Kursen an einem Ort –
+            Übungsblätter, Tutorien, Hausarbeiten, Referate. Du siehst auf einen Blick, was ansteht,
+            wie weit du bist und was als Nächstes dran ist. Stundenplan, Noten und ECTS inklusive.
           </motion.p>
           <motion.ul variants={item} className="mt-6 space-y-2.5">
             {[
-              'Übungsblätter fürs ganze Semester – automatisch erzeugt',
-              'Stundenplan, Noten & ECTS an einem Ort',
-              'In 30 Sekunden startklar, komplett kostenlos',
+              'Alle Abgaben & Fristen aus allen Kursen an einem Ort',
+              'Sieh sofort, was ansteht und wie weit du bist',
+              'Stundenplan, Noten & ECTS inklusive – kostenlos',
             ].map((t) => (
               <li key={t} className="flex items-center gap-2.5 text-[15px] text-stone-700">
                 <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-400 text-stone-900">
@@ -319,9 +319,9 @@ function Hero({
 
 function Problem() {
   const points = [
-    'Abgabe war doch erst nächste Woche, oder?',
-    'Welches Blatt war nochmal dran?',
-    'Wie steht mein Schnitt eigentlich gerade?',
+    'Wann muss ich welches Übungsblatt oder Tutorium abgeben?',
+    'War das Referat nicht diese Woche – und wann ist die Hausarbeit fällig?',
+    'Wie weit bin ich eigentlich mit alldem?',
   ]
   return (
     <section className="px-5 py-24 sm:px-6 sm:py-32">
@@ -332,8 +332,8 @@ function Problem() {
             Drei Tools, sieben Tabs, null Überblick.
           </h2>
           <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-stone-600">
-            Übungsblätter im Mail-Postfach, der Stundenplan irgendwo im PDF, die Noten in einer
-            Excel, die du seit März nicht mehr geöffnet hast. Studium ist schon anstrengend genug.
+            Übungsblätter, Tutorien, Hausarbeiten, Referate – verteilt über Mails, PDFs, Moodle und
+            drei Apps. Bei mehreren Kursen verliert man da schnell den Faden. Genau da setzt SemBan an.
           </p>
         </Reveal>
         <div className="mt-10 grid gap-3 sm:grid-cols-3">
@@ -355,17 +355,17 @@ function Problem() {
 const SUPERPOWERS = [
   {
     eyebrow: 'Superkraft 01',
-    icon: Repeat2,
-    title: 'Einmal einrichten.\nGanzes Semester erledigt.',
-    body: 'Du legst eine Serie an – „Analysis I, Blatt 1–12, jeden Montag fällig" – und SemBan generiert alle Wochenblätter mit den richtigen Fristen. Du siehst immer nur die nächsten.',
+    icon: ListChecks,
+    title: 'Alles, was ansteht.\nAuf einen Blick.',
+    body: 'Jede Aufgabe aus jedem Kurs auf einem Board: Übungsblatt, Tutorium, Hausarbeit, Referat. Du siehst sofort, was offen ist, woran du arbeitest und was erledigt ist – mit Fortschritt pro Aufgabe (Hausarbeit: Recherche ✓, Gliederung ✓, Rohfassung …). Wiederkehrendes wie Wochenblätter legt SemBan automatisch an.',
     src: '/landing/board.png',
     color: '#6366f1',
   },
   {
     eyebrow: 'Superkraft 02',
     icon: CalendarClock,
-    title: 'Dein Stundenplan,\nder mitdenkt.',
-    body: 'Alle Veranstaltungen auf einen Blick, mit einer Live-Linie, die zeigt, wo du gerade im Tag stehst. Pro Termin hakst du ab: vorbereitet, besucht, nachbereitet.',
+    title: 'Keine Frist\nmehr verpassen.',
+    body: 'Wann ist welche Abgabe? SemBan sortiert alle Fristen über deine Kurse und erinnert dich rechtzeitig – auch wenn die App geschlossen ist. Dein Stundenplan mit Live-Linie zeigt dir den Tag; pro Termin hakst du ab: vorbereitet, besucht, nachbereitet.',
     src: '/landing/schedule.png',
     color: '#0ea5e9',
   },
@@ -579,12 +579,12 @@ function Comparison() {
                 <Sparkles size={13} /> SemBan
               </div>
               <h3 className="mt-4 text-2xl font-bold leading-snug">
-                Alles fürs Studium an einem Ort – und die Wochenblätter entstehen von selbst.
+                Alles fürs Studium an einem Ort – du verlierst nie den Überblick.
               </h3>
               <ul className="mt-5 space-y-2.5">
                 {[
-                  'Einmal einrichten statt jede Woche tippen',
-                  'Stundenplan, Aufgaben, Noten & ECTS vereint',
+                  'Alle Abgaben & Fristen aus allen Kursen vereint',
+                  'Status & Fortschritt auf einen Blick',
                   'Kostenlos & ohne Werbung',
                 ].map((t) => (
                   <li key={t} className="flex items-center gap-2.5 text-sm text-indigo-100">
@@ -682,9 +682,9 @@ function Founder() {
 /* ---------------- steps ---------------- */
 
 const STEPS = [
-  { n: '1', title: 'Semester anlegen', body: 'Kurse, Übungsblatt-Serien und deinen Stundenplan eintragen.' },
-  { n: '2', title: 'SemBan rechnet', body: 'Alle Wochenblätter und Fristen werden automatisch generiert.' },
-  { n: '3', title: 'Loslegen', body: 'Nur das Nächste im Blick – Woche für Woche durchs Semester.' },
+  { n: '1', title: 'Semester anlegen', body: 'Kurse, Fristen und deinen Stundenplan eintragen – Wiederkehrendes erstellt SemBan automatisch.' },
+  { n: '2', title: 'SemBan sortiert', body: 'Alle Aufgaben und Fristen landen übersichtlich auf deinem Board.' },
+  { n: '3', title: 'Überblick behalten', body: 'Du siehst, was ansteht und wie weit du bist – Woche für Woche durchs Semester.' },
 ]
 
 function Steps() {
@@ -725,7 +725,8 @@ const FAQS = [
   { q: 'Sind meine Daten sicher? Wo werden sie gespeichert?', a: 'Deine Daten liegen geschützt in deinem persönlichen Konto und sind so abgesichert, dass nur du darauf zugreifen kannst. Auf deinem Gerät bleibt zusätzlich eine Kopie, damit alles schnell und offline läuft.' },
   { q: 'Funktioniert das offline?', a: 'Ja. SemBan speichert eine Kopie direkt auf deinem Gerät und läuft deshalb auch im Funkloch der Bib oder im Zug. Sobald du wieder online bist, gleicht sich alles automatisch ab.' },
   { q: 'Kann ich Handy und Laptop nutzen?', a: 'Klar. Mit deinem Konto sind alle Geräte automatisch im Gleichstand – einmal eintragen, überall aktuell.' },
-  { q: 'Für welche Studiengänge eignet sich SemBan?', a: 'Für fast alle – besonders stark, wenn dein Studium auf wöchentlichen Übungs- oder Tutoriumsblättern läuft (Mathe, Informatik, Physik, Ingenieurwesen, BWL …). Stundenplan, Noten und ECTS helfen in jedem Fach.' },
+  { q: 'Geht es nur um Übungsblätter?', a: 'Nein – SemBan hilft dir, den Überblick über alle Aufgaben und Fristen deiner Kurse zu behalten: Übungsblätter, Tutorien, Hausarbeiten, Referate, Klausuren. Wöchentliche Blätter sind nur ein Beispiel, das SemBan zusätzlich automatisch anlegt.' },
+  { q: 'Für welche Studiengänge eignet sich SemBan?', a: 'Für fast jedes Fach mit mehreren Kursen, Abgaben und Fristen – egal ob Mathe, Informatik, Jura, BWL, Geistes- oder Naturwissenschaften. Stundenplan, Noten und ECTS helfen sowieso überall.' },
   { q: 'Wie schnell ist das eingerichtet?', a: 'In ein paar Minuten. Du tippst einmal das Gerüst deines Semesters ein – SemBan generiert den Rest.' },
 ]
 
