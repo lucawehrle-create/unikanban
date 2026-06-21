@@ -86,6 +86,62 @@ function CheckRow({
   )
 }
 
+function NumberRow({
+  label,
+  hint,
+  value,
+  disabled,
+  onChange,
+  weak,
+  onWeak,
+}: {
+  label: string
+  hint?: string
+  value: number
+  disabled?: boolean
+  onChange: (v: number) => void
+  weak?: boolean
+  onWeak?: (v: boolean) => void
+}) {
+  return (
+    <div
+      className={cn(
+        'flex items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-sm',
+        disabled && 'opacity-40',
+      )}
+    >
+      <span className="flex-1 text-stone-700">
+        {label}
+        {hint && <span className="text-stone-400"> · {hint}</span>}
+      </span>
+      {value > 0 && !disabled && onWeak && (
+        <button
+          type="button"
+          onClick={() => onWeak(!weak)}
+          title="Als schwer markieren – bekommt mehr Wiederholungen"
+          className={cn(
+            'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold transition',
+            weak ? 'bg-amber-100 text-amber-700' : 'text-stone-400 hover:bg-stone-200',
+          )}
+        >
+          🔥 schwer
+        </button>
+      )}
+      <input
+        type="number"
+        min={0}
+        max={30}
+        inputMode="numeric"
+        disabled={disabled}
+        value={value || ''}
+        placeholder="0"
+        onChange={(e) => onChange(Math.max(0, Math.min(30, parseInt(e.target.value || '0', 10) || 0)))}
+        className="w-14 shrink-0 rounded-md border border-stone-200 px-1.5 py-1 text-center text-xs"
+      />
+    </div>
+  )
+}
+
 function loadColor(n: number): string {
   return n === 0 ? 'text-stone-300' : n <= 2 ? 'text-amber-500' : 'text-red-500'
 }
@@ -195,14 +251,6 @@ export function LernplanModal({
         <div>
           <span className="mb-1 block text-xs font-medium text-stone-500">Inhalte</span>
           <div className={cn('rounded-xl bg-stone-50 p-1', usingTopics && 'opacity-60')}>
-            <CheckRow
-              label="Zusammenfassung erstellen"
-              checked={cfg.includeSummary}
-              disabled={usingTopics}
-              onChange={(v) => set('includeSummary', v)}
-              weak={cfg.weak.summary}
-              onWeak={(v) => set('weak', { ...cfg.weak, summary: v })}
-            />
             {mat.uebung > 0 && (
               <CheckRow
                 label={`Übungsblätter wiederholen (${mat.uebung})`}
@@ -223,17 +271,45 @@ export function LernplanModal({
                 onWeak={(v) => set('weak', { ...cfg.weak, tut: v })}
               />
             )}
-            <CheckRow
+            {/* Vom Nutzer anzugeben – die App kennt die Anzahl nicht */}
+            <NumberRow
               label="Altklausuren rechnen"
-              checked={cfg.includeAltklausuren}
+              hint="wie viele?"
+              value={cfg.altklausuren}
               disabled={usingTopics}
-              onChange={(v) => set('includeAltklausuren', v)}
+              onChange={(v) => set('altklausuren', v)}
               weak={cfg.weak.altklausuren}
               onWeak={(v) => set('weak', { ...cfg.weak, altklausuren: v })}
             />
+            <NumberRow
+              label="Skript / Kapitel durchgehen"
+              hint="wie viele?"
+              value={cfg.chapters}
+              disabled={usingTopics}
+              onChange={(v) => set('chapters', v)}
+              weak={cfg.weak.chapters}
+              onWeak={(v) => set('weak', { ...cfg.weak, chapters: v })}
+            />
+            <CheckRow
+              label="Zusammenfassung erstellen"
+              checked={cfg.includeSummary}
+              disabled={usingTopics}
+              onChange={(v) => set('includeSummary', v)}
+              weak={cfg.weak.summary}
+              onWeak={(v) => set('weak', { ...cfg.weak, summary: v })}
+            />
+            <CheckRow
+              label="Aktiv abrufen & Selbsttest"
+              checked={cfg.includeRetrieval}
+              disabled={usingTopics}
+              onChange={(v) => set('includeRetrieval', v)}
+              weak={cfg.weak.retrieval}
+              onWeak={(v) => set('weak', { ...cfg.weak, retrieval: v })}
+            />
           </div>
           <p className="mt-1 px-0.5 text-[11px] text-stone-400">
-            🔥 markiert schwere Themen – sie bekommen mehr Wiederholungen kurz vor der Klausur.
+            Übungs-/Tutoriumsblätter kommen aus deinen Aufgaben. Altklausuren &amp; Kapitel trägst du
+            selbst ein. 🔥 = schwer → mehr Wiederholungen kurz vor der Klausur.
           </p>
         </div>
 

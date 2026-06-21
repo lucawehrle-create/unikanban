@@ -27,10 +27,21 @@ export interface LernplanConfig {
   includeSummary: boolean
   includeUebung: boolean
   includeTut: boolean
-  includeAltklausuren: boolean
+  /** Methode „aktiv abrufen / Selbsttest" (keine App-Funktion, reine Aktivität). */
+  includeRetrieval: boolean
+  /** Vom Nutzer angegeben – die App kennt diese Zahl nicht. 0 = nicht einplanen. */
+  altklausuren: number
+  chapters: number
   /** Schwerpunkte (Selbsteinschätzung): schwere Themen bekommen mehr/dichtere
    *  Wiederholungen kurz vor der Klausur (SM-2-Idee, vereinfacht). */
-  weak: { summary: boolean; uebung: boolean; tut: boolean; altklausuren: boolean }
+  weak: {
+    summary: boolean
+    uebung: boolean
+    tut: boolean
+    retrieval: boolean
+    altklausuren: boolean
+    chapters: boolean
+  }
   /** Eigene Themen – ersetzen die automatischen Inhalte. */
   topics: string[]
   /** Welche eigenen Themen als „schwer" markiert sind. */
@@ -46,8 +57,17 @@ export const DEFAULT_LERNPLAN: LernplanConfig = {
   includeSummary: true,
   includeUebung: true,
   includeTut: true,
-  includeAltklausuren: true,
-  weak: { summary: false, uebung: false, tut: false, altklausuren: false },
+  includeRetrieval: true,
+  altklausuren: 0,
+  chapters: 0,
+  weak: {
+    summary: false,
+    uebung: false,
+    tut: false,
+    retrieval: false,
+    altklausuren: false,
+    chapters: false,
+  },
   topics: [],
   weakTopics: [],
 }
@@ -98,17 +118,21 @@ export interface ContentItem {
   weak: boolean
 }
 
-function materialItems(label: string, count: number, weak: boolean): ContentItem[] {
+function materialItems(label: string, count: number, weak: boolean, verb = 'wiederholen'): ContentItem[] {
   if (count <= 0) return []
-  if (count <= 4) return [{ label: `${label} wiederholen`, weak }]
+  if (count <= 4) return [{ label: `${label} ${verb}`, weak }]
   const half = Math.ceil(count / 2)
   return [
-    { label: `${label} 1–${half} wiederholen`, weak },
-    { label: `${label} ${half + 1}–${count} wiederholen`, weak },
+    { label: `${label} 1–${half} ${verb}`, weak },
+    { label: `${label} ${half + 1}–${count} ${verb}`, weak },
   ]
 }
 
-/** Lerninhalte – aus Kursmaterial abgeleitet (oder eigene Themen). Retrieval-orientiert. */
+/**
+ * Lerninhalte – nur aus dem, was die App wirklich kennt (Übungs-/Tutoriums-
+ * blätter) bzw. was der Nutzer angibt (Altklausuren/Kapitel). Plus Methoden
+ * (Zusammenfassung, aktiv abrufen). Keine erfundenen Mengen.
+ */
 function buildContent(exam: Task, allTasks: Task[], cfg: LernplanConfig): ContentItem[] {
   if (cfg.topics.length) {
     return cfg.topics.map((t) => ({ label: t, weak: cfg.weakTopics.includes(t) }))
@@ -118,8 +142,12 @@ function buildContent(exam: Task, allTasks: Task[], cfg: LernplanConfig): Conten
   if (cfg.includeSummary) items.push({ label: 'Zusammenfassung erstellen', weak: cfg.weak.summary })
   if (cfg.includeUebung) items.push(...materialItems('Übungsblätter', mat.uebung, cfg.weak.uebung))
   if (cfg.includeTut) items.push(...materialItems('Tutoriumsblätter', mat.tut, cfg.weak.tut))
-  if (cfg.includeAltklausuren) items.push({ label: 'Altklausuren rechnen', weak: cfg.weak.altklausuren })
-  items.push({ label: 'Aktiv abrufen & Selbsttest', weak: false })
+  if (cfg.chapters > 0)
+    items.push(...materialItems('Kapitel', cfg.chapters, cfg.weak.chapters, 'durchgehen'))
+  if (cfg.altklausuren > 0)
+    items.push(...materialItems('Altklausuren', cfg.altklausuren, cfg.weak.altklausuren, 'rechnen'))
+  if (cfg.includeRetrieval)
+    items.push({ label: 'Aktiv abrufen & Selbsttest', weak: cfg.weak.retrieval })
   items.push({ label: ENDSPURT_LABEL, weak: false })
   return items
 }
