@@ -1,4 +1,4 @@
-import { Flag } from 'lucide-react'
+import { Flag, GraduationCap } from 'lucide-react'
 import type { Course, Task } from '@/db/types'
 import { TASK_TYPES } from '@/lib/taskTypes'
 import { classifyDue, DUE_META, formatDue } from '@/lib/deadline'
@@ -60,6 +60,15 @@ export function TaskCard({ task, course, onClick, dragging }: TaskCardProps) {
           </div>
 
           <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+            {task.examId && (
+              <span
+                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-semibold text-indigo-600 ring-1 ring-indigo-200"
+                title="Aus deinem Lernplan – dient der Klausurvorbereitung"
+              >
+                <GraduationCap size={11} /> Lernplan
+              </span>
+            )}
+
             {course && (
               <span
                 className="rounded px-1.5 py-0.5 font-semibold"

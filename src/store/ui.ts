@@ -5,6 +5,8 @@ import { isReflectableType } from '@/lib/reflection'
 export type ViewId = 'board' | 'week' | 'schedule' | 'study' | 'plans'
 export type GroupBy = 'status' | 'deadline' | 'course' | 'type' | 'priority'
 export type SortBy = 'deadline' | 'priority' | 'title' | 'created'
+/** Lernplan-/Klausurvorbereitungs-Sessions: alle / nur diese / ausblenden. */
+export type ExamPrepFilter = 'all' | 'only' | 'hide'
 
 interface UIState {
   view: ViewId
@@ -13,6 +15,7 @@ interface UIState {
   search: string
   filterCourseIds: string[]
   filterTypes: TaskTypeId[]
+  examPrep: ExamPrepFilter
   showDone: boolean
   /** false = pro Serie nur die nächsten Wochen zeigen (gestaffelt). */
   showAllSeries: boolean
@@ -36,6 +39,7 @@ interface UIState {
   setSearch: (s: string) => void
   toggleCourseFilter: (id: string) => void
   toggleTypeFilter: (t: TaskTypeId) => void
+  setExamPrep: (f: ExamPrepFilter) => void
   clearFilters: () => void
   setShowDone: (b: boolean) => void
   setShowAllSeries: (b: boolean) => void
@@ -65,6 +69,7 @@ export const useUI = create<UIState>((set) => ({
   search: '',
   filterCourseIds: [],
   filterTypes: [],
+  examPrep: 'all',
   showDone: true,
   showAllSeries: false,
 
@@ -95,7 +100,8 @@ export const useUI = create<UIState>((set) => ({
         ? s.filterTypes.filter((x) => x !== t)
         : [...s.filterTypes, t],
     })),
-  clearFilters: () => set({ filterCourseIds: [], filterTypes: [], search: '' }),
+  setExamPrep: (examPrep) => set({ examPrep }),
+  clearFilters: () => set({ filterCourseIds: [], filterTypes: [], examPrep: 'all', search: '' }),
   setShowDone: (showDone) => set({ showDone }),
   setShowAllSeries: (showAllSeries) => set({ showAllSeries }),
 

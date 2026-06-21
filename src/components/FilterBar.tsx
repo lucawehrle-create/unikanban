@@ -1,9 +1,15 @@
-import { Check, Filter, Layers, Search, SlidersHorizontal, X } from 'lucide-react'
+import { Check, Filter, GraduationCap, Layers, Search, SlidersHorizontal, X } from 'lucide-react'
 import type { Course } from '@/db/types'
 import { TASK_TYPE_LIST } from '@/lib/taskTypes'
-import { useUI, type GroupBy, type SortBy } from '@/store/ui'
+import { useUI, type ExamPrepFilter, type GroupBy, type SortBy } from '@/store/ui'
 import { Popover } from './ui/Popover'
 import { cn } from '@/lib/cn'
+
+const EXAM_PREP_OPTIONS: { id: ExamPrepFilter; label: string }[] = [
+  { id: 'all', label: 'Alle' },
+  { id: 'only', label: 'Nur Lernplan' },
+  { id: 'hide', label: 'Ohne Lernplan' },
+]
 
 const GROUP_OPTIONS: { id: GroupBy; label: string }[] = [
   { id: 'status', label: 'Status' },
@@ -46,7 +52,10 @@ function Option({
 export function FilterBar({ courses }: { courses: Course[] }) {
   const ui = useUI()
   const activeFilters =
-    ui.filterCourseIds.length + ui.filterTypes.length + (ui.showDone ? 0 : 1)
+    ui.filterCourseIds.length +
+    ui.filterTypes.length +
+    (ui.showDone ? 0 : 1) +
+    (ui.examPrep !== 'all' ? 1 : 0)
 
   return (
     <div className="flex flex-wrap items-center gap-2 px-5 py-2">
@@ -118,6 +127,26 @@ export function FilterBar({ courses }: { courses: Course[] }) {
                     </button>
                   )
                 })}
+              </div>
+            </div>
+
+            <div className="border-t border-stone-100 pt-2.5">
+              <div className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
+                <GraduationCap size={12} /> Klausurvorbereitung
+              </div>
+              <div className="flex rounded-lg bg-stone-100 p-0.5">
+                {EXAM_PREP_OPTIONS.map((o) => (
+                  <button
+                    key={o.id}
+                    onClick={() => ui.setExamPrep(o.id)}
+                    className={cn(
+                      'flex-1 rounded-md px-2 py-1 text-xs font-medium transition',
+                      ui.examPrep === o.id ? 'bg-white text-stone-800 shadow-sm' : 'text-stone-500',
+                    )}
+                  >
+                    {o.label}
+                  </button>
+                ))}
               </div>
             </div>
 

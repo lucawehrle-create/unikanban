@@ -64,6 +64,9 @@ export function buildReminders(tasks: Task[], leadDays: number): ReminderItem[] 
     if (days < 0) bucket = 'overdue'
     else if (days === 0) bucket = 'today'
     else if (days <= leadDays) bucket = 'soon'
+    // Lernplan-Sessions (examId) erst ab heute melden – sonst tauchen sie in den
+    // Erinnerungen auf, obwohl sie im Board als „zukünftig" noch ausgeblendet sind.
+    if (bucket === 'soon' && t.examId) bucket = null
     if (bucket) items.push({ task: t, bucket, days })
   }
   items.sort((a, b) => {

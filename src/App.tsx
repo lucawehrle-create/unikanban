@@ -92,9 +92,10 @@ export default function App() {
         search: ui.search,
         filterCourseIds: ui.filterCourseIds,
         filterTypes: ui.filterTypes,
+        examPrep: ui.examPrep,
         showDone: ui.showDone,
       }),
-    [tasks, courses, ui.search, ui.filterCourseIds, ui.filterTypes, ui.showDone],
+    [tasks, courses, ui.search, ui.filterCourseIds, ui.filterTypes, ui.examPrep, ui.showDone],
   )
 
   if (programCount === undefined) {

@@ -1,9 +1,12 @@
 import type { Course, Task, TaskTypeId } from '@/db/types'
 
+export type ExamPrepFilter = 'all' | 'only' | 'hide'
+
 export interface FilterState {
   search: string
   filterCourseIds: string[]
   filterTypes: TaskTypeId[]
+  examPrep: ExamPrepFilter
   showDone: boolean
 }
 
@@ -17,6 +20,8 @@ export function filterTasks(tasks: Task[], courses: Course[], f: FilterState): T
 
   return tasks.filter((t) => {
     if (!f.showDone && t.status === 'erledigt') return false
+    if (f.examPrep === 'only' && !t.examId) return false
+    if (f.examPrep === 'hide' && t.examId) return false
     if (f.filterCourseIds.length && (!t.courseId || !f.filterCourseIds.includes(t.courseId)))
       return false
     if (f.filterTypes.length && !f.filterTypes.includes(t.type)) return false
