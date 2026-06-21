@@ -22,6 +22,7 @@ import {
   planProgress,
   planSessionCount,
   rescheduleOverduePlan,
+  reviewReps,
   savePlan,
   summarize,
   timeline,
@@ -315,6 +316,11 @@ function PlanEditor({
         <div className="mb-2 text-xs font-medium text-stone-600">
           Aus deinen Aufgaben – welche nochmal wiederholen?
         </div>
+        <p className="mb-2 text-[11px] leading-relaxed text-stone-400">
+          Als <span className="font-medium text-orange-600">schwer</span> reflektierte Blätter bekommen
+          automatisch mehr Zeit und mehrere Wiederholungen mit wachsenden Abständen (Spaced
+          Repetition).
+        </p>
         <div className="space-y-2">
           <ReviewSection
             label="Übungsblätter"
@@ -529,6 +535,11 @@ function ReviewSection({
                         </span>
                       )}
                       <span className="truncate text-stone-700">{t.title}</span>
+                      {r && reviewReps(r.difficulty) > 1 && (
+                        <span className="shrink-0 text-[10px] font-semibold text-orange-600">
+                          {reviewReps(r.difficulty)}×
+                        </span>
+                      )}
                     </span>
                     {r && r.tags.length > 0 && (
                       <span className="mt-0.5 flex flex-wrap gap-1">

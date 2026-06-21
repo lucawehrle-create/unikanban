@@ -93,11 +93,48 @@ interface Unit {
  * Tutorien wiederholen, Altklausuren ans Ende (Prüfungssimulation), optional
  * Kapitel-Wiederholung spät.
  */
+interface SheetRef {
+  title: string
+  /** Reflektierte Schwierigkeit 1–5 (undefined = nicht reflektiert). */
+  difficulty?: number
+}
+
+/** Anzahl (spaced) Wiederholungen je nach Schwierigkeit. */
+export function reviewReps(difficulty?: number): number {
+  if (difficulty == null) return 1
+  if (difficulty >= 5) return 3
+  if (difficulty >= 4) return 2
+  return 1
+}
+
+/** Minuten der ersten Wiederholung je nach Schwierigkeit. */
+function reviewMinutes(difficulty?: number): number {
+  const f = difficulty == null ? 1 : difficulty >= 4 ? 1.2 : difficulty <= 2 ? 0.8 : 1
+  return Math.round(SHEET_REVIEW_MIN * f)
+}
+
+/**
+ * Positionen der Wiederholungen mit *wachsenden* Abständen (Spaced Repetition):
+ * erste Wiederholung an `base`, spätere rücken Richtung Klausur (`maxPos`).
+ */
+function repPositions(base: number, reps: number, maxPos: number): number[] {
+  if (reps <= 1) return [Math.min(base, maxPos)]
+  const span = Math.max(0, maxPos - base)
+  const total = ((reps - 1) * reps) / 2 // Summe 1..reps-1
+  const out: number[] = []
+  let cum = 0
+  for (let r = 0; r < reps; r++) {
+    out.push(base + span * (cum / total))
+    cum += r + 1 // Lücke wächst pro Wiederholung
+  }
+  return out
+}
+
 function buildUnits(
   cfg: StudyPlanConfig,
   chapterReps: number,
-  uebungTitles: string[],
-  tutTitles: string[],
+  uebungSheets: SheetRef[],
+  tutSheets: SheetRef[],
 ): Unit[] {
   const u: Unit[] = []
   const span = (i: number, n: number, a: number, b: number) => lerp(a, b, n <= 1 ? 0.5 : i / (n - 1))
@@ -107,25 +144,40 @@ function buildUnits(
     if (chapterReps >= 2)
       u.push({ kind: 'kapitel', label: `Kapitel ${i + 1} wiederholen`, durationMin: Math.round(CHAPTER_MIN * 0.6), pos: span(i, cfg.chapters, 0.6, 0.85) })
   }
-  uebungTitles.forEach((title, i) =>
-    u.push({ kind: 'uebung', label: `${title} wiederholen`, durationMin: SHEET_REVIEW_MIN, pos: span(i, uebungTitles.length, 0.3, 0.78) }),
-  )
-  tutTitles.forEach((title, i) =>
-    u.push({ kind: 'tut', label: `${title} wiederholen`, durationMin: SHEET_REVIEW_MIN, pos: span(i, tutTitles.length, 0.35, 0.8) }),
-  )
+
+  // Übungs-/Tutoriumsblätter: schwere bekommen mehr Zeit und mehrere
+  // Wiederholungen mit wachsenden Abständen.
+  const pushSheets = (sheets: SheetRef[], kind: ItemKind, winA: number, winB: number) => {
+    sheets.forEach((sh, i) => {
+      const reps = reviewReps(sh.difficulty)
+      const minutes = reviewMinutes(sh.difficulty)
+      const base = span(i, sheets.length, winA, winB)
+      repPositions(base, reps, 0.92).forEach((pos, r) => {
+        u.push({
+          kind,
+          label: reps > 1 ? `${sh.title} wiederholen (${r + 1}/${reps})` : `${sh.title} wiederholen`,
+          durationMin: Math.max(15, Math.round(minutes * (r === 0 ? 1 : 0.8))),
+          pos,
+        })
+      })
+    })
+  }
+  pushSheets(uebungSheets, 'uebung', 0.3, 0.78)
+  pushSheets(tutSheets, 'tut', 0.35, 0.8)
+
   for (let i = 0; i < cfg.altklausuren; i++)
     u.push({ kind: 'altklausur', label: `Altklausur ${i + 1} rechnen`, durationMin: cfg.examDurationMin * 2, pos: span(i, cfg.altklausuren, 0.6, 0.92) })
 
   return u.sort((a, b) => a.pos - b.pos)
 }
 
-/** Löst gewählte Blatt-IDs zu (sortierten) Titeln auf. */
-function resolveTitles(ids: string[], allTasks: Task[]): string[] {
+/** Löst gewählte Blatt-IDs zu (sortierten) Sheets inkl. Schwierigkeit auf. */
+function resolveSheets(ids: string[], allTasks: Task[]): SheetRef[] {
   const idSet = new Set(ids)
   return allTasks
     .filter((t) => idSet.has(t.id))
     .sort((a, b) => a.order - b.order)
-    .map((t) => t.title)
+    .map((t) => ({ title: t.title, difficulty: t.reflection?.difficulty }))
 }
 
 /** Belegte Tage (andere Klausuren) – dort gar nicht planen. */
@@ -203,10 +255,10 @@ export function buildPlan(
   }
 
   // Material phasenweise platzieren, nächstgelegenen Tag mit Restbudget suchen
-  const uebungTitles = resolveTitles(cfg.uebungReviewIds, allTasks)
-  const tutTitles = resolveTitles(cfg.tutReviewIds, allTasks)
+  const uebungSheets = resolveSheets(cfg.uebungReviewIds, allTasks)
+  const tutSheets = resolveSheets(cfg.tutReviewIds, allTasks)
   let unplaced = 0
-  for (const unit of buildUnits(cfg, s.chapterReps, uebungTitles, tutTitles)) {
+  for (const unit of buildUnits(cfg, s.chapterReps, uebungSheets, tutSheets)) {
     const targetIdx = Math.max(0, Math.min(days.length - 1, Math.round(unit.pos * (days.length - 1))))
     let placed = false
     for (let off = 0; off < days.length && !placed; off++) {
