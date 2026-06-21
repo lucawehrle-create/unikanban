@@ -64,6 +64,13 @@ export function MeshGradient({ scroll }: { scroll: MotionValue<number> }) {
     const canvas = ref.current
     if (!canvas) return
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    // Auf Touch-/Mobilgeräten den Gradienten statisch rendern: eine dauerhaft
+    // laufende WebGL-Animation hinter geblurrten/transparenten Inhalten ist die
+    // Hauptursache fürs Flackern und kostet unnötig Akku.
+    const lowPower =
+      reduce ||
+      window.matchMedia('(pointer: coarse)').matches ||
+      window.innerWidth < 1024
     const dpr = Math.min(window.devicePixelRatio || 1, 1.5)
 
     let renderer: Renderer
@@ -111,7 +118,7 @@ export function MeshGradient({ scroll }: { scroll: MotionValue<number> }) {
       renderer.render({ scene: mesh })
     }
 
-    if (reduce) {
+    if (lowPower) {
       program.uniforms.uTime.value = 2.4
       renderer.render({ scene: mesh })
     } else {
@@ -122,7 +129,7 @@ export function MeshGradient({ scroll }: { scroll: MotionValue<number> }) {
       if (document.hidden) {
         running = false
         cancelAnimationFrame(raf)
-      } else if (!reduce) {
+      } else if (!lowPower) {
         running = true
         raf = requestAnimationFrame(loop)
       }

@@ -3,7 +3,6 @@ import {
   motion,
   useScroll,
   useTransform,
-  useMotionValueEvent,
   MotionConfig,
   type MotionValue,
   type Variants,
@@ -32,18 +31,6 @@ const NAVY = '#2a2a6e'
 const ease = [0.22, 1, 0.36, 1] as const
 
 /* ---------------- helpers ---------------- */
-
-function useIsDesktop() {
-  const [d, setD] = useState(false)
-  useEffect(() => {
-    const m = window.matchMedia('(min-width: 1024px)')
-    const f = () => setD(m.matches)
-    f()
-    m.addEventListener('change', f)
-    return () => m.removeEventListener('change', f)
-  }, [])
-  return d
-}
 
 function Reveal({
   children,
@@ -91,6 +78,9 @@ export default function Landing({ onStart }: { onStart: () => void }) {
     const wrapper = scrollRef.current
     if (!wrapper) return
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    // Auf Touch-Geräten kein JS-Smooth-Scroll: natives Scrollen ist dort flüssiger
+    // und vermeidet Konflikte/Flackern mit dem fixen Hintergrund.
+    if (window.matchMedia('(pointer: coarse)').matches) return
     let lenis: Lenis | null = null
     let raf = 0
     try {
@@ -142,8 +132,9 @@ export default function Landing({ onStart }: { onStart: () => void }) {
             'radial-gradient(120% 120% at 85% 10%, #f7ecc9 0%, rgba(247,236,201,0) 55%), linear-gradient(135deg,#fdfcf7 0%,#faf6ec 55%,#f6eed6 100%)',
         }}
       >
-        {/* mitscrollender, animierter Hintergrund */}
-        <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+        {/* mitscrollender, animierter Hintergrund – eigene Compositor-Ebene
+            (transform-gpu/isolate) gegen Repaint-Flackern auf Mobile */}
+        <div className="pointer-events-none fixed inset-0 z-0 transform-gpu overflow-hidden [backface-visibility:hidden] [isolation:isolate]">
           <MeshGradient scroll={scrollYProgress} />
           <div className="absolute inset-0 bg-cream-50/20" />
           <Grain />
@@ -156,12 +147,12 @@ export default function Landing({ onStart }: { onStart: () => void }) {
           className="fixed inset-x-0 top-0 z-50 h-0.5 origin-left bg-brand-400"
         />
 
-        <div className="relative z-10">
+        <div className="relative z-10 transform-gpu [isolation:isolate]">
           <Nav onStart={onStart} />
           <main>
             <Hero onStart={onStart} progress={scrollYProgress} onHowItWorks={scrollToFeatures} />
             <Problem />
-            <Showcase container={scrollRef} />
+            <Showcase />
             <Comparison />
             <Trust />
             <SocialProof onStart={onStart} />
@@ -182,7 +173,7 @@ function Grain() {
     "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"
   return (
     <div
-      className="absolute inset-0 opacity-[0.18] mix-blend-soft-light"
+      className="absolute inset-0 opacity-[0.06]"
       style={{ backgroundImage: `url("${noise}")`, backgroundSize: '160px 160px' }}
     />
   )
@@ -405,75 +396,27 @@ const SUPERPOWERS = [
   },
 ]
 
-function usePrefersReducedMotion() {
-  const [reduce, setReduce] = useState(false)
-  useEffect(() => {
-    const m = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const f = () => setReduce(m.matches)
-    f()
-    m.addEventListener('change', f)
-    return () => m.removeEventListener('change', f)
-  }, [])
-  return reduce
-}
-
-function Showcase({ container }: { container: React.RefObject<HTMLDivElement | null> }) {
-  const isDesktop = useIsDesktop()
-  const reduce = usePrefersReducedMotion()
-  // Kein Desktop ODER reduzierte Bewegung → einfache, gestapelte Variante.
-  if (!isDesktop || reduce) return <ShowcaseStacked />
-  return <ShowcasePinned container={container} />
-}
-
-function ShowcasePinned({ container }: { container: React.RefObject<HTMLDivElement | null> }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const { scrollYProgress } = useScroll({ target: ref, container, offset: ['start start', 'end end'] })
-  // Diskreter aktiver Index statt überlappender Opacity-Kurven: So ist immer
-  // GENAU ein Text/Screen sichtbar (kein Überlappen bei Smooth-Scroll), der
-  // Wechsel ist ein sauberer CSS-Crossfade. Index 0 ist bei Fortschritt 0 aktiv,
-  // damit der „Wie's funktioniert"-Sprung nicht auf einem leeren Frame landet.
-  const [active, setActive] = useState(0)
-  useMotionValueEvent(scrollYProgress, 'change', (v) => {
-    const i = v < 0.34 ? 0 : v < 0.67 ? 1 : 2
-    setActive((prev) => (prev === i ? prev : i))
-  })
-
+/** Drei „Superkräfte" als natürlich scrollende, alternierende Abschnitte –
+ *  kein Pinning/Scroll-Jacking, damit sich das Scrollen flüssig anfühlt. */
+function Showcase() {
   return (
-    <section id="features" ref={ref} className="relative" style={{ height: '320vh' }}>
-      <div className="sticky top-0 flex h-screen items-center overflow-hidden">
-        <div className="mx-auto grid w-full max-w-6xl items-center gap-12 px-6 lg:grid-cols-2">
-          {/* Copy – gestapelt, exakt eine sichtbar */}
-          <div className="relative min-h-[20rem]">
-            {SUPERPOWERS.map((s, i) => (
-              <div
-                key={i}
-                className={cn(
-                  'absolute inset-0 transition-opacity duration-500',
-                  i === active ? 'opacity-100' : 'opacity-0 pointer-events-none',
-                )}
-              >
-                <ShowcaseCopy sp={s} />
-              </div>
-            ))}
-          </div>
-          {/* Device – fester Rahmen, Screen wechselt */}
-          <div style={{ perspective: 1800 }} className="relative">
-            <div className="relative" style={{ transform: 'rotateX(5deg) rotateY(-8deg)' }}>
-              {SUPERPOWERS.map((s, i) => (
-                <div
-                  key={i}
-                  className={cn(
-                    i === 0 ? '' : 'absolute inset-0',
-                    'transition-opacity duration-500',
-                    i === active ? 'opacity-100' : 'opacity-0',
-                  )}
-                >
+    <section id="features" className="px-5 py-24 sm:px-6 sm:py-28">
+      <div className="mx-auto max-w-6xl space-y-20 sm:space-y-28">
+        {SUPERPOWERS.map((s, i) => {
+          const flip = i % 2 === 1
+          return (
+            <Reveal key={s.eyebrow}>
+              <div className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
+                <div className={cn('text-center lg:text-left', flip && 'lg:order-2')}>
+                  <ShowcaseCopy sp={s} />
+                </div>
+                <div className={cn(flip && 'lg:order-1')}>
                   <BrowserFrame src={s.src} alt={s.alt} />
                 </div>
-              ))}
-            </div>
-          </div>
-        </div>
+              </div>
+            </Reveal>
+          )
+        })}
       </div>
     </section>
   )
@@ -492,33 +435,8 @@ function ShowcaseCopy({ sp }: { sp: (typeof SUPERPOWERS)[number] }) {
       <h2 className="mt-4 whitespace-pre-line text-4xl font-bold leading-[1.06] tracking-[-0.02em] sm:text-5xl" style={{ color: NAVY }}>
         {sp.title}
       </h2>
-      <p className="mt-5 max-w-md text-lg leading-relaxed text-stone-600">{sp.body}</p>
+      <p className="mx-auto mt-5 max-w-md text-lg leading-relaxed text-stone-600 lg:mx-0">{sp.body}</p>
     </>
-  )
-}
-
-/** Mobile/Tablet: einfache gestapelte Variante (kein Pinning). */
-function ShowcaseStacked() {
-  return (
-    <section id="features" className="space-y-24 px-5 py-24 sm:px-6">
-      {SUPERPOWERS.map((s) => {
-        const Icon = s.icon
-        return (
-          <Reveal key={s.eyebrow} className="mx-auto max-w-md text-center">
-            <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold text-white" style={{ backgroundColor: s.color }}>
-              <Icon size={13} /> {s.eyebrow}
-            </span>
-            <h2 className="mt-4 whitespace-pre-line text-3xl font-bold leading-[1.08] tracking-[-0.02em]" style={{ color: NAVY }}>
-              {s.title}
-            </h2>
-            <p className="mx-auto mt-4 max-w-sm text-base leading-relaxed text-stone-600">{s.body}</p>
-            <div className="mt-7">
-              <BrowserFrame src={s.src} alt={s.alt} />
-            </div>
-          </Reveal>
-        )
-      })}
-    </section>
   )
 }
 
