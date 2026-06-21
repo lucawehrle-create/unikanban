@@ -39,11 +39,18 @@ interface Task {
   dueDate?: string
   notes?: string
 }
+interface ExamPhase {
+  id: string
+  label: string
+  start: string // "YYYY-MM-DD"
+  end: string // "YYYY-MM-DD"
+}
 interface Semester {
   id: string
   name: string
   startDate: string // "YYYY-MM-DD"
   weeks: number
+  examPhases?: ExamPhase[]
   active?: boolean
 }
 interface UserData {
@@ -150,6 +157,32 @@ function withTime(date: Date, time: string): Date {
   return d
 }
 
+// Kalenderdatum + Uhrzeit eines Instants in Europe/Berlin (für Ganztags-Logik).
+function berlinYmdHm(iso: string): { ymd: string; hour: number; min: number } {
+  const p = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Berlin',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(new Date(iso))
+  const g = (t: string) => p.find((x) => x.type === t)?.value ?? ''
+  let hour = parseInt(g('hour'), 10)
+  if (hour === 24) hour = 0
+  return { ymd: `${g('year')}${g('month')}${g('day')}`, hour, min: parseInt(g('minute'), 10) }
+}
+
+// 'YYYY-MM-DD' (ggf. mit Zeitanteil) → 'YYYYMMDD'.
+const toYmd = (s: string) => s.slice(0, 10).replace(/-/g, '')
+
+// Folgetag von 'YYYYMMDD' (DTEND ist bei Ganztags-Terminen exklusiv).
+function nextDayYmd(ymd: string): string {
+  const dt = new Date(Date.UTC(+ymd.slice(0, 4), +ymd.slice(4, 6) - 1, +ymd.slice(6, 8)) + 86400000)
+  return `${dt.getUTCFullYear()}${pad(dt.getUTCMonth() + 1)}${pad(dt.getUTCDate())}`
+}
+
 function buildICS(semester: Semester, courses: Course[], tasks: Task[]): string {
   const now = fmtUTC(new Date())
   const lines: string[] = [
@@ -159,7 +192,11 @@ function buildICS(semester: Semester, courses: Course[], tasks: Task[]): string 
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     `X-WR-CALNAME:SemBan – ${esc(semester.name)}`,
+    `NAME:SemBan – ${esc(semester.name)}`,
+    'X-WR-CALDESC:Stundenplan, Abgaben & Klausurphasen aus SemBan',
     'X-WR-TIMEZONE:Europe/Berlin',
+    // Brand-Farbe für abonnierende Apple-Kalender.
+    'X-APPLE-CALENDAR-COLOR:#F7C948',
     // Aktualisierungs-Intervall für abonnierende Kalender (Hinweis).
     'X-PUBLISHED-TTL:PT6H',
     'REFRESH-INTERVAL;VALUE=DURATION:PT6H',
@@ -179,39 +216,84 @@ function buildICS(semester: Semester, courses: Course[], tasks: Task[]): string 
         `DTSTART;TZID=Europe/Berlin:${fmtLocal(start)}`,
         `DTEND;TZID=Europe/Berlin:${fmtLocal(end)}`,
         `RRULE:FREQ=WEEKLY;COUNT=${semester.weeks}`,
-        `SUMMARY:${esc(`${course.short} – ${label}`)}`,
+        // Voller Kursname + Art = im Kalender sofort erkennbar.
+        `SUMMARY:${esc(`${course.name} · ${label}`)}`,
         ...(slot.room ? [`LOCATION:${esc(slot.room)}`] : []),
-        `DESCRIPTION:${esc(course.name)}`,
+        'CATEGORIES:SemBan,Stundenplan',
+        'STATUS:CONFIRMED',
         'END:VEVENT',
       )
     }
   }
 
-  // Deadlines: Aufgaben mit Fälligkeit (absolute Instants bzw. Datumswerte).
+  // Deadlines: „bis Ende des Tages" → saubere Ganztags-Banner; Abgaben mit
+  // konkreter Uhrzeit bleiben terminiert (kurzer Block + Erinnerung am Vortag).
   const byId = new Map(courses.map((c) => [c.id, c]))
   for (const t of tasks) {
     if (!t.dueDate) continue
-    const start = new Date(t.dueDate)
-    if (isNaN(start.getTime())) continue
-    const end = new Date(start.getTime() + 30 * 60000)
+    const inst = new Date(t.dueDate)
+    if (isNaN(inst.getTime())) continue
     const course = t.courseId ? byId.get(t.courseId) : undefined
     const emoji = TASK_EMOJI[t.type] ?? '•'
     const summary = `${emoji} ${t.title}${course ? ` (${course.short})` : ''}`
-    lines.push(
-      'BEGIN:VEVENT',
-      `UID:${t.id}@semban.de`,
-      `DTSTAMP:${now}`,
-      `DTSTART:${fmtUTC(start)}`,
-      `DTEND:${fmtUTC(end)}`,
+    const { ymd, hour, min } = berlinYmdHm(t.dueDate)
+    const endOfDay = (hour === 23 && min >= 58) || (hour === 0 && min === 0)
+    const common = [
       `SUMMARY:${esc(summary)}`,
       ...(t.notes ? [`DESCRIPTION:${esc(t.notes)}`] : []),
       'TRANSP:TRANSPARENT',
       'CATEGORIES:SemBan,Abgabe',
-      'BEGIN:VALARM',
-      'ACTION:DISPLAY',
-      'DESCRIPTION:Erinnerung',
-      'TRIGGER:-P1D',
-      'END:VALARM',
+      'STATUS:CONFIRMED',
+    ]
+    if (endOfDay) {
+      lines.push(
+        'BEGIN:VEVENT',
+        `UID:${t.id}@semban.de`,
+        `DTSTAMP:${now}`,
+        `DTSTART;VALUE=DATE:${ymd}`,
+        `DTEND;VALUE=DATE:${nextDayYmd(ymd)}`,
+        ...common,
+        // Erinnerung am Vortag (15:00).
+        'BEGIN:VALARM',
+        'ACTION:DISPLAY',
+        'DESCRIPTION:Erinnerung',
+        'TRIGGER:-PT9H',
+        'END:VALARM',
+        'END:VEVENT',
+      )
+    } else {
+      const end = new Date(inst.getTime() + 30 * 60000)
+      lines.push(
+        'BEGIN:VEVENT',
+        `UID:${t.id}@semban.de`,
+        `DTSTAMP:${now}`,
+        `DTSTART:${fmtUTC(inst)}`,
+        `DTEND:${fmtUTC(end)}`,
+        ...common,
+        'BEGIN:VALARM',
+        'ACTION:DISPLAY',
+        'DESCRIPTION:Erinnerung',
+        'TRIGGER:-P1D',
+        'END:VALARM',
+        'END:VEVENT',
+      )
+    }
+  }
+
+  // Klausurphasen: mehrtägige Ganztags-Banner – gibt der Prüfungszeit im
+  // Kalender sofort Kontur.
+  for (const ph of semester.examPhases ?? []) {
+    if (!ph.start || !ph.end) continue
+    lines.push(
+      'BEGIN:VEVENT',
+      `UID:exam-${ph.id}@semban.de`,
+      `DTSTAMP:${now}`,
+      `DTSTART;VALUE=DATE:${toYmd(ph.start)}`,
+      `DTEND;VALUE=DATE:${nextDayYmd(toYmd(ph.end))}`,
+      `SUMMARY:${esc(`🎓 ${ph.label}`)}`,
+      'TRANSP:TRANSPARENT',
+      'CATEGORIES:SemBan,Klausurphase',
+      'STATUS:CONFIRMED',
       'END:VEVENT',
     )
   }
