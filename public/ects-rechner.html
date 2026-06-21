@@ -44,6 +44,39 @@
         ]
       }
     </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "HowTo",
+        "name": "Studienfortschritt mit ECTS berechnen",
+        "description": "In zwei Schritten den Fortschritt zum Abschluss aus erreichten und benötigten ECTS berechnen.",
+        "inLanguage": "de",
+        "step": [
+          { "@type": "HowToStep", "position": 1, "name": "Erreichte ECTS eingeben", "text": "Trage die Summe deiner bisher erreichten ECTS-Punkte ein." },
+          { "@type": "HowToStep", "position": 2, "name": "Abschlussziel wählen", "text": "Wähle dein Ziel (z. B. Bachelor 180 ECTS). Fortschritt in Prozent und verbleibende ECTS werden automatisch berechnet." }
+        ]
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "DefinedTerm",
+        "name": "ECTS",
+        "alternateName": "European Credit Transfer and Accumulation System",
+        "description": "ECTS sind Leistungspunkte, die den Arbeitsaufwand eines Moduls messen. Ein Credit Point entspricht etwa 25–30 Arbeitsstunden, ein Vollzeit-Studienjahr umfasst 60 ECTS.",
+        "inLanguage": "de"
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Start", "item": "https://unikanban.vercel.app/" },
+          { "@type": "ListItem", "position": 2, "name": "ECTS-Rechner", "item": "https://unikanban.vercel.app/ects-rechner" }
+        ]
+      }
+    </script>
   </head>
   <body>
     <header class="site">
@@ -60,6 +93,13 @@
         Wie weit bist du schon? Zähl deine erreichten ECTS zusammen und sieh sofort deinen
         Fortschritt zum Abschluss – kostenlos und ohne Anmeldung.
       </p>
+      <p class="muted" style="margin: -14px 0 18px">Stand: Juni 2026</p>
+      <blockquote style="margin: 0 0 22px; padding: 14px 18px; border-left: 3px solid var(--brand); background: #fff; border-radius: 0 12px 12px 0; color: var(--ink)">
+        <strong>In einem Satz:</strong> ECTS (European Credit Transfer and Accumulation System) sind
+        Leistungspunkte für den Arbeitsaufwand – <strong>1 ECTS ≈ 25–30 Stunden</strong>, ein Studienjahr
+        umfasst 60 ECTS (Quelle:
+        <a href="https://de.wikipedia.org/wiki/European_Credit_Transfer_System" rel="nofollow noopener" target="_blank">Europäische Kommission / Wikipedia</a>).
+      </blockquote>
 
       <div class="card">
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">

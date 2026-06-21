@@ -1,0 +1,23 @@
+# SemBan
+
+> SemBan ist ein kostenloser, werbefreier Semesterplaner (Progressive Web App) für Studierende im deutschsprachigen Raum. Funktionen: Stundenplan, Aufgaben-Kanban, Deadlines/Fristen mit Erinnerungen, Notendurchschnitt-Rechner und ECTS-Tracking – alles an einem Ort.
+
+SemBan (aus „Semester" + „Kanban") läuft im Browser und lässt sich als App auf Handy, Tablet und Desktop installieren. Die Nutzung ist komplett kostenlos und werbefrei; Daten werden lokal gespeichert und über ein kostenloses Konto zwischen Geräten synchronisiert. Entwickelt von Luca Wehrle, selbst Student. Kontakt: lucawehrle@gmail.com. Live unter https://unikanban.vercel.app (Marken-Domain semban.de in Vorbereitung).
+
+## Kostenlose Tools & Rechner
+- [Notendurchschnitt berechnen](https://unikanban.vercel.app/notendurchschnitt-berechnen): Kostenloser Rechner für den ECTS-gewichteten Notendurchschnitt im Studium, inkl. Formel und Beispiel.
+- [ECTS-Rechner](https://unikanban.vercel.app/ects-rechner): Erreichte ECTS zusammenzählen und den Fortschritt zum Abschluss (Bachelor 180, Master 120 ECTS) berechnen.
+
+## Funktionen & Vergleich
+- [Deadlines & Fristen im Studium](https://unikanban.vercel.app/deadlines-fristen): Abgaben und Fristen aus allen Kursen an einem Ort, mit Erinnerungen auch bei geschlossener App.
+- [Notion-Alternative fürs Studium](https://unikanban.vercel.app/notion-alternative-studium): Vergleich SemBan vs. Notion – fertige Studium-App ohne aufwendiges Setup.
+
+## Über SemBan
+- [Startseite](https://unikanban.vercel.app/): Überblick über Stundenplan, Aufgaben, Fristen, Noten und ECTS.
+
+## Fakten in Kürze
+- Preis: kostenlos und werbefrei
+- Plattform: Progressive Web App (Web, iOS, Android, Desktop)
+- Sprache: Deutsch
+- Zielgruppe: Studierende an Universitäten und Hochschulen
+- Besonderheiten: offline nutzbar, geräteübergreifende Synchronisation, Erinnerungen an Fristen

@@ -44,6 +44,39 @@
         ]
       }
     </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "HowTo",
+        "name": "Notendurchschnitt im Studium berechnen",
+        "description": "In drei Schritten den ECTS-gewichteten Notendurchschnitt berechnen.",
+        "inLanguage": "de",
+        "step": [
+          { "@type": "HowToStep", "position": 1, "name": "Noten eintragen", "text": "Trage für jedes Modul deine Note (1,0 bis 5,0) ein." },
+          { "@type": "HowToStep", "position": 2, "name": "ECTS ergänzen", "text": "Gib zu jeder Note die Credit Points (ECTS) des Moduls an." },
+          { "@type": "HowToStep", "position": 3, "name": "Durchschnitt ablesen", "text": "Der gewichtete Notendurchschnitt wird automatisch berechnet: Summe aus Note × ECTS geteilt durch die Summe der ECTS." }
+        ]
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "DefinedTerm",
+        "name": "Notendurchschnitt",
+        "description": "Der Notendurchschnitt im Studium ist das nach ECTS gewichtete Mittel aller benoteten Module: Jede Note wird mit den Credit Points ihres Moduls multipliziert, summiert und durch die Summe aller Credits geteilt.",
+        "inLanguage": "de"
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "BreadcrumbList",
+        "itemListElement": [
+          { "@type": "ListItem", "position": 1, "name": "Start", "item": "https://unikanban.vercel.app/" },
+          { "@type": "ListItem", "position": 2, "name": "Notendurchschnitt berechnen", "item": "https://unikanban.vercel.app/notendurchschnitt-berechnen" }
+        ]
+      }
+    </script>
   </head>
   <body>
     <header class="site">
@@ -60,6 +93,10 @@
         Trag deine Noten und die ECTS pro Modul ein – dein <strong>gewichteter Notendurchschnitt</strong>
         wird sofort berechnet. Keine Anmeldung, keine Werbung.
       </p>
+      <p class="muted" style="margin: -14px 0 18px">Stand: Juni 2026</p>
+      <blockquote style="margin: 0 0 22px; padding: 14px 18px; border-left: 3px solid var(--brand); background: #fff; border-radius: 0 12px 12px 0; color: var(--ink)">
+        <strong>In einem Satz:</strong> Der Notendurchschnitt im Studium ist das <strong>nach ECTS gewichtete Mittel</strong> aller benoteten Module – jede Note zählt mit den Credit Points ihres Moduls, größere Module also stärker.
+      </blockquote>
 
       <div class="card">
         <div class="calc-head"><span>Note (1,0–5,0)</span><span>ECTS</span><span></span></div>
@@ -85,6 +122,12 @@
       </p>
       <p class="card" style="font-family: ui-monospace, monospace; color: var(--navy)">
         Schnitt = Σ (Note × ECTS) ∕ Σ ECTS
+      </p>
+      <p class="muted">
+        Zum Einordnen: Ein Bachelor umfasst in Deutschland in der Regel <strong>180 ECTS</strong>, ein
+        Studienjahr <strong>60 ECTS</strong> (Quelle:
+        <a href="https://de.wikipedia.org/wiki/European_Credit_Transfer_System" rel="nofollow noopener" target="_blank">ECTS, Europäische Kommission / Wikipedia</a>).
+        Wie genau gewichtet und gerundet wird, regelt deine jeweilige Prüfungsordnung.
       </p>
       <h3>Beispiel</h3>
       <p>
