@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Pencil, Plus, GraduationCap, Trash2, X, TrendingUp } from 'lucide-react'
+import { Pencil, Plus, Minus, GraduationCap, Trash2, X, TrendingUp } from 'lucide-react'
 import type { Course, CourseStatus, ExamPhase, Program, ProgramType, Semester } from '@/db/types'
 import { db, uid } from '@/db/db'
 import {
@@ -231,33 +231,73 @@ export function StudyView({ activeProgram }: { activeProgram: Program }) {
 
 function clampGrade(n: number): number {
   if (isNaN(n)) return 2.0
-  return Math.min(4, Math.max(1, n))
+  return Math.min(4, Math.max(1, Number(n.toFixed(1))))
+}
+
+/** Ampelfarbe nach Notenwert (1,0 sehr gut … 4,0 ausreichend). */
+function gradeColor(g: number): string {
+  return g <= 2 ? 'text-emerald-600' : g <= 3 ? 'text-amber-500' : 'text-red-500'
+}
+
+/** Kleiner −/+ Stepper für die Zielnote. */
+function GradeStepper({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const btn =
+    'flex h-8 w-8 items-center justify-center rounded-lg text-stone-500 transition hover:bg-stone-100 disabled:opacity-30'
+  return (
+    <div className="flex items-center gap-0.5 rounded-xl border border-stone-200 bg-white p-1">
+      <button
+        type="button"
+        aria-label="Ziel verbessern"
+        disabled={value <= 1}
+        onClick={() => onChange(clampGrade(value - 0.1))}
+        className={btn}
+      >
+        <Minus size={15} />
+      </button>
+      <span className="w-9 text-center text-base font-bold tabular-nums text-stone-800">
+        {fmtGrade(value)}
+      </span>
+      <button
+        type="button"
+        aria-label="Ziel lockern"
+        disabled={value >= 4}
+        onClick={() => onChange(clampGrade(value + 0.1))}
+        className={btn}
+      >
+        <Plus size={15} />
+      </button>
+    </div>
+  )
 }
 
 /** Notenprognose: „Was brauche ich noch?" + Endschnitt-Szenario. */
 function Forecast({ stats }: { stats: ProgramStats }) {
   const f = getForecast(stats)
   const [target, setTarget] = useState(() =>
-    Number((stats.gradeAvg ? Math.min(stats.gradeAvg, 2.0) : 2.0).toFixed(1)),
+    clampGrade(stats.gradeAvg ? Math.min(stats.gradeAvg, 2.0) : 2.0),
   )
-  const [assumed, setAssumed] = useState(() => Number((stats.gradeAvg ?? 2.0).toFixed(1)))
+  const [assumed, setAssumed] = useState(() => clampGrade(stats.gradeAvg ?? 2.0))
 
   const head = (
-    <div className="mb-3 flex items-center gap-1.5">
-      <TrendingUp size={15} className="text-stone-500" />
-      <span className="text-sm font-semibold text-stone-700">Notenprognose</span>
+    <div className="mb-4 flex items-center gap-2">
+      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-100 text-brand-600">
+        <TrendingUp size={15} />
+      </span>
+      <span className="text-sm font-semibold text-stone-800">Notenprognose</span>
     </div>
   )
 
   // Nichts mehr offen → Schnitt steht fest.
   if (f.remainingEcts <= 0) {
     return (
-      <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70">
+      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-stone-200/70">
         {head}
-        <p className="text-sm text-stone-500">
-          Alle eingeplanten ECTS sind benotet – dein Schnitt steht bei{' '}
-          <strong className="text-stone-700">{fmtGrade(stats.gradeAvg)}</strong>.
-        </p>
+        <div className="flex items-center justify-between rounded-xl bg-stone-50 px-4 py-3">
+          <span className="text-sm text-stone-500">Alle ECTS benotet – dein Schnitt steht</span>
+          <span className={cn('text-3xl font-bold', gradeColor(stats.gradeAvg ?? 4))}>
+            {fmtGrade(stats.gradeAvg)}
+          </span>
+        </div>
       </div>
     )
   }
@@ -265,89 +305,132 @@ function Forecast({ stats }: { stats: ProgramStats }) {
   const { needed, status } = neededForTarget(stats, target)
   const projected = projectedFinal(stats, assumed)
   const { best, worst } = forecastRange(stats)
-  const statusColor =
-    status === 'secured'
-      ? 'text-emerald-600'
-      : status === 'impossible'
-        ? 'text-amber-600'
-        : 'text-stone-600'
-  // Machbarkeit der benötigten Note (nur relevant bei status 'ok').
   const feas = feasibility(needed, stats.gradeAvg)
-  const feasHint =
+  const feasBadge =
     feas === 'relaxed'
-      ? { text: 'das hältst du locker', cls: 'text-emerald-600' }
+      ? { text: 'locker', cls: 'bg-emerald-100 text-emerald-700' }
       : feas === 'ambitious'
-        ? { text: 'ambitioniert', cls: 'text-amber-600' }
-        : { text: 'machbar', cls: 'text-stone-500' }
+        ? { text: 'ambitioniert', cls: 'bg-amber-100 text-amber-700' }
+        : { text: 'machbar', cls: 'bg-stone-200 text-stone-600' }
+
+  // Position des Szenarios im Best–Worst-Korridor (0 % = best, 100 % = worst).
+  const span = worst - best
+  const pct = span > 0 ? Math.min(100, Math.max(0, ((projected - best) / span) * 100)) : 50
 
   return (
-    <div className="space-y-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70">
+    <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-stone-200/70">
       {head}
 
-      {/* Was brauche ich noch? */}
-      <div>
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-sm text-stone-600">Mein Ziel-Schnitt</span>
-          <input
-            type="number"
-            step="0.1"
-            min="1"
-            max="4"
-            value={target}
-            onChange={(e) => setTarget(clampGrade(Number(e.target.value)))}
-            className="w-16 rounded-lg border border-stone-200 px-2 py-1 text-center text-sm"
-            aria-label="Ziel-Schnitt"
-          />
-        </div>
-        <p className={cn('mt-2 text-sm', statusColor)}>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {/* Block A: Was brauche ich noch? */}
+        <div className="rounded-xl bg-stone-50 p-4">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-stone-400">
+              Was brauche ich noch?
+            </span>
+          </div>
+          <div className="mt-3 flex items-center justify-between gap-2">
+            <span className="text-sm text-stone-600">Ziel-Schnitt</span>
+            <GradeStepper value={target} onChange={setTarget} />
+          </div>
+
           {status === 'ok' && (
-            <>
-              Dafür brauchst du in den restlichen <strong>{f.remainingEcts} ECTS</strong> im Schnitt{' '}
-              <strong>Note {fmtGrade(needed)}</strong>{' '}
-              <span className={feasHint.cls}>· {feasHint.text}</span>.
-            </>
+            <div className="mt-4">
+              <div className="flex items-end gap-2">
+                <span className={cn('text-4xl font-bold leading-none', gradeColor(needed))}>
+                  {fmtGrade(needed)}
+                </span>
+                <span
+                  className={cn('mb-0.5 rounded-full px-2 py-0.5 text-xs font-semibold', feasBadge.cls)}
+                >
+                  {feasBadge.text}
+                </span>
+              </div>
+              <p className="mt-1.5 text-xs text-stone-400">
+                nötiger Ø über die restlichen {f.remainingEcts} ECTS
+              </p>
+            </div>
           )}
           {status === 'secured' && (
-            <>
-              Schon gesichert – selbst mit ausreichenden Noten (4,0) im Rest erreichst du{' '}
-              <strong>{fmtGrade(target)}</strong>.
-            </>
+            <div className="mt-4 rounded-lg bg-emerald-50 px-3 py-2.5">
+              <div className="text-sm font-semibold text-emerald-700">Ziel gesichert ✓</div>
+              <p className="mt-0.5 text-xs text-emerald-600/90">
+                Selbst mit 4,0 im Rest erreichst du {fmtGrade(target)}.
+              </p>
+            </div>
           )}
           {status === 'impossible' && (
-            <>Rechnerisch nicht mehr erreichbar – dafür müsstest du im Rest besser als 1,0 sein.</>
+            <div className="mt-4 rounded-lg bg-amber-50 px-3 py-2.5">
+              <div className="text-sm font-semibold text-amber-700">Nicht mehr erreichbar</div>
+              <p className="mt-0.5 text-xs text-amber-600/90">
+                Dafür müsstest du im Rest besser als 1,0 sein.
+              </p>
+            </div>
           )}
-        </p>
+        </div>
+
+        {/* Block B: Endschnitt-Prognose */}
+        <div className="rounded-xl bg-stone-50 p-4">
+          <span className="text-xs font-semibold uppercase tracking-wide text-stone-400">
+            Endschnitt-Prognose
+          </span>
+
+          <div className="mt-3 flex items-end justify-between gap-2">
+            <div>
+              <div className="text-xs text-stone-400">voraussichtlich</div>
+              <span className={cn('text-4xl font-bold leading-none', gradeColor(projected))}>
+                {fmtGrade(projected)}
+              </span>
+            </div>
+            <div className="text-right">
+              <div className="text-xs text-stone-400">Rest im Ø</div>
+              <div className="text-base font-bold tabular-nums text-stone-700">
+                {fmtGrade(assumed)}
+              </div>
+            </div>
+          </div>
+
+          <input
+            type="range"
+            min="1"
+            max="4"
+            step="0.1"
+            value={assumed}
+            onChange={(e) => setAssumed(Number(e.target.value))}
+            className="mt-3 w-full accent-brand-500"
+            aria-label="Angenommener Schnitt im Rest"
+          />
+          <div className="flex justify-between text-[10px] text-stone-400">
+            <span>1,0 · sehr gut</span>
+            <span>4,0 · ausreichend</span>
+          </div>
+
+          {/* Korridor: Best–Worst mit Marker beim Szenario */}
+          <div className="mt-4">
+            <div
+              className="relative h-2 rounded-full"
+              style={{ background: 'linear-gradient(90deg,#34d399,#fbbf24,#f87171)' }}
+            >
+              <div
+                className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow ring-2 ring-stone-700 transition-all"
+                style={{ left: `${pct}%` }}
+              />
+            </div>
+            <div className="mt-1.5 flex justify-between text-[10px] text-stone-400">
+              <span>
+                Bestfall <strong className="text-stone-500">{fmtGrade(best)}</strong>
+              </span>
+              <span>
+                <strong className="text-stone-500">{fmtGrade(worst)}</strong> schlechtestenfalls
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Endschnitt-Szenario */}
-      <div className="border-t border-stone-100 pt-3">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-sm text-stone-600">Wenn der Rest im Schnitt …</span>
-          <span className="text-sm font-semibold text-stone-700">Note {fmtGrade(assumed)}</span>
-        </div>
-        <input
-          type="range"
-          min="1"
-          max="4"
-          step="0.1"
-          value={assumed}
-          onChange={(e) => setAssumed(Number(e.target.value))}
-          className="mt-2 w-full accent-brand-500"
-          aria-label="Angenommener Schnitt im Rest"
-        />
-        <div className="mt-1.5 flex items-baseline gap-2">
-          <span className="text-sm text-stone-500">… wird dein Endschnitt etwa</span>
-          <span className="text-2xl font-bold text-stone-800">{fmtGrade(projected)}</span>
-        </div>
-        <div className="mt-2 text-xs text-stone-400">
-          Möglicher Korridor: <strong className="text-stone-500">{fmtGrade(best)}</strong> (Rest
-          komplett 1,0) bis <strong className="text-stone-500">{fmtGrade(worst)}</strong> (alles 4,0).
-        </div>
-      </div>
-
-      <p className="text-[11px] leading-relaxed text-stone-400">
+      <p className="mt-3 text-[11px] leading-relaxed text-stone-400">
         Bezogen auf rund {f.finalEcts} benotete ECTS. Annahme: die restlichen ECTS werden benotet –
-        unbenotete Module (bestanden/nicht bestanden) zählen nicht in den Schnitt.
+        unbenotete Module (bestanden/nicht&nbsp;bestanden) zählen nicht in den Schnitt.
       </p>
     </div>
   )
