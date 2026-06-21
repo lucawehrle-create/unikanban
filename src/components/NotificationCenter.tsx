@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Bell, BellRing, Check, ChevronRight, Settings2 } from 'lucide-react'
+import { Bell, BellRing, Check, ChevronRight, Settings2, Share, Plus, Download } from 'lucide-react'
 import { useActiveSemester, useCourses, useTasks } from '@/hooks/data'
 import { useUI } from '@/store/ui'
 import {
@@ -12,7 +12,13 @@ import {
   type ReminderSettings,
 } from '@/lib/reminders'
 import { formatDue } from '@/lib/deadline'
-import { enableReminders, pushPermission, syncReminderSettingsToServer } from '@/lib/push'
+import {
+  enableReminders,
+  pushPermission,
+  syncReminderSettingsToServer,
+  type PushPermission,
+} from '@/lib/push'
+import { useInstall, type InstallState } from '@/lib/pwaInstall'
 import { Select } from './ui/Select'
 import { cn } from '@/lib/cn'
 
@@ -33,6 +39,7 @@ export function NotificationCenter() {
   const [showSettings, setShowSettings] = useState(false)
   const [settings, setSettings] = useState<ReminderSettings>(() => getReminderSettings())
   const [perm, setPerm] = useState(() => pushPermission())
+  const install = useInstall()
   const ref = useRef<HTMLDivElement>(null)
 
   const items = useMemo(
@@ -117,50 +124,15 @@ export function NotificationCenter() {
           </div>
 
           {/* Berechtigung/Settings */}
-          {(showSettings || perm === 'default' || perm === 'denied') && (
+          {(showSettings || perm !== 'granted') && (
             <div className="border-b border-stone-100 px-4 py-3">
-              {perm === 'unsupported' ? (
-                <p className="text-xs text-stone-500">
-                  Dein Browser unterstützt keine Benachrichtigungen.
-                </p>
-              ) : perm === 'granted' ? (
-                <div className="space-y-3">
-                  <label className="flex items-center justify-between gap-3">
-                    <span className="text-sm text-stone-700">Erinnerungen aktiv</span>
-                    <Toggle
-                      checked={settings.enabled}
-                      onChange={(v) => persist({ ...settings, enabled: v })}
-                    />
-                  </label>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm text-stone-700">Erinnern</span>
-                    <Select
-                      ariaLabel="Vorlauf"
-                      className="w-40"
-                      value={String(settings.leadDays)}
-                      options={LEAD_OPTIONS}
-                      onChange={(v) => persist({ ...settings, leadDays: Number(v) })}
-                    />
-                  </div>
-                </div>
-              ) : perm === 'denied' ? (
-                <p className="text-xs text-stone-500">
-                  Benachrichtigungen sind im Browser blockiert. Erlaube sie in den
-                  Website-Einstellungen, um an Fristen erinnert zu werden.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  <p className="text-xs text-stone-500">
-                    Lass dich an Abgaben erinnern – auch wenn die App geschlossen ist.
-                  </p>
-                  <button
-                    onClick={() => void onEnable()}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-stone-700"
-                  >
-                    <BellRing size={15} /> Erinnerungen aktivieren
-                  </button>
-                </div>
-              )}
+              <ReminderSetup
+                perm={perm}
+                install={install}
+                settings={settings}
+                persist={persist}
+                onEnable={() => void onEnable()}
+              />
             </div>
           )}
 
@@ -220,6 +192,130 @@ export function NotificationCenter() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function StepBadge({ n }: { n: number }) {
+  return (
+    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-stone-200 text-[10px] font-bold text-stone-600">
+      {n}
+    </span>
+  )
+}
+
+/** Plattformbewusster Aktivierungs-Flow für Erinnerungen.
+ *  Kern: Auf iOS funktioniert Web-Push nur als installierte PWA – sonst gibt es
+ *  keine Notification-API. Darum dort zuerst durch „Zum Home-Bildschirm" führen. */
+function ReminderSetup({
+  perm,
+  install,
+  settings,
+  persist,
+  onEnable,
+}: {
+  perm: PushPermission
+  install: InstallState
+  settings: ReminderSettings
+  persist: (s: ReminderSettings) => void
+  onEnable: () => void
+}) {
+  // Bereits erlaubt → normale Steuerung.
+  if (perm === 'granted') {
+    return (
+      <div className="space-y-3">
+        <label className="flex items-center justify-between gap-3">
+          <span className="text-sm text-stone-700">Erinnerungen aktiv</span>
+          <Toggle
+            checked={settings.enabled}
+            onChange={(v) => persist({ ...settings, enabled: v })}
+          />
+        </label>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm text-stone-700">Erinnern</span>
+          <Select
+            ariaLabel="Vorlauf"
+            className="w-40"
+            value={String(settings.leadDays)}
+            options={LEAD_OPTIONS}
+            onChange={(v) => persist({ ...settings, leadDays: Number(v) })}
+          />
+        </div>
+        {!install.standalone && (
+          <p className="text-[11px] leading-relaxed text-stone-400">
+            Tipp: Installiere SemBan als App, damit Erinnerungen am zuverlässigsten ankommen.
+          </p>
+        )}
+      </div>
+    )
+  }
+
+  // iOS im Browser-Tab → zuerst zum Home-Bildschirm hinzufügen (sonst kein Push).
+  if (install.needsInstallForPush) {
+    return (
+      <div className="space-y-2.5">
+        <p className="text-sm font-medium text-stone-700">Erinnerungen auf dem iPhone</p>
+        <p className="text-xs leading-relaxed text-stone-500">
+          Damit dich SemBan auch bei geschlossener App an Fristen erinnert, füge es einmal zum
+          Home-Bildschirm hinzu:
+        </p>
+        <ol className="space-y-2 text-xs text-stone-600">
+          <li className="flex items-center gap-2">
+            <StepBadge n={1} /> Unten auf <Share size={13} className="text-stone-500" />
+            <strong>Teilen</strong> tippen
+          </li>
+          <li className="flex items-center gap-2">
+            <StepBadge n={2} /> <Plus size={13} className="text-stone-500" />
+            <strong>Zum Home-Bildschirm</strong> wählen
+          </li>
+          <li className="flex items-center gap-2">
+            <StepBadge n={3} /> SemBan über das neue Icon öffnen &amp; aktivieren
+          </li>
+        </ol>
+      </div>
+    )
+  }
+
+  // Browser ohne Notification-Unterstützung.
+  if (perm === 'unsupported') {
+    return (
+      <p className="text-xs text-stone-500">
+        Dein Browser unterstützt keine Benachrichtigungen. Nutze SemBan z. B. in Chrome oder Edge –
+        oder installiere die App.
+      </p>
+    )
+  }
+
+  // Im Browser blockiert.
+  if (perm === 'denied') {
+    return (
+      <p className="text-xs text-stone-500">
+        Benachrichtigungen sind blockiert. Erlaube sie in den Browser- bzw. Website-Einstellungen,
+        um an Fristen erinnert zu werden.
+      </p>
+    )
+  }
+
+  // perm === 'default' → aktivieren, ggf. vorher Installation anbieten.
+  return (
+    <div className="space-y-2">
+      <p className="text-xs text-stone-500">
+        Lass dich an Abgaben erinnern – auch wenn die App geschlossen ist.
+      </p>
+      {!install.standalone && install.canPrompt && (
+        <button
+          onClick={() => void install.promptInstall()}
+          className="flex w-full items-center justify-center gap-1.5 rounded-full bg-white px-4 py-2 text-sm font-medium text-stone-700 ring-1 ring-stone-200 transition hover:bg-stone-50"
+        >
+          <Download size={15} /> Als App installieren
+        </button>
+      )}
+      <button
+        onClick={onEnable}
+        className="flex w-full items-center justify-center gap-1.5 rounded-full bg-stone-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-stone-700"
+      >
+        <BellRing size={15} /> Erinnerungen aktivieren
+      </button>
     </div>
   )
 }
