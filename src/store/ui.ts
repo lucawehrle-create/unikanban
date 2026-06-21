@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { TaskTypeId } from '@/db/types'
 
-export type ViewId = 'board' | 'week' | 'schedule' | 'study'
+export type ViewId = 'board' | 'week' | 'schedule' | 'study' | 'plans'
 export type GroupBy = 'status' | 'deadline' | 'course' | 'type' | 'priority'
 export type SortBy = 'deadline' | 'priority' | 'title' | 'created'
 

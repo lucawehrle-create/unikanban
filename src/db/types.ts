@@ -122,6 +122,31 @@ export interface Course {
   slots: CourseSlot[]
   /** Mehrere Wochen-Serien (z.B. Übungsblatt UND Tutoriumsblatt). */
   recurring?: RecurringConfig[]
+  /** Hinterlegter Lernplan für die Klausur dieses Kurses. */
+  studyPlan?: StudyPlanConfig
+}
+
+export type StudyStrategy = 'now' | 'breaks' | 'later'
+
+/** Pro Kurs hinterlegte Lernplan-Konfiguration (Lernpläne-Ansicht). */
+export interface StudyPlanConfig {
+  /** Klausurdatum (ISO yyyy-mm-dd). */
+  examDate: string
+  /** Klausurdauer in Minuten (Altklausur-Budget = Dauer × 2). */
+  examDurationMin: number
+  /** Karteikarten/Tag (Planungs-Regler; 0 = keine). */
+  cardsPerDay: number
+  /** Anzahl vorhandener Altklausuren. */
+  altklausuren: number
+  /** Anzahl Skript-/Vorlesungskapitel. */
+  chapters: number
+  /** Wie viele Übungs-/Tutoriumsblätter nochmal wiederholt werden sollen. */
+  uebungReview: number
+  tutReview: number
+  /** Gewählte Start-Strategie. */
+  strategy: StudyStrategy
+  /** Bevorzugte Uhrzeit der Sessions (HH:mm). */
+  time: string
 }
 
 export interface Phase {

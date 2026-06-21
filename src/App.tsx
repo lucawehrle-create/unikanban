@@ -14,6 +14,7 @@ import { Board } from '@/components/Board'
 import { WeekView } from '@/components/WeekView'
 import { Schedule } from '@/components/Schedule'
 import { StudyView } from '@/components/StudyView'
+import { StudyPlansView } from '@/components/StudyPlansView'
 import { TaskEditor } from '@/components/TaskEditor'
 import { CourseManager } from '@/components/CourseManager'
 import { CalendarModal } from '@/components/CalendarModal'
@@ -129,13 +130,23 @@ export default function App() {
   // Hat der aktive Studiengang (noch) kein Semester, erzwingen wir die Studium-
   // Ansicht (dort kann man ein Semester anlegen) statt in "Lädt…" zu hängen.
   const effectiveView = semester ? view : 'study'
-  const isStudy = effectiveView === 'study'
+  // „Studium" und „Lernpläne" sind eigenständige Vollansichten (ohne QuickAdd/Filter).
+  const isFullView = effectiveView === 'study' || effectiveView === 'plans'
+
+  // Im Aufgaben-Board nur aktuell anstehende Lern-Sessions zeigen – zukünftige
+  // Plan-Sessions (examId gesetzt, Fälligkeit nach heute) würden es überfüllen.
+  const startOfTomorrow = new Date()
+  startOfTomorrow.setHours(0, 0, 0, 0)
+  startOfTomorrow.setDate(startOfTomorrow.getDate() + 1)
+  const boardTasks = visible.filter(
+    (t) => !(t.examId && t.dueDate && new Date(t.dueDate).getTime() >= startOfTomorrow.getTime()),
+  )
 
   return (
     <div className="flex h-full flex-col text-stone-900">
       <Header semester={semester} program={program} />
       {isDemo && <DemoBanner />}
-      {!isStudy && semester && (
+      {!isFullView && semester && (
         <>
           <QuickAdd semesterId={semester.id} courses={courses} />
           <FilterBar courses={courses} />
@@ -144,12 +155,13 @@ export default function App() {
 
       <main className="min-h-0 flex-1 pt-1">
         {semester && effectiveView === 'board' && (
-          <Board tasks={visible} courses={courses} hasTasks={tasks.length > 0} />
+          <Board tasks={boardTasks} courses={courses} hasTasks={tasks.length > 0} />
         )}
         {semester && effectiveView === 'week' && <WeekView tasks={visible} courses={courses} />}
         {semester && effectiveView === 'schedule' && (
           <Schedule tasks={visible} courses={courses} semesterId={semester.id} />
         )}
+        {semester && effectiveView === 'plans' && <StudyPlansView />}
         {effectiveView === 'study' && <StudyView activeProgram={program} />}
       </main>
 

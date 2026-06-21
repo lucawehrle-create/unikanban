@@ -3,6 +3,7 @@ import {
   CalendarDays,
   Clock,
   CalendarPlus,
+  BookOpen,
   Gauge,
   HelpCircle,
   Settings2,
@@ -32,6 +33,7 @@ export const VIEWS: { id: ViewId; label: string; shortLabel: string; icon: Lucid
   { id: 'board', label: 'Aufgaben', shortLabel: 'Aufgaben', icon: LayoutGrid },
   { id: 'week', label: 'Diese Woche', shortLabel: 'Woche', icon: CalendarDays },
   { id: 'schedule', label: 'Stundenplan', shortLabel: 'Plan', icon: Clock },
+  { id: 'plans', label: 'Lernpläne', shortLabel: 'Lernen', icon: BookOpen },
   { id: 'study', label: 'Studium', shortLabel: 'Studium', icon: Gauge },
 ]
 
