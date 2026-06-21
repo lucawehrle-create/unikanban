@@ -15,7 +15,9 @@ import { usePrograms, useProgramCourses, useSemesters } from '@/hooks/data'
 import { isSyncConfigured } from '@/lib/supabase'
 import {
   computeProgramStats,
+  feasibility,
   fmtGrade,
+  forecastRange,
   getForecast,
   neededForTarget,
   projectedFinal,
@@ -262,12 +264,21 @@ function Forecast({ stats }: { stats: ProgramStats }) {
 
   const { needed, status } = neededForTarget(stats, target)
   const projected = projectedFinal(stats, assumed)
+  const { best, worst } = forecastRange(stats)
   const statusColor =
     status === 'secured'
       ? 'text-emerald-600'
       : status === 'impossible'
         ? 'text-amber-600'
         : 'text-stone-600'
+  // Machbarkeit der benötigten Note (nur relevant bei status 'ok').
+  const feas = feasibility(needed, stats.gradeAvg)
+  const feasHint =
+    feas === 'relaxed'
+      ? { text: 'das hältst du locker', cls: 'text-emerald-600' }
+      : feas === 'ambitious'
+        ? { text: 'ambitioniert', cls: 'text-amber-600' }
+        : { text: 'machbar', cls: 'text-stone-500' }
 
   return (
     <div className="space-y-4 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70">
@@ -292,7 +303,8 @@ function Forecast({ stats }: { stats: ProgramStats }) {
           {status === 'ok' && (
             <>
               Dafür brauchst du in den restlichen <strong>{f.remainingEcts} ECTS</strong> im Schnitt{' '}
-              <strong>Note {fmtGrade(needed)}</strong>.
+              <strong>Note {fmtGrade(needed)}</strong>{' '}
+              <span className={feasHint.cls}>· {feasHint.text}</span>.
             </>
           )}
           {status === 'secured' && (
@@ -326,6 +338,10 @@ function Forecast({ stats }: { stats: ProgramStats }) {
         <div className="mt-1.5 flex items-baseline gap-2">
           <span className="text-sm text-stone-500">… wird dein Endschnitt etwa</span>
           <span className="text-2xl font-bold text-stone-800">{fmtGrade(projected)}</span>
+        </div>
+        <div className="mt-2 text-xs text-stone-400">
+          Möglicher Korridor: <strong className="text-stone-500">{fmtGrade(best)}</strong> (Rest
+          komplett 1,0) bis <strong className="text-stone-500">{fmtGrade(worst)}</strong> (alles 4,0).
         </div>
       </div>
 

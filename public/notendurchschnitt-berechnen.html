@@ -6,7 +6,7 @@
     <title>Notendurchschnitt berechnen (Studium) – kostenloser Rechner | SemBan</title>
     <meta
       name="description"
-      content="Berechne deinen Notendurchschnitt im Studium in Sekunden – ECTS-gewichtet, kostenlos und ohne Anmeldung. Inkl. Formel, Beispiel und Tipps zum Noten-Tracking."
+      content="Berechne deinen Notendurchschnitt im Studium in Sekunden – ECTS-gewichtet, kostenlos & ohne Anmeldung. Plus Zielnoten-Rechner: welche Note du noch brauchst. Inkl. Formel & Beispiel."
     />
     <link rel="canonical" href="https://unikanban.vercel.app/notendurchschnitt-berechnen" />
     <meta name="robots" content="index, follow" />
@@ -40,7 +40,8 @@
         "mainEntity": [
           { "@type": "Question", "name": "Wie wird der Notendurchschnitt im Studium berechnet?", "acceptedAnswer": { "@type": "Answer", "text": "An den meisten Hochschulen wird der Notendurchschnitt nach ECTS gewichtet: Jede Note wird mit den Credit Points des Moduls multipliziert, alles summiert und durch die Summe aller Credits geteilt. Module mit mehr ECTS zählen also stärker." } },
           { "@type": "Question", "name": "Was ist ein gewichteter Notendurchschnitt?", "acceptedAnswer": { "@type": "Answer", "text": "Beim gewichteten Schnitt fließt jede Note mit dem Gewicht ihres Moduls (meist die ECTS) ein. Eine 1,0 in einem 12-ECTS-Modul wirkt sich stärker aus als eine 1,0 in einem 3-ECTS-Modul." } },
-          { "@type": "Question", "name": "Zählen nicht bestandene oder unbenotete Module in den Schnitt?", "acceptedAnswer": { "@type": "Answer", "text": "Unbenotete (mit „bestanden\" bewertete) Module zählen in der Regel nicht in den Notenschnitt, bringen aber ECTS. Wie nicht bestandene Versuche gewertet werden, regelt deine Prüfungsordnung." } }
+          { "@type": "Question", "name": "Zählen nicht bestandene oder unbenotete Module in den Schnitt?", "acceptedAnswer": { "@type": "Answer", "text": "Unbenotete (mit „bestanden\" bewertete) Module zählen in der Regel nicht in den Notenschnitt, bringen aber ECTS. Wie nicht bestandene Versuche gewertet werden, regelt deine Prüfungsordnung." } },
+          { "@type": "Question", "name": "Welche Note brauche ich noch für meinen Wunschschnitt?", "acceptedAnswer": { "@type": "Answer", "text": "Berechne es so: (Ziel-Schnitt × Gesamt-ECTS − aktueller Schnitt × bereits benotete ECTS) geteilt durch die verbleibenden ECTS ergibt die nötige Durchschnittsnote im Rest. Beispiel: aktueller Schnitt 2,3 bei 60 von 180 ECTS, Ziel 2,0 → (2,0×180 − 2,3×60) ∕ 120 = 1,85." } }
         ]
       }
     </script>
@@ -108,6 +109,33 @@
         </div>
       </div>
 
+      <h2 style="margin-top: 36px">Was brauche ich noch? – Zielnoten-Rechner</h2>
+      <p>
+        Du hast schon Noten und willst auf einen bestimmten Schnitt kommen? Gib deinen Stand ein –
+        der Rechner zeigt, welche <strong>Durchschnittsnote du in den restlichen ECTS</strong> noch
+        brauchst, um dein Ziel zu erreichen.
+      </p>
+      <div class="card">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">
+          <label style="display: block; font-size: 13px; color: var(--muted)">Aktueller Schnitt
+            <input id="curAvg" inputmode="decimal" placeholder="z. B. 2,3" value="2,3" style="margin-top: 4px" />
+          </label>
+          <label style="display: block; font-size: 13px; color: var(--muted)">Schon benotete ECTS
+            <input id="curEcts" inputmode="numeric" placeholder="z. B. 60" value="60" style="margin-top: 4px" />
+          </label>
+          <label style="display: block; font-size: 13px; color: var(--muted)">Ziel-Schnitt
+            <input id="goalAvg" inputmode="decimal" placeholder="z. B. 2,0" value="2,0" style="margin-top: 4px" />
+          </label>
+          <label style="display: block; font-size: 13px; color: var(--muted)">Gesamt-ECTS (Abschluss)
+            <input id="totalEcts" inputmode="numeric" placeholder="180" value="180" style="margin-top: 4px" />
+          </label>
+        </div>
+        <div class="result">
+          <div class="big" id="needBig">–</div>
+          <div class="sub" id="needSub">Benötigter Ø in den restlichen ECTS</div>
+        </div>
+      </div>
+
       <div class="cta">
         <h2>Schnitt dauerhaft im Blick statt jedes Mal neu rechnen</h2>
         <p>SemBan trackt deinen Notendurchschnitt automatisch übers ganze Studium – kostenlos.</p>
@@ -147,6 +175,10 @@
       <details>
         <summary>Bachelor- und Masterschnitt getrennt?</summary>
         <p>Ja – beide werden üblicherweise getrennt ausgewiesen. In SemBan trackst du sie automatisch getrennt.</p>
+      </details>
+      <details>
+        <summary>Welche Note brauche ich noch für meinen Wunschschnitt?</summary>
+        <p>Teile (Ziel-Schnitt × Gesamt-ECTS − aktueller Schnitt × bereits benotete ECTS) durch die verbleibenden ECTS. Den Zielnoten-Rechner oben macht das automatisch – inklusive Hinweis, falls dein Ziel schon sicher oder rechnerisch nicht mehr erreichbar ist.</p>
       </details>
     </main>
 
@@ -192,6 +224,43 @@
         }
         defaults.forEach(function (d) { addRow(d[0], d[1]) })
         document.getElementById('add').onclick = function () { addRow('', ''); calc() }
+        calc()
+      })()
+    </script>
+    <script>
+      // Zielnoten-Rechner: „Was brauche ich noch?"
+      (function () {
+        function num(v) { return parseFloat(String(v).replace(',', '.')) }
+        function g(id) { return document.getElementById(id) }
+        function fmt(n) { return n.toFixed(2).replace('.', ',') }
+        function calc() {
+          var cur = num(g('curAvg').value), done = num(g('curEcts').value)
+          var goal = num(g('goalAvg').value), total = num(g('totalEcts').value)
+          var big = g('needBig'), sub = g('needSub')
+          big.style.fontSize = ''
+          if (isNaN(cur) || isNaN(done) || isNaN(goal) || isNaN(total) || done < 0 || total <= done) {
+            big.textContent = '–'
+            sub.textContent = 'Benötigter Ø in den restlichen ECTS'
+            return
+          }
+          var remaining = total - done
+          var needed = (goal * total - cur * done) / remaining
+          if (needed < 1) {
+            big.style.fontSize = '1.3rem'
+            big.textContent = 'nicht erreichbar'
+            sub.textContent = 'Selbst mit lauter 1,0 reicht es nicht für ' + fmt(goal) + '.'
+          } else if (needed > 4) {
+            big.style.fontSize = '1.3rem'
+            big.textContent = 'schon sicher'
+            sub.textContent = 'Auch mit ausreichenden Noten (4,0) im Rest erreichst du ' + fmt(goal) + '.'
+          } else {
+            big.textContent = fmt(needed)
+            sub.textContent = 'Ø-Note, die du in den restlichen ' + remaining + ' ECTS brauchst'
+          }
+        }
+        ;['curAvg', 'curEcts', 'goalAvg', 'totalEcts'].forEach(function (id) {
+          g(id).addEventListener('input', calc)
+        })
         calc()
       })()
     </script>

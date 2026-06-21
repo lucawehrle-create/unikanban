@@ -122,3 +122,22 @@ export function projectedFinal(stats: ProgramStats, assumed: number): number {
   const sum = (stats.gradeAvg ?? 0) * f.gradedEcts
   return (sum + assumed * f.remainingEcts) / f.finalEcts
 }
+
+/**
+ * Bestmöglicher und schlechtest-bestehender Endschnitt (Rest komplett 1,0 bzw.
+ * 4,0) – der realistische Korridor, in dem dein Abschluss landen kann.
+ */
+export function forecastRange(stats: ProgramStats): { best: number; worst: number } {
+  return { best: projectedFinal(stats, 1.0), worst: projectedFinal(stats, 4.0) }
+}
+
+export type Feasibility = 'relaxed' | 'doable' | 'ambitious'
+
+/** Wie anspruchsvoll ist die benötigte Note – gemessen am bisherigen Schnitt? */
+export function feasibility(needed: number, current?: number): Feasibility {
+  if (current == null) return 'doable'
+  const diff = current - needed // > 0: nötige Note ist besser (= schwerer) als bisher
+  if (diff <= 0) return 'relaxed'
+  if (diff <= 0.5) return 'doable'
+  return 'ambitious'
+}
