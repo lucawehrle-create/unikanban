@@ -1,7 +1,7 @@
 import type { TaskTypeId } from '@/db/types'
 
 /** Aufgabentypen, bei denen nach dem Erledigen reflektiert wird. */
-const REFLECTABLE: TaskTypeId[] = ['uebung', 'tutoriumsblatt']
+const REFLECTABLE: TaskTypeId[] = ['uebung', 'tutoriumsblatt', 'altklausur']
 
 export function isReflectableType(type: TaskTypeId): boolean {
   return REFLECTABLE.includes(type)
