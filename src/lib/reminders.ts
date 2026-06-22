@@ -142,6 +142,7 @@ async function showNotifications(items: ReminderItem[], courses: Course[]) {
 export function useLocalReminderNotifications(tasks: Task[], courses: Course[]) {
   const tasksRef = useRef(tasks)
   const coursesRef = useRef(courses)
+  const runRef = useRef<() => void>(() => {})
   tasksRef.current = tasks
   coursesRef.current = courses
 
@@ -156,10 +157,19 @@ export function useLocalReminderNotifications(tasks: Task[], courses: Course[]) 
       const fresh = items.filter((it) => !notified[notifyKey(it)])
       if (!fresh.length) return
       const now = Date.now()
-      for (const it of fresh) notified[notifyKey(it)] = now
+      if (fresh.length > 3) {
+        // Sammelmeldung: einmal pro Tag, OHNE die Einzel-Items als „benachrichtigt"
+        // zu markieren – damit sie später (wenn ≤3 übrig) noch einzeln kommen.
+        const sumKey = `semban-summary|${new Date().toDateString()}`
+        if (notified[sumKey]) return
+        notified[sumKey] = now
+      } else {
+        for (const it of fresh) notified[notifyKey(it)] = now
+      }
       saveNotified(notified)
       void showNotifications(fresh, coursesRef.current)
     }
+    runRef.current = run
 
     // Kurz nach dem Start (Daten sind dann geladen) und bei Rückkehr zur App.
     const t = setTimeout(run, 2500)
@@ -174,4 +184,10 @@ export function useLocalReminderNotifications(tasks: Task[], courses: Course[]) 
       window.removeEventListener('focus', onVisible)
     }
   }, [])
+
+  // Wenn die Aufgaben (verspätet) geladen sind, einmal prüfen – sonst würde der
+  // 2,5-s-Timer bei langsamem Laden leer laufen und nichts mehr nachholen.
+  useEffect(() => {
+    if (tasks.length) runRef.current()
+  }, [tasks.length])
 }

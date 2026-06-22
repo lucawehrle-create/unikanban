@@ -818,10 +818,15 @@ export async function rescheduleOverduePlan(
   }
   const pref = toMin(cfg.time)
 
+  // Am wenigsten belasteten Tag wählen (max. Restkapazität), damit Überfälliges
+  // verteilt wird statt sich auf einem einzigen Tag zu stapeln.
+  const leastLoadedDay = () =>
+    days.reduce((best, d) => (freeCap(dayKey(d)) > freeCap(dayKey(best)) ? d : best), days[0])
+
   let moved = 0
   for (const t of overdue) {
     const dur = t.duration ?? FALLBACK_SESSION_MIN
-    const target = days.find((d) => freeCap(dayKey(d)) >= dur) ?? days[0]
+    const target = days.find((d) => freeCap(dayKey(d)) >= dur) ?? leastLoadedDay()
     const k = dayKey(target)
     used.set(k, (used.get(k) ?? 0) + dur)
     const min = pickSessionTime(courses, target, pref, dur)

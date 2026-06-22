@@ -64,7 +64,8 @@ export function FilterBar({ courses }: { courses: Course[] }) {
     ui.filterCourseIds.length +
     ui.filterTypes.length +
     (ui.showDone ? 0 : 1) +
-    (ui.examPrep !== 'all' ? 1 : 0)
+    (ui.examPrep !== 'all' ? 1 : 0) +
+    (ui.dueToday ? 1 : 0)
 
   return (
     <div className="flex flex-wrap items-center gap-2 px-5 py-2">
@@ -85,20 +86,22 @@ export function FilterBar({ courses }: { courses: Course[] }) {
         )}
       </div>
 
-      {/* Tagesfokus: nur heute fällige & überfällige Aufgaben */}
-      <button
-        onClick={() => ui.setDueToday(!ui.dueToday)}
-        aria-pressed={ui.dueToday}
-        className={cn(
-          'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium shadow-sm ring-1 transition',
-          ui.dueToday
-            ? 'bg-brand-400 text-stone-900 ring-brand-400'
-            : 'bg-white/70 text-stone-600 ring-stone-200/70 backdrop-blur hover:bg-white',
-        )}
-      >
-        <CalendarCheck size={14} className={ui.dueToday ? 'text-stone-900' : 'text-stone-400'} />
-        Heute
-      </button>
+      {/* Tagesfokus: nur heute fällige & überfällige Aufgaben (nur im Board) */}
+      {ui.view === 'board' && (
+        <button
+          onClick={() => ui.setDueToday(!ui.dueToday)}
+          aria-pressed={ui.dueToday}
+          className={cn(
+            'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium shadow-sm ring-1 transition',
+            ui.dueToday
+              ? 'bg-brand-400 text-stone-900 ring-brand-400'
+              : 'bg-white/70 text-stone-600 ring-stone-200/70 backdrop-blur hover:bg-white',
+          )}
+        >
+          <CalendarCheck size={14} className={ui.dueToday ? 'text-stone-900' : 'text-stone-400'} />
+          Heute
+        </button>
+      )}
 
       <div className="ml-auto flex items-center gap-2">
         {/* Filter-Menü */}

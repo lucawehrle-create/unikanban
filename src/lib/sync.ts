@@ -191,9 +191,14 @@ export function initSync() {
   supabase.auth.onAuthStateChange((_e, session) => handleSession(session?.user ?? null))
 
   // Wenn man zur App zurückkehrt: prüfen, ob ein anderes Gerät neuer ist.
+  // Gibt es lokal noch eine nicht hochgeladene Änderung (Push steht aus), erst
+  // diese sichern statt Remote zu ziehen – sonst könnte der Pull die gerade
+  // gemachte Bearbeitung überschreiben.
   window.addEventListener('focus', () => {
     const u = useSync.getState().user
-    if (u) void syncNow()
+    if (!u) return
+    if (pushTimer) void flushPush()
+    else void syncNow()
   })
 }
 

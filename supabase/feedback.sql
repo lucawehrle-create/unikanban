@@ -19,7 +19,6 @@ create table if not exists public.feature_requests (
 -- Spalten für Kategorie & Anonymität (auch für bestehende Installationen).
 alter table public.feature_requests add column if not exists category text;
 alter table public.feature_requests add column if not exists is_anonymous boolean not null default false;
-alter table public.bug_reports      add column if not exists category text;
 
 create table if not exists public.feature_comments (
   id uuid primary key default gen_random_uuid(),
@@ -44,10 +43,14 @@ create table if not exists public.bug_reports (
   reporter_email text,
   title text not null,
   description text,
+  category text,
   app_info text,
   status text not null default 'new',            -- new | triaged | fixed | wontfix
   created_at timestamptz not null default now()
 );
+
+-- Kategorie auch für bestehende bug_reports-Installationen.
+alter table public.bug_reports add column if not exists category text;
 
 -- ---------- Row Level Security ----------
 
@@ -75,7 +78,8 @@ create policy fr_update_admin on public.feature_requests
 drop policy if exists fr_update_author on public.feature_requests;
 create policy fr_update_author on public.feature_requests
   for update to authenticated
-  using (auth.uid() = user_id);
+  using (auth.uid() = user_id)
+  with check (auth.uid() = user_id);
 
 drop policy if exists fr_delete on public.feature_requests;
 create policy fr_delete on public.feature_requests

@@ -139,7 +139,9 @@ export async function createFeature(input: {
     .select('id')
     .single()
   if (error) throw error
-  if (data) await castVote(data.id, 1) // eigener Wunsch startet mit Up-Stimme
+  // Eigener Wunsch startet mit einer Up-Stimme – schlägt das fehl, ist der
+  // Wunsch trotzdem angelegt, also den ganzen Vorgang nicht scheitern lassen.
+  if (data) await castVote(data.id, 1).catch(() => {})
 }
 
 /** Setzt/ändert/entfernt die eigene Stimme (value 0 = entfernen). */

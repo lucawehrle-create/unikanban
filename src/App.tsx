@@ -88,6 +88,8 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  // „Heute" (dueToday) gilt NUR fürs Board (Tagesfokus) – Woche/Stundenplan
+  // haben eigene Datums-Logik und würden sonst leer wirken. Daher hier ohne.
   const visible = useMemo(
     () =>
       filterTasks(tasks, courses, {
@@ -96,7 +98,7 @@ export default function App() {
         filterTypes: ui.filterTypes,
         examPrep: ui.examPrep,
         showDone: ui.showDone,
-        dueToday: ui.dueToday,
+        dueToday: false,
       }),
     [
       tasks,
@@ -106,7 +108,6 @@ export default function App() {
       ui.filterTypes,
       ui.examPrep,
       ui.showDone,
-      ui.dueToday,
     ],
   )
 
@@ -156,11 +157,15 @@ export default function App() {
   const boardHorizon = new Date()
   boardHorizon.setHours(0, 0, 0, 0)
   boardHorizon.setDate(boardHorizon.getDate() + 3)
-  const boardTasks = visible.filter(
-    (t) =>
-      t.type !== 'klausur' &&
-      !(t.examId && t.dueDate && new Date(t.dueDate).getTime() >= boardHorizon.getTime()),
-  )
+  // „Heute"-Tagesfokus: nur heute fällige & überfällige (offene) Aufgaben.
+  const endOfToday = new Date()
+  endOfToday.setHours(23, 59, 59, 999)
+  const boardTasks = visible.filter((t) => {
+    if (t.type === 'klausur') return false
+    if (t.examId && t.dueDate && new Date(t.dueDate).getTime() >= boardHorizon.getTime()) return false
+    if (ui.dueToday && (!t.dueDate || new Date(t.dueDate).getTime() > endOfToday.getTime())) return false
+    return true
+  })
 
   return (
     <div className="flex h-full flex-col text-stone-900">

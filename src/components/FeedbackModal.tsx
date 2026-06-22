@@ -350,7 +350,7 @@ function FeaturesTab({ admin }: { admin: boolean }) {
       ) : visible.length === 0 ? (
         <Notice>{total === 0 ? 'Noch keine Wünsche – sei der/die Erste!' : 'Keine Treffer.'}</Notice>
       ) : (
-        <ul className="max-h-[48vh] space-y-2 overflow-y-auto">
+        <ul className="space-y-2">
           {visible.map((f) => (
             <FeatureItem key={f.id} f={f} admin={admin} onVote={vote} onChanged={load} />
           ))}
@@ -377,6 +377,9 @@ function FeatureItem({
   const [category, setCategory] = useState<CategoryId | ''>((f.category as CategoryId) ?? '')
   const [showComments, setShowComments] = useState(false)
   const [count, setCount] = useState(f.commentCount)
+  // Zähler an den (neu geladenen) Serverwert angleichen, sonst bleibt der
+  // optimistische Wert hängen, wenn die Liste neu lädt.
+  useEffect(() => setCount(f.commentCount), [f.commentCount])
 
   const canManage = f.mine || admin
 
@@ -385,6 +388,8 @@ function FeatureItem({
     setEditing(false)
     try {
       await updateFeature(f.id, title, desc, category)
+    } catch {
+      /* RLS/Netz – onChanged() lädt den echten Stand neu */
     } finally {
       await onChanged()
     }
@@ -394,6 +399,8 @@ function FeatureItem({
     if (!window.confirm('Diesen Wunsch löschen?')) return
     try {
       await deleteFeature(f.id)
+    } catch {
+      /* ignore – Reload zeigt den echten Stand */
     } finally {
       await onChanged()
     }
@@ -402,6 +409,8 @@ function FeatureItem({
   const changeStatus = async (status: FeatureStatus) => {
     try {
       await setFeatureStatus(f.id, status)
+    } catch {
+      /* ignore */
     } finally {
       await onChanged()
     }
