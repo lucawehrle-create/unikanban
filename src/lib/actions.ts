@@ -192,6 +192,7 @@ export async function createTask(input: {
   priority?: Priority
   notes?: string
   examId?: string
+  planKey?: string
   duration?: number
 }): Promise<string> {
   const id = uid()
@@ -206,6 +207,7 @@ export async function createTask(input: {
     dueDate: input.dueDate,
     notes: input.notes,
     examId: input.examId,
+    planKey: input.planKey,
     duration: input.duration,
     phases: makePhases(input.type),
     order: Date.now(),

@@ -49,7 +49,17 @@ function parseDateToken(tokenRaw: string): string | undefined {
   // Datumsformate – date-fns validiert streng (kein stilles Überrollen wie 29.2.)
   for (const fmt of ['d.M.yyyy', 'd.M.', 'd.M']) {
     const d = parseDate(token, fmt, today)
-    if (isValid(d)) return endOfDay(d).toISOString()
+    if (!isValid(d)) continue
+    // Ohne Jahresangabe: liegt das Datum (Kalendertag) vor heute, ist das
+    // nächste Jahr gemeint (z. B. „1.1." im Dezember → kommender Januar).
+    if (!fmt.includes('yyyy')) {
+      const dDay = new Date(d)
+      dDay.setHours(0, 0, 0, 0)
+      const tDay = new Date(today)
+      tDay.setHours(0, 0, 0, 0)
+      if (dDay.getTime() < tDay.getTime()) d.setFullYear(d.getFullYear() + 1)
+    }
+    return endOfDay(d).toISOString()
   }
   return undefined
 }

@@ -28,6 +28,9 @@ export interface PlanSession {
   focus: string
   /** Kurs, zu dem die Session gehört (im globalen Plan gesetzt). */
   courseId?: string
+  /** Stabiler Schlüssel der Einheit (strategieunabhängig) für die
+   *  Fortschritts-Erkennung – z. B. `kap:3:0`, `ueb:Blatt 2:0`, `alt:1`. */
+  key?: string
 }
 
 /** Lernplan-Einstellungen für den globalen Scheduler. */
@@ -144,6 +147,8 @@ interface Unit {
   durationMin: number
   pos: number // Ziel-Position 0..1 im Zeitfenster (Phase)
   focus: string
+  /** Stabiler, strategieunabhängiger Schlüssel (für Fortschritts-Erkennung). */
+  key: string
 }
 
 /**
@@ -207,6 +212,7 @@ function buildUnits(
       durationMin: CHAPTER_MIN,
       pos: span(i, cfg.chapters, 0.05, 0.4),
       focus: chapterFocus(true, 0, waves.length),
+      key: `kap:${i + 1}:0`,
     })
     waves.forEach((win, w) =>
       u.push({
@@ -215,6 +221,7 @@ function buildUnits(
         durationMin: Math.round(CHAPTER_MIN * 0.55),
         pos: span(i, cfg.chapters, win[0], win[1]),
         focus: chapterFocus(false, w, waves.length),
+        key: `kap:${i + 1}:r${w + 1}`,
       }),
     )
   }
@@ -233,6 +240,7 @@ function buildUnits(
           durationMin: Math.max(15, Math.round(minutes * (r === 0 ? 1 : 0.8))),
           pos,
           focus: sheetFocus(r, reps),
+          key: `${kind}:${sh.title}:${r}`,
         })
       })
     })
@@ -247,6 +255,7 @@ function buildUnits(
       durationMin: cfg.examDurationMin * 2,
       pos: span(i, cfg.altklausuren, 0.6, 0.92),
       focus: ALTKLAUSUR_FOCUS,
+      key: `alt:${i + 1}`,
     })
 
   return u.sort((a, b) => a.pos - b.pos)
@@ -329,6 +338,7 @@ interface GUnit {
   label: string
   durationMin: number
   focus: string
+  key: string
   examMs: number
   targetMs: number
   windowOpenMs: number
@@ -407,6 +417,7 @@ export function buildGlobalPlan(
         label: u.label,
         durationMin: u.durationMin,
         focus: u.focus,
+        key: u.key,
         examMs: exam.getTime(),
         windowOpenMs: windowOpen.getTime(),
         targetMs: addDays(windowOpen, Math.round(u.pos * winSpan)).getTime(),
@@ -424,7 +435,7 @@ export function buildGlobalPlan(
   const dayCourses = new Map<string, Set<string>>()
   const courseDayUsed = new Map<string, number>()
   const dayDate = new Map<string, Date>()
-  type Item = { courseId: string; kind: ItemKind; label: string; durationMin: number; focus: string }
+  type Item = { courseId: string; kind: ItemKind; label: string; durationMin: number; focus: string; key?: string }
   const dayItems = new Map<string, Item[]>()
   const isStudyDay = (d: Date) => studyDays.includes(isoWeekday(d)) && !examBlocked.has(dayKey(d))
 
@@ -480,6 +491,7 @@ export function buildGlobalPlan(
     label: u.label,
     durationMin: u.durationMin,
     focus: u.focus,
+    key: u.key,
   })
 
   for (const u of units) {
@@ -532,21 +544,26 @@ export function buildGlobalPlan(
 
   // Karteikarten: tägliche Gewohnheit AB HEUTE (leichter Kontakt, auch vor dem
   // intensiven Fenster). Zählt nicht gegen das Kurse-pro-Tag-Limit; nur bei
-  // freiem Tages-/Wochenbudget.
-  for (const c of planned) {
-    const cfg = c.studyPlan!
-    if (cfg.cardsPerDay <= 0) continue
-    const cardMin = cardMinutesPerDay(cfg)
-    if (cardMin <= 0) continue
-    const exam = new Date(cfg.examDate + 'T00:00:00')
-    for (let d = new Date(today); d.getTime() < exam.getTime(); d = addDays(d, 1)) {
+  // freiem Tages-/Wochenbudget. Tag-für-Tag und mit pro Tag rotierter
+  // Kursreihenfolge, damit an vollen Tagen nicht immer derselbe Kurs gewinnt.
+  const cardCourses = planned.filter((c) => c.studyPlan!.cardsPerDay > 0 && cardMinutesPerDay(c.studyPlan!) > 0)
+  if (cardCourses.length) {
+    const maxExamMs = Math.max(...cardCourses.map((c) => new Date(c.studyPlan!.examDate + 'T00:00:00').getTime()))
+    for (let d = new Date(today); d.getTime() < maxExamMs; d = addDays(d, 1)) {
       if (!isStudyDay(d)) continue
       const k = dayKey(d)
       const wk = weekKeyOf(d)
-      if ((dailyUsed.get(k) ?? 0) + cardMin > dailyMax) continue
-      if ((weeklyUsed.get(wk) ?? 0) + cardMin > weeklyMax - (weeklyReserve.get(wk) ?? 0)) continue
-      if (cfg.dailyMaxMin != null && (courseDayUsed.get(`${k}|${c.id}`) ?? 0) + cardMin > cfg.dailyMaxMin) continue
-      placeOn(d, { courseId: c.id, kind: 'karten', label: `Karteikarten (${cfg.cardsPerDay})`, durationMin: cardMin, focus: CARD_FOCUS }, false)
+      const offset = Math.abs(diffDays(today, d)) % cardCourses.length
+      const order = [...cardCourses.slice(offset), ...cardCourses.slice(0, offset)]
+      for (const c of order) {
+        const cfg = c.studyPlan!
+        if (d.getTime() >= new Date(cfg.examDate + 'T00:00:00').getTime()) continue
+        const cardMin = cardMinutesPerDay(cfg)
+        if ((dailyUsed.get(k) ?? 0) + cardMin > dailyMax) continue
+        if ((weeklyUsed.get(wk) ?? 0) + cardMin > weeklyMax - (weeklyReserve.get(wk) ?? 0)) continue
+        if (cfg.dailyMaxMin != null && (courseDayUsed.get(`${k}|${c.id}`) ?? 0) + cardMin > cfg.dailyMaxMin) continue
+        placeOn(d, { courseId: c.id, kind: 'karten', label: `Karteikarten (${cfg.cardsPerDay})`, durationMin: cardMin, focus: CARD_FOCUS }, false)
+      }
     }
   }
 
@@ -557,14 +574,18 @@ export function buildGlobalPlan(
     const prefMin = Math.min(
       ...ordered.map((it) => toMin(courseById.get(it.courseId)?.studyPlan?.time ?? '18:00')),
     )
-    let cursor = pickSessionTime(courses, day, prefMin, ordered[0].durationMin)
+    // Jede Session in einen vorlesungsfreien Slot NACH der vorherigen legen –
+    // nicht nur die erste positionieren (sonst stapeln spätere Blöcke blind und
+    // könnten in eine Vorlesung oder über den Tagesrand laufen).
+    let cursor = prefMin
     for (const it of ordered) {
+      const start = pickSessionTime(courses, day, cursor, it.durationMin)
       const date = new Date(day)
-      date.setHours(Math.floor(cursor / 60), cursor % 60, 0, 0)
+      date.setHours(Math.floor(start / 60), start % 60, 0, 0)
       const arr = sessionsByCourse.get(it.courseId) ?? []
-      arr.push({ date, durationMin: it.durationMin, label: it.label, kind: it.kind, focus: it.focus, courseId: it.courseId })
+      arr.push({ date, durationMin: it.durationMin, label: it.label, kind: it.kind, focus: it.focus, courseId: it.courseId, key: it.key })
       sessionsByCourse.set(it.courseId, arr)
-      cursor += it.durationMin
+      cursor = start + it.durationMin
     }
   }
   for (const arr of sessionsByCourse.values()) arr.sort((a, b) => a.date.getTime() - b.date.getTime())
@@ -653,17 +674,18 @@ async function writeGlobalPlan(
   allTasks: Task[],
   gp: GlobalPlan,
 ): Promise<{ plans: number; sessions: number; byCourse: Map<string, number> }> {
-  // erledigte Labels pro Kurs merken
-  const doneByCourse = new Map<string, Set<string>>()
+  // Erledigtes Material pro Kurs merken – vorrangig über den stabilen planKey
+  // (strategieunabhängig), zusätzlich über das Label (Fallback für Alt-Tasks
+  // ohne planKey), damit Erledigtes beim Neuberechnen nicht erneut auftaucht.
+  const doneKeysByCourse = new Map<string, Set<string>>()
+  const doneLabelsByCourse = new Map<string, Set<string>>()
   for (const c of planned) {
     const prefix = titlePrefix(c)
-    doneByCourse.set(
+    const doneTasks = allTasks.filter((t) => t.examId === c.id && t.status === 'erledigt')
+    doneKeysByCourse.set(c.id, new Set(doneTasks.filter((t) => t.planKey).map((t) => t.planKey!)))
+    doneLabelsByCourse.set(
       c.id,
-      new Set(
-        allTasks
-          .filter((t) => t.examId === c.id && t.status === 'erledigt')
-          .map((t) => (t.title.startsWith(prefix) ? t.title.slice(prefix.length) : t.title)),
-      ),
+      new Set(doneTasks.map((t) => (t.title.startsWith(prefix) ? t.title.slice(prefix.length) : t.title))),
     )
   }
   // offene Plan-Sessions aller geplanten Kurse löschen
@@ -677,10 +699,13 @@ async function writeGlobalPlan(
   let total = 0
   for (const c of planned) {
     const prefix = titlePrefix(c)
-    const done = doneByCourse.get(c.id)!
+    const doneKeys = doneKeysByCourse.get(c.id)!
+    const doneLabels = doneLabelsByCourse.get(c.id)!
     let created = 0
     for (const s of gp.sessionsByCourse.get(c.id) ?? []) {
-      if (s.kind !== 'karten' && done.has(s.label)) continue
+      // Karteikarten laufen täglich weiter; sonstiges Material nicht doppeln.
+      const alreadyDone = (s.key && doneKeys.has(s.key)) || doneLabels.has(s.label)
+      if (s.kind !== 'karten' && alreadyDone) continue
       await createTask({
         semesterId: c.semesterId,
         title: `${prefix}${s.label}`,
@@ -690,6 +715,7 @@ async function writeGlobalPlan(
         duration: s.durationMin,
         notes: `🎯 ${s.focus}\n\n${s.durationMin} Min · Lernplan ${c.name}`,
         examId: c.id,
+        planKey: s.key,
       })
       created++
     }

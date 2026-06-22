@@ -204,6 +204,9 @@ export interface Task {
   recurringId?: string
   /** id der Klausur-Aufgabe, zu der diese Lern-Session gehört (Lernplan). */
   examId?: string
+  /** Stabiler Schlüssel der Lerneinheit (strategieunabhängig) – erkennt beim
+   *  Neuberechnen bereits erledigtes Material, auch wenn sich das Label ändert. */
+  planKey?: string
   /** geplante Dauer in Minuten (Lern-Sessions; für Tagesbudget-Planung). */
   duration?: number
   /** Reflexion nach dem Erledigen (Übungs-/Tutoriumsblätter). */

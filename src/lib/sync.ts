@@ -6,6 +6,7 @@ import { exportData, importBackup, type Backup } from './backup'
 
 const TABLE = 'user_data'
 const lastSyncKey = (uid: string) => `semban:lastSyncAt:${uid}`
+const lastEditKey = (uid: string) => `semban:lastEditAt:${uid}`
 
 export type SyncStatus = 'idle' | 'syncing' | 'synced' | 'error' | 'offline'
 
@@ -39,7 +40,27 @@ function getLastSync(uid: string) {
 }
 function setLastSync(uid: string, ts: string) {
   localStorage.setItem(lastSyncKey(uid), ts)
+  // Nach erfolgreichem Sync ist lokal nichts mehr „offen".
+  try {
+    localStorage.removeItem(lastEditKey(uid))
+  } catch {
+    /* ignore */
+  }
   set({ lastSyncAt: ts })
+}
+function markLocalEdit(uid: string) {
+  try {
+    localStorage.setItem(lastEditKey(uid), new Date().toISOString())
+  } catch {
+    /* ignore */
+  }
+}
+/** Gibt es lokale Änderungen, die seit dem letzten Sync noch nicht hochgeladen wurden? */
+function hasLocalEdits(uid: string): boolean {
+  const edit = localStorage.getItem(lastEditKey(uid))
+  if (!edit) return false
+  const sync = getLastSync(uid)
+  return !sync || edit > sync
 }
 
 // Während wir Cloud-Daten lokal einspielen, dürfen die Schreib-Hooks KEINEN
@@ -110,9 +131,16 @@ async function reconcile(user: User) {
       set({ status: 'idle', conflict: { remoteUpdatedAt: remote.updatedAt } })
       return
     }
-    // Sonst: neuere Version gewinnt.
-    if (remote.updatedAt > lastSync) await applyRemote(user.id, remote)
-    else await push()
+    // Remote neuer:
+    if (remote.updatedAt > lastSync) {
+      // …aber lokal gibt es noch nicht hochgeladene Änderungen → echter
+      // Mehrgeräte-Konflikt: nicht blind überschreiben, sondern nachfragen.
+      if (hasLocalEdits(user.id)) {
+        set({ status: 'idle', conflict: { remoteUpdatedAt: remote.updatedAt } })
+        return
+      }
+      await applyRemote(user.id, remote)
+    } else await push()
   } catch (e) {
     set({ status: 'error', error: errMsg(e) })
   }
@@ -141,12 +169,20 @@ export async function syncNow() {
   if (!user) return
   const remote = await pullRemote(user.id).catch(() => null)
   const lastSync = getLastSync(user.id)
-  if (remote && (!lastSync || remote.updatedAt > lastSync)) await applyRemote(user.id, remote)
-  else await push()
+  if (remote && (!lastSync || remote.updatedAt > lastSync)) {
+    // Remote neuer, aber lokal nicht hochgeladene Änderungen → Konflikt zeigen.
+    if (hasLocalEdits(user.id)) {
+      set({ status: 'idle', conflict: { remoteUpdatedAt: remote.updatedAt } })
+      return
+    }
+    await applyRemote(user.id, remote)
+  } else await push()
 }
 
 function schedulePush() {
-  if (!useSync.getState().user || applyingRemote) return
+  const u = useSync.getState().user
+  if (!u || applyingRemote) return
+  markLocalEdit(u.id) // lokale, noch nicht hochgeladene Änderung vormerken
   if (pushTimer) clearTimeout(pushTimer)
   pushTimer = setTimeout(() => void push(), 1500)
 }
@@ -191,14 +227,10 @@ export function initSync() {
   supabase.auth.onAuthStateChange((_e, session) => handleSession(session?.user ?? null))
 
   // Wenn man zur App zurückkehrt: prüfen, ob ein anderes Gerät neuer ist.
-  // Gibt es lokal noch eine nicht hochgeladene Änderung (Push steht aus), erst
-  // diese sichern statt Remote zu ziehen – sonst könnte der Pull die gerade
-  // gemachte Bearbeitung überschreiben.
+  // syncNow überschreibt lokale, noch nicht hochgeladene Änderungen nicht mehr
+  // blind, sondern zeigt bei echtem Konflikt den Auswahldialog.
   window.addEventListener('focus', () => {
-    const u = useSync.getState().user
-    if (!u) return
-    if (pushTimer) void flushPush()
-    else void syncNow()
+    if (useSync.getState().user) void syncNow()
   })
 }
 
