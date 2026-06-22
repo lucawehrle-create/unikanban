@@ -6,6 +6,7 @@ import {
   BookOpen,
   Gauge,
   HelpCircle,
+  MessageSquarePlus,
   Settings2,
   Settings,
   MoreHorizontal,
@@ -43,6 +44,7 @@ export function Header({ semester, program }: { semester?: Semester; program?: P
   const setShowCourseManager = useUI((s) => s.setShowCourseManager)
   const setShowCalendar = useUI((s) => s.setShowCalendar)
   const setShowAccount = useUI((s) => s.setShowAccount)
+  const setShowFeedback = useUI((s) => s.setShowFeedback)
   const setTour = useUI((s) => s.setTour)
   const account = useSync((s) => s.user)
   const syncStatus = useSync((s) => s.status)
@@ -146,6 +148,14 @@ export function Header({ semester, program }: { semester?: Semester; program?: P
                   label="Kalender (Abo, Import & Export)"
                   onClick={() => {
                     setShowCalendar(true)
+                    close()
+                  }}
+                />
+                <MenuItem
+                  icon={MessageSquarePlus}
+                  label="Feedback & Wünsche"
+                  onClick={() => {
+                    setShowFeedback(true)
                     close()
                   }}
                 />

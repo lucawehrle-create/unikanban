@@ -20,6 +20,7 @@ import { CourseManager } from '@/components/CourseManager'
 import { CalendarModal } from '@/components/CalendarModal'
 import { AccountModal } from '@/components/AccountModal'
 import { ReflectionModal } from '@/components/ReflectionModal'
+import { FeedbackModal } from '@/components/FeedbackModal'
 import { AuthGate } from '@/components/AuthGate'
 import { SyncLoading } from '@/components/SyncLoading'
 import { Tour } from '@/components/Tour'
@@ -45,6 +46,7 @@ export default function App() {
   const showCourseManager = useUI((s) => s.showCourseManager)
   const showCalendar = useUI((s) => s.showCalendar)
   const showAccount = useUI((s) => s.showAccount)
+  const showFeedback = useUI((s) => s.showFeedback)
   const isDemo = useUI((s) => s.isDemo)
   const setTour = useUI((s) => s.setTour)
 
@@ -189,6 +191,7 @@ export default function App() {
       {showCourseManager && semester && <CourseManager courses={courses} semester={semester} tasks={tasks} />}
       {showCalendar && semester && <CalendarModal semester={semester} courses={courses} tasks={tasks} />}
       {(showAccount || conflict) && <AccountModal />}
+      {showFeedback && <FeedbackModal />}
       <ReflectionModal />
       <Tour />
     </div>

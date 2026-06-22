@@ -27,6 +27,7 @@ interface UIState {
   showCourseManager: boolean
   showCalendar: boolean
   showAccount: boolean
+  showFeedback: boolean
   /** Vorausgewählter Kurs beim Öffnen der Lernpläne-Ansicht (Deep-Link). */
   plansCourseId: string | null
   /** true, wenn aktuell die Beispieldaten erkundet werden. */
@@ -66,6 +67,7 @@ interface UIState {
   setShowCourseManager: (b: boolean) => void
   setShowCalendar: (b: boolean) => void
   setShowAccount: (b: boolean) => void
+  setShowFeedback: (b: boolean) => void
   setDemo: (b: boolean) => void
   setTour: (b: boolean) => void
   setReflectionPrompts: (b: boolean) => void
@@ -137,6 +139,7 @@ export const useUI = create<UIState>((set) => ({
   showCourseManager: false,
   showCalendar: false,
   showAccount: false,
+  showFeedback: false,
   plansCourseId: null,
   isDemo: typeof localStorage !== 'undefined' && localStorage.getItem(DEMO_KEY) === '1',
   tour: false,
@@ -178,6 +181,7 @@ export const useUI = create<UIState>((set) => ({
   setShowCourseManager: (showCourseManager) => set({ showCourseManager }),
   setShowCalendar: (showCalendar) => set({ showCalendar }),
   setShowAccount: (showAccount) => set({ showAccount }),
+  setShowFeedback: (showFeedback) => set({ showFeedback }),
   setDemo: (isDemo) => {
     try {
       if (isDemo) localStorage.setItem(DEMO_KEY, '1')
