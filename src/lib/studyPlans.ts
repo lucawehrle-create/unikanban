@@ -157,6 +157,7 @@ interface Unit {
  * Kapitel-Wiederholung spät.
  */
 interface SheetRef {
+  id: string
   title: string
   /** Reflektierte Schwierigkeit 1–5 (undefined = nicht reflektiert). */
   difficulty?: number
@@ -240,7 +241,7 @@ function buildUnits(
           durationMin: Math.max(15, Math.round(minutes * (r === 0 ? 1 : 0.8))),
           pos,
           focus: sheetFocus(r, reps),
-          key: `${kind}:${sh.title}:${r}`,
+          key: `${kind}:${sh.id}:${r}`,
         })
       })
     })
@@ -267,7 +268,7 @@ function resolveSheets(ids: string[], allTasks: Task[]): SheetRef[] {
   return allTasks
     .filter((t) => idSet.has(t.id))
     .sort((a, b) => a.order - b.order)
-    .map((t) => ({ title: t.title, difficulty: t.reflection?.difficulty }))
+    .map((t) => ({ id: t.id, title: t.title, difficulty: t.reflection?.difficulty }))
 }
 
 /** Belegte Tage (andere Klausuren) – dort gar nicht planen. */
@@ -683,9 +684,15 @@ async function writeGlobalPlan(
     const prefix = titlePrefix(c)
     const doneTasks = allTasks.filter((t) => t.examId === c.id && t.status === 'erledigt')
     doneKeysByCourse.set(c.id, new Set(doneTasks.filter((t) => t.planKey).map((t) => t.planKey!)))
+    // Label-Fallback NUR für Alt-Tasks ohne planKey – sonst könnte ein gleich
+    // benanntes neues Material fälschlich als „schon erledigt" unterdrückt werden.
     doneLabelsByCourse.set(
       c.id,
-      new Set(doneTasks.map((t) => (t.title.startsWith(prefix) ? t.title.slice(prefix.length) : t.title))),
+      new Set(
+        doneTasks
+          .filter((t) => !t.planKey)
+          .map((t) => (t.title.startsWith(prefix) ? t.title.slice(prefix.length) : t.title)),
+      ),
     )
   }
   // offene Plan-Sessions aller geplanten Kurse löschen

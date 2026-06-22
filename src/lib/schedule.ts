@@ -66,5 +66,8 @@ export function pickSessionTime(
     const s = Math.max(b.start, preferredMin)
     if (s + duration <= b.end) return s
   }
-  return blocks[0].start
+  // Kein passender Block: Wunschzeit respektieren (≥ frühester Block), damit
+  // beim sequentiellen Platzieren mehrere Sessions nicht auf derselben Minute
+  // landen, sondern hintereinander.
+  return Math.max(blocks[0].start, preferredMin)
 }

@@ -1,5 +1,21 @@
-import { addDays, addWeeks, differenceInCalendarDays, isWithinInterval, parseISO } from 'date-fns'
+import {
+  addDays,
+  addWeeks,
+  differenceInCalendarDays,
+  format,
+  isWithinInterval,
+  parseISO,
+  startOfWeek,
+} from 'date-fns'
 import type { ExamPhase, Semester } from '@/db/types'
+
+/** Normalisiert ein Startdatum auf den Montag seiner Woche (die Wochenlogik
+ *  geht von Montag = Beginn von Woche 1 aus). */
+export function mondayISO(isoDate: string): string {
+  const d = parseISO(isoDate)
+  if (isNaN(d.getTime())) return isoDate
+  return format(startOfWeek(d, { weekStartsOn: 1 }), 'yyyy-MM-dd')
+}
 
 /** Montag (Datum) der gegebenen Semesterwoche (1-basiert). */
 export function mondayOfWeek(semester: Semester, week: number): Date {

@@ -39,18 +39,22 @@ function getLastSync(uid: string) {
   return localStorage.getItem(lastSyncKey(uid))
 }
 function setLastSync(uid: string, ts: string) {
+  // lastEditAt NICHT hier löschen: „dirty" ergibt sich aus dem Zeitvergleich
+  // (lastEditAt > lastSync). Würde man hier löschen, könnte eine Bearbeitung,
+  // die während des Push-Roundtrips passiert, ihr Dirty-Flag verlieren.
   localStorage.setItem(lastSyncKey(uid), ts)
-  // Nach erfolgreichem Sync ist lokal nichts mehr „offen".
-  try {
-    localStorage.removeItem(lastEditKey(uid))
-  } catch {
-    /* ignore */
-  }
   set({ lastSyncAt: ts })
 }
 function markLocalEdit(uid: string) {
   try {
     localStorage.setItem(lastEditKey(uid), new Date().toISOString())
+  } catch {
+    /* ignore */
+  }
+}
+function clearLocalEdit(uid: string) {
+  try {
+    localStorage.removeItem(lastEditKey(uid))
   } catch {
     /* ignore */
   }
@@ -103,6 +107,9 @@ async function applyRemote(uid: string, remote: { data: Backup; updatedAt: strin
   try {
     await importBackup(JSON.stringify(remote.data))
     setLastSync(uid, remote.updatedAt)
+    // Remote übernommen → etwaige lokale „offene" Markierung verwerfen (auch
+    // wenn der Nutzer im Konflikt „Cloud" wählt), sonst triggert es erneut.
+    clearLocalEdit(uid)
     set({ status: 'synced' })
   } finally {
     applyingRemote = false

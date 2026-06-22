@@ -1,6 +1,7 @@
 import type { Course, CourseSlot, SlotKind, Semester, Task, TaskTypeId } from '@/db/types'
 import { uid } from '@/db/db'
 import { dateForWeekday, withTime } from './semester'
+import { toMin } from './schedule'
 import { slotKindLabel } from './slotKinds'
 import { TASK_TYPES } from './taskTypes'
 
@@ -377,7 +378,9 @@ export function planImport(
   existingTasks: Task[] = [],
 ): ImportPlan {
   const recurring = events.filter((e) => e.weekly && !e.allDay)
-  const oneoff = events.filter((e) => !e.weekly)
+  // Ganztägige Termine sind Deadlines – auch wenn sie als wöchentlich markiert
+  // sind (sonst fielen sie durch beide Filter und gingen verloren).
+  const oneoff = events.filter((e) => !e.weekly || e.allDay)
 
   // Bestehende Kurse nach Match-Schlüssel + Kürzel indexieren (für Auto-Treffer).
   const byKey = new Map<string, Course>()
@@ -404,7 +407,9 @@ export function planImport(
     const rawSlots: CourseSlot[] = []
     for (const e of evs) {
       const start = hhmm(e.start)
-      const end = e.end ? hhmm(e.end) : hhmm(new Date(e.start.getTime() + 90 * 60000))
+      // Ohne DTEND 90 Min annehmen, aber nicht über Mitternacht (sonst end<start).
+      let end = e.end ? hhmm(e.end) : hhmm(new Date(e.start.getTime() + 90 * 60000))
+      if (toMin(end) <= toMin(start)) end = '23:59'
       for (const wd of e.weekdays) {
         rawSlots.push({ id: uid(), kind: classifyKind(e.summary), weekday: wd, start, end, room: e.location })
       }
@@ -450,10 +455,16 @@ export function planImport(
     const due = e.allDay ? withTime(e.start, '23:59') : e.start
     const iso = due.toISOString()
     if (existingTaskKeys.has(taskDayKey(e.summary, iso))) continue
-    // Kurs zuordnen, wenn ein Kürzel/Name im Titel vorkommt.
+    // Kurs zuordnen, wenn der (volle) Name vorkommt oder das Kürzel als
+    // eigenes Wort auftaucht – kurze Kürzel wie „E"/„MA" sollen nicht jeden
+    // Titel matchen.
+    const words = new Set(norm(e.summary).split(/[^a-z0-9äöüß]+/i).filter(Boolean))
     const course = existingCourses.find((c) => {
       const s = norm(e.summary)
-      return s.includes(norm(c.short)) || s.includes(norm(c.name))
+      const short = norm(c.short)
+      const byName = c.name.length >= 4 && s.includes(norm(c.name))
+      const byShort = short.length >= 2 && words.has(short)
+      return byName || byShort
     })
     deadlines.push({
       key: `d-${di++}`,

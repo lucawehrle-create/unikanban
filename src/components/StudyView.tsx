@@ -485,10 +485,10 @@ function CourseRow({ course }: { course: Course }) {
         type="number"
         step="0.1"
         min="1"
-        max="5"
+        max="4"
         defaultValue={course.grade ?? ''}
         placeholder="Note"
-        onBlur={(e) => upd({ grade: e.target.value ? Number(e.target.value) : undefined })}
+        onBlur={(e) => upd({ grade: e.target.value ? clampGrade(Number(e.target.value)) : undefined })}
         className="w-14 rounded-md border border-stone-200 px-1.5 py-1 text-center text-xs"
       />
       <Select
