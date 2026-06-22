@@ -23,7 +23,6 @@ import {
   Star,
   Quote,
   Brain,
-  BookOpen,
   Layers,
   Hourglass,
   Bell,
@@ -515,71 +514,13 @@ function StudyPlan({ onStart }: { onStart: () => void }) {
           </button>
         </Reveal>
         <Reveal delay={0.1}>
-          <PlanMock />
+          <BrowserFrame
+            src="/landing/plans.png"
+            alt="SemBan Lernplan für die Klausur: Strategie-Varianten und Materialverteilung über die Wochen"
+          />
         </Reveal>
       </div>
     </section>
-  )
-}
-
-/** Handgebautes, leichtgewichtiges Mockup des Lernplans (kein Screenshot). */
-function PlanMock() {
-  const bars = [12, 24, 16, 30, 22, 36, 28, 44, 34, 50, 40, 58, 48, 66, 56, 74]
-  const colors = ['#6366f1', '#0ea5e9', '#14b8a6', '#f5c645']
-  const legend: [string, string][] = [
-    ['#6366f1', 'Kapitel'],
-    ['#0ea5e9', 'Übungsblätter'],
-    ['#14b8a6', 'Tutorien'],
-    ['#f5c645', 'Karteikarten'],
-  ]
-  const sessions: [string, string, string][] = [
-    ['Mo', 'Kapitel 3 wiederholen', '45 Min'],
-    ['Mi', 'Altklausur 2 rechnen', 'Prüfungssimulation'],
-    ['täglich', 'Karteikarten', '15 Karten'],
-  ]
-  return (
-    <div className="rounded-3xl bg-white/80 p-5 shadow-[var(--shadow-float)] ring-1 ring-stone-200/70 backdrop-blur sm:p-6">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: NAVY }}>
-          <BookOpen size={15} /> Lernplan · Analysis II
-        </div>
-        <span className="shrink-0 rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">
-          Klausur in 38 Tagen
-        </span>
-      </div>
-      <div className="mt-1 text-xs text-stone-400">Materialverteilung bis zur Klausur</div>
-      <div className="mt-3 flex h-28 items-end gap-1.5" aria-hidden="true">
-        {bars.map((h, i) => (
-          <div
-            key={i}
-            className="flex-1 rounded-t-sm"
-            style={{ height: `${h}%`, backgroundColor: colors[i % colors.length], opacity: 0.85 }}
-          />
-        ))}
-      </div>
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-stone-500">
-        {legend.map(([c, l]) => (
-          <span key={l} className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: c }} />
-            {l}
-          </span>
-        ))}
-      </div>
-      <div className="mt-4 space-y-2">
-        {sessions.map(([day, label, meta]) => (
-          <div
-            key={label}
-            className="flex items-center justify-between rounded-xl bg-stone-50 px-3 py-2 text-xs"
-          >
-            <span className="flex items-center gap-2 font-medium text-stone-700">
-              <span className="w-12 shrink-0 text-stone-400">{day}</span>
-              {label}
-            </span>
-            <span className="shrink-0 text-stone-400">{meta}</span>
-          </div>
-        ))}
-      </div>
-    </div>
   )
 }
 

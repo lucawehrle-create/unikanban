@@ -185,6 +185,23 @@ async function doSeed(): Promise<void> {
     }
   }
 
+  // Fertiger Demo-Lernplan für Analysis II – damit die Lernpläne-Ansicht beim
+  // Erkunden direkt lebendig ist (Strategie-Varianten + Materialverteilung).
+  ana.studyPlan = {
+    examDate: iso(addWeeks(start, lectureWeeks)),
+    examDurationMin: 120,
+    cardsPerDay: 20,
+    altklausuren: 3,
+    chapters: 10,
+    uebungReviewIds: recurring
+      .filter((t) => t.recurringId === anaUbId)
+      .slice(0, 8)
+      .map((t) => t.id),
+    tutReviewIds: [],
+    strategy: 'now',
+    time: '18:00',
+  }
+
   // --- Einzelaufgaben (Hausarbeit, Referat, Klausur) ---
   const oneOff: Task[] = [
     {
