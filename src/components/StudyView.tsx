@@ -172,6 +172,7 @@ export function StudyView({ activeProgram }: { activeProgram: Program }) {
         <div className="space-y-3">
           {sortedSems.map((s) => {
             const cs = coursesBySem.get(s.id) ?? []
+            const st = semesterStats(cs)
             return (
               <section key={s.id} className="rounded-2xl bg-white p-3.5 shadow-sm ring-1 ring-stone-200/70">
                 <div className="mb-2 flex items-center gap-2 px-1">
@@ -187,9 +188,17 @@ export function StudyView({ activeProgram }: { activeProgram: Program }) {
                   >
                     öffnen
                   </button>
+                  <span className="ml-auto text-[11px] font-medium text-stone-400">
+                    {st.ects > 0 && (
+                      <>
+                        {st.ects} ECTS
+                        {st.avg != null && ` · Ø ${fmtGrade(st.avg)}`}
+                      </>
+                    )}
+                  </span>
                   <button
                     onClick={() => setSemForm(structuredClone(s))}
-                    className="ml-auto rounded-lg p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
+                    className="ml-1 rounded-lg p-1 text-stone-400 hover:bg-stone-100 hover:text-stone-600"
                   >
                     <Pencil size={14} />
                   </button>
@@ -236,6 +245,23 @@ export function StudyView({ activeProgram }: { activeProgram: Program }) {
 function clampGrade(n: number): number {
   if (isNaN(n)) return 2.0
   return Math.min(4, Math.max(1, Number(n.toFixed(1))))
+}
+
+/** Bestandene ECTS und (ECTS-gewichteter) Notenschnitt eines Semesters. */
+function semesterStats(cs: Course[]): { ects: number; avg?: number } {
+  let ects = 0
+  let num = 0
+  let den = 0
+  for (const c of cs) {
+    if ((c.status ?? 'laufend') !== 'bestanden') continue
+    const e = c.ects ?? 0
+    ects += e
+    if (typeof c.grade === 'number' && e > 0) {
+      num += c.grade * e
+      den += e
+    }
+  }
+  return { ects, avg: den > 0 ? num / den : undefined }
 }
 
 /** Ampelfarbe nach Notenwert (1,0 sehr gut … 4,0 ausreichend). */
@@ -534,6 +560,10 @@ function ProgramForm({
   const [target, setTarget] = useState(program?.targetEcts ?? 180)
   const [priorEcts, setPriorEcts] = useState(program?.priorEcts ?? 0)
   const [priorAvg, setPriorAvg] = useState(program?.priorGradeAvg ?? 0)
+  // „davon benotet": nur benotete Vor-ECTS zählen in den Schnitt. Leer = alle.
+  const [priorGraded, setPriorGraded] = useState<number>(
+    program?.priorGradedEcts ?? program?.priorEcts ?? 0,
+  )
   const [semName, setSemName] = useState('')
 
   async function submit() {
@@ -543,8 +573,8 @@ function ProgramForm({
         type,
         targetEcts: target,
         priorEcts: priorEcts || undefined,
-        priorGradeAvg: priorAvg || undefined,
-        priorGradedEcts: priorEcts || undefined,
+        priorGradeAvg: priorAvg ? clampGrade(priorAvg) : undefined,
+        priorGradedEcts: (priorGraded || priorEcts) || undefined,
       })
       await createSemester({
         programId: pid,
@@ -559,8 +589,8 @@ function ProgramForm({
         type,
         targetEcts: target,
         priorEcts: priorEcts || undefined,
-        priorGradeAvg: priorAvg || undefined,
-        priorGradedEcts: priorEcts || undefined,
+        priorGradeAvg: priorAvg ? clampGrade(priorAvg) : undefined,
+        priorGradedEcts: (priorGraded || priorEcts) || undefined,
       })
     }
     onClose()
@@ -607,9 +637,21 @@ function ProgramForm({
               'bisherige ECTS',
               <input
                 type="number"
+                min="0"
                 value={priorEcts || ''}
                 onChange={(e) => setPriorEcts(Number(e.target.value))}
                 placeholder="0"
+                className={inputCls}
+              />,
+            )}
+            {field(
+              'davon benotet',
+              <input
+                type="number"
+                min="0"
+                value={priorGraded || ''}
+                onChange={(e) => setPriorGraded(Number(e.target.value))}
+                placeholder={String(priorEcts || 0)}
                 className={inputCls}
               />,
             )}
@@ -618,6 +660,8 @@ function ProgramForm({
               <input
                 type="number"
                 step="0.1"
+                min="1"
+                max="4"
                 value={priorAvg || ''}
                 onChange={(e) => setPriorAvg(Number(e.target.value))}
                 placeholder="z.B. 2,1"
@@ -625,6 +669,10 @@ function ProgramForm({
               />,
             )}
           </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-stone-400">
+            „davon benotet" = ECTS, auf denen dein Schnitt beruht. Pass/Fail-Module ohne Note hier
+            abziehen, damit der Durchschnitt stimmt. Leer = alle benotet.
+          </p>
         </div>
 
         {isNew &&
