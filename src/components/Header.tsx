@@ -105,7 +105,7 @@ export function Header({ semester, program }: { semester?: Semester; program?: P
         <NotificationCenter />
 
         <span data-tour="courses">
-          <Popover label="Mehr" icon={<MoreHorizontal size={15} />} width={208}>
+          <Popover label="Mehr" icon={<MoreHorizontal size={15} />} width={236}>
             {(close) => (
               <div className="space-y-0.5">
                 {isSyncConfigured && account && (
@@ -145,7 +145,7 @@ export function Header({ semester, program }: { semester?: Semester; program?: P
                 />
                 <MenuItem
                   icon={CalendarPlus}
-                  label="Kalender (Abo, Import & Export)"
+                  label="Kalender & Export"
                   onClick={() => {
                     setShowCalendar(true)
                     close()
@@ -153,7 +153,7 @@ export function Header({ semester, program }: { semester?: Semester; program?: P
                 />
                 <MenuItem
                   icon={MessageSquarePlus}
-                  label="Feedback & Wünsche"
+                  label="Feedback"
                   onClick={() => {
                     setShowFeedback(true)
                     close()
@@ -189,9 +189,9 @@ function MenuItem({
   return (
     <button
       onClick={onClick}
-      className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-stone-600 transition hover:bg-stone-100"
+      className="flex w-full items-center gap-2.5 whitespace-nowrap rounded-lg px-2.5 py-2 text-left text-sm text-stone-600 transition hover:bg-stone-100"
     >
-      <Icon size={16} className="text-stone-400" />
+      <Icon size={16} className="shrink-0 text-stone-400" />
       {label}
     </button>
   )

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Bug, ChevronDown, ChevronUp, Lightbulb, Loader2, Plus, Trash2, Check } from 'lucide-react'
+import { Bug, ChevronDown, ChevronUp, Lightbulb, Loader2, Pencil, Plus, Trash2, Check } from 'lucide-react'
 import { useSync } from '@/lib/sync'
 import { isSyncConfigured } from '@/lib/supabase'
 import {
@@ -11,6 +11,7 @@ import {
   listBugs,
   listFeatures,
   setFeatureStatus,
+  updateFeature,
   type BugReport,
   type FeatureStatus,
   type FeatureWithVotes,
@@ -100,6 +101,9 @@ function FeaturesTab({ admin }: { admin: boolean }) {
   const [title, setTitle] = useState('')
   const [desc, setDesc] = useState('')
   const [busy, setBusy] = useState(false)
+  const [editId, setEditId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editDesc, setEditDesc] = useState('')
 
   const load = useCallback(async () => {
     try {
@@ -164,6 +168,29 @@ function FeaturesTab({ admin }: { admin: boolean }) {
     }
   }
 
+  const startEdit = (f: FeatureWithVotes) => {
+    setEditId(f.id)
+    setEditTitle(f.title)
+    setEditDesc(f.description ?? '')
+  }
+
+  const saveEdit = async () => {
+    if (!editId || !editTitle.trim()) return
+    const id = editId
+    setItems(
+      (cur) =>
+        cur?.map((x) =>
+          x.id === id ? { ...x, title: editTitle.trim(), description: editDesc.trim() || null } : x,
+        ) ?? cur,
+    )
+    setEditId(null)
+    try {
+      await updateFeature(id, editTitle, editDesc)
+    } catch {
+      void load()
+    }
+  }
+
   return (
     <div>
       {adding ? (
@@ -222,45 +249,91 @@ function FeaturesTab({ admin }: { admin: boolean }) {
             <li key={f.id} className="flex gap-3 rounded-xl bg-white p-3 ring-1 ring-stone-200">
               <VoteBox feature={f} onVote={vote} />
               <div className="min-w-0 flex-1">
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-sm font-medium text-stone-800">{f.title}</span>
-                  <span
-                    className={cn(
-                      'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold',
-                      STATUS_META[f.status].cls,
-                    )}
-                  >
-                    {STATUS_META[f.status].label}
-                  </span>
-                </div>
-                {f.description && (
-                  <p className="mt-0.5 whitespace-pre-wrap text-xs text-stone-500">{f.description}</p>
-                )}
-                <div className="mt-1 flex items-center gap-2 text-[11px] text-stone-400">
-                  <span>{f.author_name ?? 'Anonym'}</span>
-                  {admin && (
-                    <>
-                      <select
-                        value={f.status}
-                        onChange={(e) => changeStatus(f.id, e.target.value as FeatureStatus)}
-                        className="rounded border border-stone-200 bg-white px-1 py-0.5 text-[11px]"
-                      >
-                        {(Object.keys(STATUS_META) as FeatureStatus[]).map((s) => (
-                          <option key={s} value={s}>
-                            {STATUS_META[s].label}
-                          </option>
-                        ))}
-                      </select>
+                {editId === f.id ? (
+                  <div className="space-y-2">
+                    <input
+                      autoFocus
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      className="w-full rounded-lg border border-stone-200 px-2.5 py-1.5 text-sm outline-none focus:border-brand-400"
+                    />
+                    <textarea
+                      value={editDesc}
+                      onChange={(e) => setEditDesc(e.target.value)}
+                      rows={2}
+                      placeholder="Beschreibung (optional)"
+                      className="w-full resize-none rounded-lg border border-stone-200 px-2.5 py-1.5 text-sm outline-none focus:border-brand-400"
+                    />
+                    <div className="flex justify-end gap-2">
                       <button
-                        onClick={() => remove(f.id)}
-                        className="text-stone-300 hover:text-red-500"
-                        aria-label="Löschen"
+                        onClick={() => setEditId(null)}
+                        className="rounded-lg px-2.5 py-1 text-xs text-stone-500 hover:bg-stone-100"
                       >
-                        <Trash2 size={13} />
+                        Abbrechen
                       </button>
-                    </>
-                  )}
-                </div>
+                      <button
+                        onClick={saveEdit}
+                        disabled={!editTitle.trim()}
+                        className="rounded-lg bg-brand-400 px-2.5 py-1 text-xs font-medium text-stone-900 disabled:opacity-50"
+                      >
+                        Speichern
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-sm font-medium text-stone-800">{f.title}</span>
+                      <span
+                        className={cn(
+                          'shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold',
+                          STATUS_META[f.status].cls,
+                        )}
+                      >
+                        {STATUS_META[f.status].label}
+                      </span>
+                    </div>
+                    {f.description && (
+                      <p className="mt-0.5 whitespace-pre-wrap text-xs text-stone-500">
+                        {f.description}
+                      </p>
+                    )}
+                    <div className="mt-1 flex items-center gap-2 text-[11px] text-stone-400">
+                      <span className="mr-auto">{f.author_name ?? 'Anonym'}</span>
+                      {admin && (
+                        <select
+                          value={f.status}
+                          onChange={(e) => changeStatus(f.id, e.target.value as FeatureStatus)}
+                          className="rounded border border-stone-200 bg-white px-1 py-0.5 text-[11px]"
+                        >
+                          {(Object.keys(STATUS_META) as FeatureStatus[]).map((s) => (
+                            <option key={s} value={s}>
+                              {STATUS_META[s].label}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                      {(f.mine || admin) && (
+                        <button
+                          onClick={() => startEdit(f)}
+                          className="text-stone-300 hover:text-stone-600"
+                          aria-label="Bearbeiten"
+                        >
+                          <Pencil size={13} />
+                        </button>
+                      )}
+                      {(f.mine || admin) && (
+                        <button
+                          onClick={() => remove(f.id)}
+                          className="text-stone-300 hover:text-red-500"
+                          aria-label="Löschen"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             </li>
           ))}

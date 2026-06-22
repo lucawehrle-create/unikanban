@@ -135,6 +135,20 @@ export async function setFeatureStatus(id: string, status: FeatureStatus): Promi
   if (error) throw error
 }
 
+/** Autor (oder Admin): Titel & Beschreibung eines Wunsches bearbeiten. */
+export async function updateFeature(
+  id: string,
+  title: string,
+  description: string,
+): Promise<void> {
+  if (!supabase) throw new Error('Online-Sync ist nicht konfiguriert.')
+  const { error } = await supabase
+    .from('feature_requests')
+    .update({ title: title.trim(), description: description.trim() || null })
+    .eq('id', id)
+  if (error) throw error
+}
+
 export async function deleteFeature(id: string): Promise<void> {
   if (!supabase) throw new Error('Online-Sync ist nicht konfiguriert.')
   const { error } = await supabase.from('feature_requests').delete().eq('id', id)

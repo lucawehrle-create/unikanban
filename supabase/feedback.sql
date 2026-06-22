@@ -56,6 +56,12 @@ create policy fr_update_admin on public.feature_requests
   for update to authenticated
   using ((auth.jwt() ->> 'email') = 'lucawehrle@gmail.com');
 
+-- Autoren dürfen ihren eigenen Wunsch bearbeiten (Titel/Beschreibung).
+drop policy if exists fr_update_author on public.feature_requests;
+create policy fr_update_author on public.feature_requests
+  for update to authenticated
+  using (auth.uid() = user_id);
+
 drop policy if exists fr_delete on public.feature_requests;
 create policy fr_delete on public.feature_requests
   for delete to authenticated
