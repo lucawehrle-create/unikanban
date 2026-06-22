@@ -22,6 +22,14 @@ import {
   Check,
   Star,
   Quote,
+  Brain,
+  BookOpen,
+  Layers,
+  Hourglass,
+  Bell,
+  Target,
+  CalendarPlus,
+  MessageSquarePlus,
 } from 'lucide-react'
 import { Logo } from '../Logo'
 import { MeshGradient } from './MeshGradient'
@@ -170,6 +178,8 @@ export default function Landing({ onStart }: { onStart: () => void }) {
             <Hero onStart={onStart} progress={scrollYProgress} onHowItWorks={scrollToFeatures} />
             <Problem />
             <Showcase />
+            <StudyPlan onStart={onStart} />
+            <MoreFeatures />
             <Comparison />
             <Trust />
             <SocialProof onStart={onStart} />
@@ -296,13 +306,13 @@ function Hero({
           </motion.h1>
           <motion.p variants={item} className="mt-6 max-w-xl text-lg leading-relaxed text-stone-600 sm:text-xl text-pretty">
             Schluss mit zehn Tabs: SemBan sammelt alle Abgaben, Fristen und Aufgaben deiner Kurse an
-            einem Ort – Übungsblätter, Hausarbeiten, Referate, Klausuren. Du siehst sofort, was
-            ansteht, wo du stehst und was als Nächstes kommt. Stundenplan, Noten und ECTS – alles dabei.
+            einem Ort – Übungsblätter, Hausarbeiten, Referate, Klausuren. Und für die Prüfungen baut
+            es dir einen fertigen Lernplan. Stundenplan, Noten und ECTS – alles dabei.
           </motion.p>
           <motion.ul variants={item} className="mt-6 space-y-2.5">
             {[
               'Alle Abgaben und Fristen – auf einen Blick',
-              'Du siehst sofort, was ansteht und wo du stehst',
+              'Automatischer Lernplan für jede Klausur',
               'Stundenplan, Noten & ECTS – alles dabei, kostenlos',
             ].map((t) => (
               <li key={t} className="flex items-center gap-2.5 text-[15px] text-stone-700">
@@ -456,6 +466,171 @@ function ShowcaseCopy({ sp }: { sp: (typeof SUPERPOWERS)[number] }) {
       </h2>
       <p className="mx-auto mt-5 max-w-md text-lg leading-relaxed text-stone-600 lg:mx-0">{sp.body}</p>
     </>
+  )
+}
+
+/* ---------------- study plan (marquee feature) ---------------- */
+
+const PLAN_POINTS = [
+  'Plant rückwärts ab dem Klausurtermin – intensiv erst im richtigen Vorbereitungsfenster',
+  'Verteilte Wiederholung statt Nacht-vor-der-Klausur (Spaced Repetition)',
+  'Fokus-Tage statt Häppchen: wenige Kurse pro Tag, klare Tages- & Wochengrenzen',
+  'Altklausuren als Generalprobe, Karteikarten als tägliche Gewohnheit',
+  'Erledigtes bleibt erledigt – der Plan balanciert sich live neu',
+]
+
+function StudyPlan({ onStart }: { onStart: () => void }) {
+  return (
+    <section className="px-5 py-24 sm:px-6 sm:py-32">
+      <div className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-2 lg:gap-16">
+        <Reveal>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#6366f1] px-3 py-1 text-xs font-semibold text-white">
+            <Brain size={13} /> Lernplan
+          </span>
+          <h2
+            className="mt-4 text-4xl font-bold leading-[1.06] tracking-[-0.02em] sm:text-5xl text-balance"
+            style={{ color: NAVY }}
+          >
+            Dein Lernplan für die Klausur – fertig in Minuten.
+          </h2>
+          <p className="mt-5 max-w-md text-lg leading-relaxed text-stone-600">
+            Klausurtermin, Kapitel, Übungs- und Tutoriumsblätter und Altklausuren rein – SemBan baut
+            daraus einen kompletten Lernplan über all deine Kurse. Sinnvoll auf die Wochen vor der
+            Klausur verteilt, mit Wiederholungen im richtigen Abstand und Tages- & Wochenlimits,
+            damit du dranbleibst, ohne auszubrennen.
+          </p>
+          <ul className="mt-6 space-y-2.5">
+            {PLAN_POINTS.map((t) => (
+              <li key={t} className="flex items-start gap-2.5 text-[15px] text-stone-700">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-400 text-stone-900">
+                  <Check size={13} strokeWidth={3} />
+                </span>
+                {t}
+              </li>
+            ))}
+          </ul>
+          <button onClick={onStart} className={btnPrimary + ' mt-8'}>
+            Lernplan erstellen
+            <ArrowRight size={16} className="transition-transform group-hover:translate-x-0.5" />
+          </button>
+        </Reveal>
+        <Reveal delay={0.1}>
+          <PlanMock />
+        </Reveal>
+      </div>
+    </section>
+  )
+}
+
+/** Handgebautes, leichtgewichtiges Mockup des Lernplans (kein Screenshot). */
+function PlanMock() {
+  const bars = [12, 24, 16, 30, 22, 36, 28, 44, 34, 50, 40, 58, 48, 66, 56, 74]
+  const colors = ['#6366f1', '#0ea5e9', '#14b8a6', '#f5c645']
+  const legend: [string, string][] = [
+    ['#6366f1', 'Kapitel'],
+    ['#0ea5e9', 'Übungsblätter'],
+    ['#14b8a6', 'Tutorien'],
+    ['#f5c645', 'Karteikarten'],
+  ]
+  const sessions: [string, string, string][] = [
+    ['Mo', 'Kapitel 3 wiederholen', '45 Min'],
+    ['Mi', 'Altklausur 2 rechnen', 'Prüfungssimulation'],
+    ['täglich', 'Karteikarten', '15 Karten'],
+  ]
+  return (
+    <div className="rounded-3xl bg-white/80 p-5 shadow-[var(--shadow-float)] ring-1 ring-stone-200/70 backdrop-blur sm:p-6">
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: NAVY }}>
+          <BookOpen size={15} /> Lernplan · Analysis II
+        </div>
+        <span className="shrink-0 rounded-full bg-indigo-100 px-2 py-0.5 text-[11px] font-semibold text-indigo-700">
+          Klausur in 38 Tagen
+        </span>
+      </div>
+      <div className="mt-1 text-xs text-stone-400">Materialverteilung bis zur Klausur</div>
+      <div className="mt-3 flex h-28 items-end gap-1.5" aria-hidden="true">
+        {bars.map((h, i) => (
+          <div
+            key={i}
+            className="flex-1 rounded-t-sm"
+            style={{ height: `${h}%`, backgroundColor: colors[i % colors.length], opacity: 0.85 }}
+          />
+        ))}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-stone-500">
+        {legend.map(([c, l]) => (
+          <span key={l} className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: c }} />
+            {l}
+          </span>
+        ))}
+      </div>
+      <div className="mt-4 space-y-2">
+        {sessions.map(([day, label, meta]) => (
+          <div
+            key={label}
+            className="flex items-center justify-between rounded-xl bg-stone-50 px-3 py-2 text-xs"
+          >
+            <span className="flex items-center gap-2 font-medium text-stone-700">
+              <span className="w-12 shrink-0 text-stone-400">{day}</span>
+              {label}
+            </span>
+            <span className="shrink-0 text-stone-400">{meta}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/* ---------------- more features ---------------- */
+
+const MORE_FEATURES = [
+  { icon: Layers, title: 'Karteikarten-Planung', body: 'SemBan plant täglich Zeit für deine Karteikarten ein – kleine Dosis, dafür regelmäßig.' },
+  { icon: Hourglass, title: 'Klausurphase', body: 'Countdown bis zur Klausur, Fortschritt pro Fach und ein Klick zum Aufholen, wenn du hinterherhängst.' },
+  { icon: CalendarPlus, title: 'Kalender-Abo & Export', body: 'Abonniere deinen Plan in Google oder Apple Kalender – oder importiere deinen Stundenplan per ICS.' },
+  { icon: Bell, title: 'Erinnerungen', body: 'Rechtzeitige Hinweise auf Abgaben – auf Wunsch sogar, wenn die App geschlossen ist.' },
+  { icon: Target, title: 'Tagesfokus „Heute"', body: 'Ein Klick blendet alles aus außer dem, was heute wirklich ansteht.' },
+  { icon: MessageSquarePlus, title: 'Wünsch dir Features', body: 'Schlag Funktionen vor und stimme über die Roadmap ab – SemBan wächst mit dir.' },
+]
+
+function MoreFeatures() {
+  return (
+    <section className="px-5 py-24 sm:px-6 sm:py-28">
+      <div className="mx-auto max-w-6xl">
+        <Reveal className="mx-auto max-w-2xl text-center">
+          <p className={eyebrowCls}>Alles dabei</p>
+          <h2
+            className="mt-3 text-4xl font-bold leading-[1.07] tracking-[-0.02em] sm:text-5xl text-balance"
+            style={{ color: NAVY }}
+          >
+            Und noch viel mehr fürs Studium.
+          </h2>
+          <p className="mx-auto mt-5 max-w-xl text-lg leading-relaxed text-stone-600">
+            Kein Wirrwarr aus Einzel-Apps – die kleinen Helfer, die den Alltag wirklich leichter
+            machen, sind schon eingebaut.
+          </p>
+        </Reveal>
+        <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {MORE_FEATURES.map((f, i) => {
+            const Icon = f.icon
+            return (
+              <Reveal key={f.title} delay={Math.min(i, 3) * 0.06}>
+                <div className="h-full rounded-3xl bg-white/75 p-6 shadow-[var(--shadow-card)] ring-1 ring-stone-200/70 backdrop-blur">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-cream-100 text-stone-700 ring-1 ring-stone-200/70">
+                    <Icon size={20} />
+                  </div>
+                  <h3 className="mt-4 text-lg font-semibold tracking-tight" style={{ color: NAVY }}>
+                    {f.title}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-stone-600">{f.body}</p>
+                </div>
+              </Reveal>
+            )
+          })}
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -689,6 +864,8 @@ const FAQS = [
   { q: 'Funktioniert das offline?', a: 'Ja. SemBan speichert eine Kopie direkt auf deinem Gerät und läuft deshalb auch im Funkloch der Bib oder im Zug. Sobald du wieder online bist, gleicht sich alles automatisch ab.' },
   { q: 'Kann ich Handy und Laptop nutzen?', a: 'Klar. Mit deinem Konto sind alle Geräte automatisch im Gleichstand – einmal eintragen, überall aktuell.' },
   { q: 'Geht es nur um Übungsblätter?', a: 'Nein – SemBan hilft dir, den Überblick über alle Aufgaben und Fristen deiner Kurse zu behalten: Übungsblätter, Tutorien, Hausarbeiten, Referate, Klausuren. Wöchentliche Übungsblätter sind nur ein Beispiel, das SemBan zusätzlich automatisch anlegt.' },
+  { q: 'Erstellt SemBan einen Lernplan für die Klausur?', a: 'Ja. Du gibst Klausurtermin, Kapitel, Übungs- und Tutoriumsblätter sowie Altklausuren an – SemBan erstellt automatisch einen Lernplan über all deine Kurse: verteilt auf die Wochen vor der Klausur, mit Wiederholungen im richtigen Abstand (Spaced Repetition), Fokus-Tagen statt Häppchen und Tages- sowie Wochenlimits, damit du nicht ausbrennst. Altklausuren landen als Prüfungssimulation am Ende, Karteikarten als tägliche Gewohnheit. Erledigtes bleibt erledigt – der Plan balanciert sich automatisch neu.' },
+  { q: 'Kann ich Stundenplan & Aufgaben in meinen Kalender exportieren?', a: 'Ja. Du kannst deinen Stundenplan und deine Aufgaben als Kalender (ICS) abonnieren oder exportieren und in Google Kalender, Apple Kalender oder Outlook anzeigen. Umgekehrt kannst du einen bestehenden Stundenplan per ICS importieren.' },
   { q: 'Für welche Studiengänge eignet sich SemBan?', a: 'Für fast jedes Fach mit mehreren Kursen, Abgaben und Fristen – egal ob Mathe, Informatik, Jura, BWL, Geistes- oder Naturwissenschaften. Stundenplan, Noten und ECTS helfen sowieso überall.' },
   { q: 'Wie schnell ist das eingerichtet?', a: 'In ein paar Minuten. Du trägst einmal deine Kurse, Fristen und den Stundenplan ein – den Rest macht SemBan.' },
   { q: 'Erinnert mich SemBan an Fristen und Abgaben?', a: 'Ja. SemBan erinnert dich rechtzeitig an anstehende Abgaben – auf Wunsch sogar, wenn die App geschlossen ist. So verpasst du keine Frist mehr, egal über wie viele Kurse sie verteilt sind.' },

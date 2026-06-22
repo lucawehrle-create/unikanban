@@ -13,10 +13,10 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="SemBan" />
 
-    <title>SemBan: Stundenplan & Semesterplaner App fürs Studium</title>
+    <title>SemBan: Semesterplaner mit Lernplan, Stundenplan & Noten</title>
     <meta
       name="description"
-      content="SemBan ist die kostenlose Semesterplaner-App: Behalte alle Fristen und Aufgaben aus all deinen Kursen im Blick – Übungsblätter, Hausarbeiten, Referate, Klausuren – plus Stundenplan, Noten & ECTS. Werbefrei & offline nutzbar. Jetzt starten!"
+      content="SemBan ist die kostenlose Studienplaner-App: alle Aufgaben & Fristen deiner Kurse an einem Ort – plus automatischer Lernplan für die Klausurvorbereitung (mit Spaced Repetition), Stundenplan, Karteikarten-Planung, Noten & ECTS. Werbefrei, offline nutzbar, auf allen Geräten synchron."
     />
     <link rel="canonical" href="https://unikanban.vercel.app/" />
     <meta name="robots" content="index, follow" />
@@ -27,10 +27,10 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="SemBan" />
     <meta property="og:locale" content="de_DE" />
-    <meta property="og:title" content="SemBan: Stundenplan & Semesterplaner App fürs Studium" />
+    <meta property="og:title" content="SemBan: Semesterplaner mit Lernplan, Stundenplan & Noten" />
     <meta
       property="og:description"
-      content="Behalte alle Fristen und Aufgaben aus all deinen Kursen im Blick – Übungsblätter, Hausarbeiten, Referate, Klausuren – plus Stundenplan, Noten & ECTS. Kostenlos & werbefrei."
+      content="Alle Aufgaben & Fristen deiner Kurse an einem Ort – plus automatischer Lernplan für die Klausur (Spaced Repetition), Stundenplan, Karteikarten, Noten & ECTS. Kostenlos & werbefrei."
     />
     <meta property="og:url" content="https://unikanban.vercel.app/" />
     <meta property="og:image" content="https://unikanban.vercel.app/og-image.png" />
@@ -40,10 +40,10 @@
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="SemBan: Stundenplan & Semesterplaner App fürs Studium" />
+    <meta name="twitter:title" content="SemBan: Semesterplaner mit Lernplan, Stundenplan & Noten" />
     <meta
       name="twitter:description"
-      content="Alle Fristen & Aufgaben aus allen Kursen im Blick – Übungsblätter, Hausarbeiten, Referate, Klausuren – plus Stundenplan, Noten & ECTS. Kostenlos & werbefrei."
+      content="Alle Aufgaben & Fristen deiner Kurse an einem Ort – plus automatischer Lernplan für die Klausur, Stundenplan, Karteikarten, Noten & ECTS. Kostenlos & werbefrei."
     />
     <meta name="twitter:image" content="https://unikanban.vercel.app/og-image.png" />
 
@@ -54,16 +54,22 @@
         "@type": "SoftwareApplication",
         "name": "SemBan",
         "alternateName": "Semester-Kanban",
-        "description": "Kostenlose Semesterplaner-App für Studierende: behalte alle Fristen und Aufgaben aus all deinen Kursen im Blick (Übungsblätter, Hausarbeiten, Referate, Klausuren) – mit Aufgaben-Kanban inkl. Fortschritt pro Aufgabe, Stundenplan mit Live-Jetzt-Linie und Anwesenheit sowie Noten- und ECTS-Tracking über das ganze Studium. Werbefrei, offline nutzbar dank lokalem Cache und über ein kostenloses Konto auf allen Geräten synchron.",
+        "description": "Kostenlose Semester- und Studienplaner-App für Studierende: behalte alle Fristen und Aufgaben aus all deinen Kursen im Blick (Übungsblätter, Hausarbeiten, Referate, Klausuren) – mit Aufgaben-Kanban inkl. Fortschritt pro Aufgabe, automatischem Lernplan für die Klausurvorbereitung (verteiltes Lernen / Spaced Repetition, Vorbereitungsfenster, Fokus-Tage, Tages- und Wochenlimits), Karteikarten-Planung, Stundenplan mit Live-Jetzt-Linie und Anwesenheit, Kalender-Abo und ICS-Import/Export, Fristen-Erinnerungen sowie Noten- und ECTS-Tracking über das ganze Studium. Werbefrei, offline nutzbar dank lokalem Cache und über ein kostenloses Konto auf allen Geräten synchron.",
         "url": "https://unikanban.vercel.app",
         "applicationCategory": "EducationApplication",
         "operatingSystem": "Web, iOS, Android (PWA)",
         "inLanguage": "de",
         "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR", "availability": "https://schema.org/InStock" },
         "featureList": [
+          "Automatischer Lernplan für die Klausurvorbereitung mit verteiltem Lernen (Spaced Repetition)",
+          "Vorbereitungsfenster, Fokus-Tage sowie Tages- und Wochenlimits gegen Überlastung",
+          "Karteikarten-Planung als tägliche Wiederholungs-Gewohnheit",
+          "Altklausuren als Prüfungssimulation einplanen",
           "Stundenplan mit Live-Jetzt-Linie und Anwesenheitsmarkern",
           "Automatisch generierte Übungsblatt- und Tutoriumsblatt-Serien",
-          "Aufgabenverwaltung als Semester-Kanban",
+          "Aufgabenverwaltung als Semester-Kanban mit Fortschritt pro Aufgabe",
+          "Fristen-Erinnerungen, auch wenn die App geschlossen ist",
+          "Kalender-Abonnement und ICS-Import/-Export für Google und Apple Kalender",
           "Noten verwalten und Notendurchschnitt berechnen",
           "ECTS kumulativ über Bachelor und Master tracken",
           "Offline nutzbar dank lokalem Cache",
@@ -83,6 +89,9 @@
           { "@type": "Question", "name": "Wie berechnet SemBan Notendurchschnitt und ECTS?", "acceptedAnswer": { "@type": "Answer", "text": "SemBan berechnet deinen Notendurchschnitt automatisch und summiert deine ECTS kumulativ über das gesamte Studium – Bachelor und Master getrennt. So siehst du jederzeit deinen Fortschritt zum Abschluss." } },
           { "@type": "Question", "name": "Kann ich SemBan auf dem Handy installieren?", "acceptedAnswer": { "@type": "Answer", "text": "Ja. SemBan ist eine Progressive Web App (PWA) und lässt sich über den Browser direkt auf iPhone, Android oder Desktop installieren – ganz ohne App Store." } },
           { "@type": "Question", "name": "Erinnert mich SemBan an Fristen und Abgaben?", "acceptedAnswer": { "@type": "Answer", "text": "Ja. SemBan erinnert dich rechtzeitig an anstehende Abgaben – auf Wunsch sogar, wenn die App geschlossen ist. So verpasst du keine Frist mehr, egal über wie viele Kurse sie verteilt sind." } },
+          { "@type": "Question", "name": "Erstellt SemBan einen Lernplan für die Klausur?", "acceptedAnswer": { "@type": "Answer", "text": "Ja. Du gibst Klausurtermin, Kapitel, Übungs- und Tutoriumsblätter sowie Altklausuren an, und SemBan erstellt automatisch einen Lernplan über alle Kurse: verteilt auf die Wochen vor der Klausur, mit Wiederholungen im richtigen Abstand (Spaced Repetition), Fokus-Tagen statt Häppchen und Tages- sowie Wochenlimits, damit du nicht ausbrennst. Altklausuren landen als Prüfungssimulation am Ende, Karteikarten als tägliche Gewohnheit. Erledigte Einheiten bleiben erledigt – der Plan balanciert sich automatisch neu." } },
+          { "@type": "Question", "name": "Was ist Spaced Repetition und nutzt SemBan es?", "acceptedAnswer": { "@type": "Answer", "text": "Spaced Repetition (verteiltes Lernen) bedeutet, Stoff in wachsenden Abständen zu wiederholen statt alles auf einmal zu lernen – das festigt das Wissen nachweislich besser. SemBan baut diese verteilten Wiederholungen automatisch in deinen Lernplan ein und plant zusätzlich tägliche Karteikarten-Zeit." } },
+          { "@type": "Question", "name": "Kann ich meinen Stundenplan und Lernplan in den Kalender exportieren?", "acceptedAnswer": { "@type": "Answer", "text": "Ja. Du kannst deinen Stundenplan und deine Aufgaben als Kalender (ICS) abonnieren oder exportieren und in Google Kalender, Apple Kalender oder Outlook anzeigen. Umgekehrt kannst du einen bestehenden Stundenplan per ICS importieren." } },
           { "@type": "Question", "name": "Was ist der Unterschied zwischen SemBan und Notion?", "acceptedAnswer": { "@type": "Answer", "text": "Notion ist mächtig, aber du baust dir alles selbst zusammen und pflegst es ewig. SemBan ist fertig fürs Studium: Aufgaben, Fristen, Stundenplan, Noten und ECTS – ohne Setup, kostenlos und sofort startklar." } }
         ]
       }
