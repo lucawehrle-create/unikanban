@@ -40,6 +40,7 @@ import {
 } from '@/lib/feedback'
 import { useUI } from '@/store/ui'
 import { Modal } from './Modal'
+import { Select } from './ui/Select'
 import { cn } from '@/lib/cn'
 
 type Tab = 'features' | 'bug'
@@ -127,6 +128,11 @@ function CategoryBadge({ id }: { id: string | null }) {
   )
 }
 
+const CATEGORY_OPTIONS = [
+  { value: '', label: 'Ohne Kategorie' },
+  ...CATEGORIES.map((c) => ({ value: c.id, label: c.label })),
+]
+
 function CategorySelect({
   value,
   onChange,
@@ -137,18 +143,14 @@ function CategorySelect({
   className?: string
 }) {
   return (
-    <select
+    <Select
       value={value}
-      onChange={(e) => onChange(e.target.value as CategoryId | '')}
-      className={cn('rounded-lg border border-stone-200 bg-white px-2 py-2 text-sm outline-none', className)}
-    >
-      <option value="">Kategorie…</option>
-      {CATEGORIES.map((c) => (
-        <option key={c.id} value={c.id}>
-          {c.label}
-        </option>
-      ))}
-    </select>
+      options={CATEGORY_OPTIONS}
+      onChange={(v) => onChange(v as CategoryId | '')}
+      placeholder="Kategorie…"
+      ariaLabel="Kategorie"
+      className={cn('w-40', className)}
+    />
   )
 }
 
@@ -312,30 +314,29 @@ function FeaturesTab({ admin }: { admin: boolean }) {
                 </button>
               ))}
             </div>
-            <select
+            <Select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-              className="rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs outline-none"
-            >
-              <option value="all">Alle Status</option>
-              {(Object.keys(STATUS_META) as FeatureStatus[]).map((s) => (
-                <option key={s} value={s}>
-                  {STATUS_META[s].label}
-                </option>
-              ))}
-            </select>
-            <select
+              onChange={(v) => setStatusFilter(v as StatusFilter)}
+              ariaLabel="Status filtern"
+              className="w-32"
+              options={[
+                { value: 'all', label: 'Alle Status' },
+                ...(Object.keys(STATUS_META) as FeatureStatus[]).map((s) => ({
+                  value: s,
+                  label: STATUS_META[s].label,
+                })),
+              ]}
+            />
+            <Select
               value={catFilter}
-              onChange={(e) => setCatFilter(e.target.value as CategoryId | 'all')}
-              className="rounded-lg border border-stone-200 bg-white px-2 py-1.5 text-xs outline-none"
-            >
-              <option value="all">Alle Bereiche</option>
-              {CATEGORIES.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => setCatFilter(v as CategoryId | 'all')}
+              ariaLabel="Bereich filtern"
+              className="w-40"
+              options={[
+                { value: 'all', label: 'Alle Bereiche' },
+                ...CATEGORIES.map((c) => ({ value: c.id, label: c.label })),
+              ]}
+            />
           </div>
         </div>
       )}
@@ -472,17 +473,16 @@ function FeatureItem({
                 </button>
                 <span className="mr-auto" />
                 {admin && (
-                  <select
+                  <Select
                     value={f.status}
-                    onChange={(e) => changeStatus(e.target.value as FeatureStatus)}
-                    className="rounded border border-stone-200 bg-white px-1 py-0.5 text-[11px]"
-                  >
-                    {(Object.keys(STATUS_META) as FeatureStatus[]).map((s) => (
-                      <option key={s} value={s}>
-                        {STATUS_META[s].label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(v) => changeStatus(v as FeatureStatus)}
+                    ariaLabel="Status setzen"
+                    className="w-28"
+                    options={(Object.keys(STATUS_META) as FeatureStatus[]).map((s) => ({
+                      value: s,
+                      label: STATUS_META[s].label,
+                    }))}
+                  />
                 )}
                 {canManage && (
                   <button onClick={() => setEditing(true)} className="hover:text-stone-600" aria-label="Bearbeiten">
