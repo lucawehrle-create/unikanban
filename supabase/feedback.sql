@@ -16,6 +16,20 @@ create table if not exists public.feature_requests (
   created_at timestamptz not null default now()
 );
 
+-- Spalten für Kategorie & Anonymität (auch für bestehende Installationen).
+alter table public.feature_requests add column if not exists category text;
+alter table public.feature_requests add column if not exists is_anonymous boolean not null default false;
+alter table public.bug_reports      add column if not exists category text;
+
+create table if not exists public.feature_comments (
+  id uuid primary key default gen_random_uuid(),
+  feature_id uuid not null references public.feature_requests (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  author_name text,
+  body text not null,
+  created_at timestamptz not null default now()
+);
+
 create table if not exists public.feature_votes (
   feature_id uuid not null references public.feature_requests (id) on delete cascade,
   user_id uuid not null references auth.users (id) on delete cascade,
@@ -39,6 +53,7 @@ create table if not exists public.bug_reports (
 
 alter table public.feature_requests enable row level security;
 alter table public.feature_votes    enable row level security;
+alter table public.feature_comments enable row level security;
 alter table public.bug_reports       enable row level security;
 
 -- feature_requests: alle Eingeloggten lesen; eigene anlegen;
@@ -83,6 +98,20 @@ create policy fv_update on public.feature_votes
 drop policy if exists fv_delete on public.feature_votes;
 create policy fv_delete on public.feature_votes
   for delete to authenticated using (auth.uid() = user_id);
+
+-- feature_comments: alle Eingeloggten lesen; eigene anlegen; Autor/Admin löschen.
+drop policy if exists fc_select on public.feature_comments;
+create policy fc_select on public.feature_comments
+  for select to authenticated using (true);
+
+drop policy if exists fc_insert on public.feature_comments;
+create policy fc_insert on public.feature_comments
+  for insert to authenticated with check (auth.uid() = user_id);
+
+drop policy if exists fc_delete on public.feature_comments;
+create policy fc_delete on public.feature_comments
+  for delete to authenticated
+  using (auth.uid() = user_id or (auth.jwt() ->> 'email') = 'lucawehrle@gmail.com');
 
 -- bug_reports: nur Autor ODER Admin liest; eigene anlegen; Admin/Autor verwalten.
 drop policy if exists br_select on public.bug_reports;
