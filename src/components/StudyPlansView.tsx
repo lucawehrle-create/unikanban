@@ -13,6 +13,7 @@ import { parseISO, format, differenceInCalendarDays } from 'date-fns'
 import { de } from 'date-fns/locale'
 import type { Course, StudyPlanConfig, StudyStrategy, Task } from '@/db/types'
 import { useActiveSemester, useCourses, useTasks } from '@/hooks/data'
+import { CoachTeaser } from './CoachTeaser'
 import { useUI, getStudySettings } from '@/store/ui'
 import {
   KIND_META,
@@ -670,6 +671,8 @@ export function StudyPlansView() {
             </div>
           )}
         </div>
+
+        <CoachTeaser />
 
         {/* Kursauswahl */}
         <div className="flex flex-wrap gap-2">

@@ -251,6 +251,24 @@ export async function createBug(input: {
   if (error) throw error
 }
 
+// ---------- KI-Coach: Nachfrage-Signal ----------
+
+export type PaySignal = 'yes' | 'maybe' | 'free_only'
+
+/** Interesse am (geplanten) KI-Lerncoach festhalten – eine Zeile pro Nutzer. */
+export async function recordCoachInterest(paySignal: PaySignal, note: string): Promise<void> {
+  if (!supabase) throw new Error('Online-Sync ist nicht konfiguriert.')
+  const user = currentUser()
+  if (!user) throw new Error('Bitte melde dich an.')
+  const { error } = await supabase
+    .from('coach_interest')
+    .upsert(
+      { user_id: user.id, email: user.email ?? null, pay_signal: paySignal, note: note.trim() || null },
+      { onConflict: 'user_id' },
+    )
+  if (error) throw error
+}
+
 /** Bug-Reports laden – RLS liefert nur eigene (bzw. alle für den Admin). */
 export async function listBugs(): Promise<BugReport[]> {
   if (!supabase) throw new Error('Online-Sync ist nicht konfiguriert.')
