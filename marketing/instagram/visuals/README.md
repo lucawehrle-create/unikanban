@@ -10,6 +10,20 @@ Charcoal). Format 4:5 (Feed) bzw. 1:1 (Profil). Direkt postbar.
 | `post-nicht-faul.png` | Zitat-Karte (Woche 2, Do) | „Nicht faul. Nur schlecht organisiert." |
 | `profilbild.png` | Profilbild (1:1, kreis-sicher) | — |
 
+## Story-Highlight-Cover (1:1, kreis-sicher, ohne Text)
+
+Einheitliches Icon-Set (indigo Icon auf Cream). Reihenfolge wie in
+`../02-profil-setup.md`. Den Titel vergibt man beim Anlegen des Highlights in
+Instagram — das Cover bleibt bewusst textfrei.
+
+| Datei | Highlight-Titel | Icon |
+|---|---|---|
+| `highlight-1-start.png` | Start hier | Flagge |
+| `highlight-2-features.png` | Features | Kanban-Raster |
+| `highlight-3-tipps.png` | Tipps | Glühbirne |
+| `highlight-4-updates.png` | Updates | Megafon |
+| `highlight-5-fragen.png` | Ihr fragt | Sprechblase mit „?" |
+
 ## Hinweise
 
 - **Text final prüfen:** KI-generierter Text kann minimal abweichen — vor dem
