@@ -56,8 +56,8 @@ die legst du beim Posten in der Instagram-App darüber (Spalte „Sticker live")
 | Datei | Aussage | Sticker live |
 |---|---|---|
 | `story-faq-1` | „Kostet SemBan etwas?" → Nein | — |
-| `story-faq-2` | „Brauche ich ein Konto?" → nur für Sync | — |
-| `story-faq-3` | „Sind meine Daten sicher?" → lokal/offline | — |
+| `story-faq-2` | „Brauche ich ein Konto?" → ja, kostenlos (für Sync & Sicherheit) | — |
+| `story-faq-3` | „Sind meine Daten sicher?" → privat im Konto, nur du; Offline-Kopie | — |
 | `story-faq-4` | „Für welche Uni?" → für jede | **Frage-Sticker**: „Frag uns alles" |
 
 ---

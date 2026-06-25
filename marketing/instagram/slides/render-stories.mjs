@@ -34,8 +34,8 @@ const SLIDES = [
     title: 'Kein leeres Notion.\nKein generisches Trello.',
     sub: 'SemBan kennt Übungsblätter, Abgabefristen und Klausurphasen — von Haus aus.' },
   { file: 'start-5', theme: 'indigo', kicker: "Los geht's",
-    title: 'Kostenlos.\nWerbefrei. Offline.',
-    sub: 'In 30 Sekunden startklar — ohne Anmeldung.',
+    title: 'Kostenlos.\nWerbefrei. Privat.',
+    sub: 'Kostenloses Konto, in Minuten startklar — auf all deinen Geräten synchron.',
     button: 'Jetzt starten', note: 'Link in Bio ↑' },
 
   // 2 · FEATURES ------------------------------------------------------------
@@ -92,10 +92,10 @@ const SLIDES = [
     sub: 'Nein. Komplett kostenlos und werbefrei.' },
   { file: 'faq-2', theme: 'paper', kicker: 'Ihr fragt', faq: true,
     title: 'Brauche ich\nein Konto?',
-    sub: 'Zum Loslegen nicht. Ein kostenloses Konto brauchst du nur für Sync über mehrere Geräte.' },
+    sub: 'Ja, ein kostenloses. Damit sind deine Daten sicher und auf Handy & Laptop synchron — die Anmeldung dauert nur Sekunden.' },
   { file: 'faq-3', theme: 'paper', kicker: 'Ihr fragt', faq: true,
     title: 'Sind meine\nDaten sicher?',
-    sub: 'Alles liegt lokal auf deinem Gerät. SemBan läuft auch komplett offline.' },
+    sub: 'Deine Daten liegen privat in deinem Konto — Zugriff hast nur du. Eine Kopie bleibt offline auf dem Gerät.' },
   { file: 'faq-4', theme: 'paper', kicker: 'Ihr fragt', faq: true,
     title: 'Für welche Uni?',
     sub: 'Für jede. Du definierst Kurse, Aufgabentypen und Fristen selbst.',
