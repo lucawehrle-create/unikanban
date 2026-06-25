@@ -11,7 +11,7 @@ Unterschied zur Story-Variante (`06-intro-story.md`): kürzer, fürs **Feed**
 |---|---|---|
 | 1 | `carousel-intro-1` | Cover „Was ist SemBan?" (Indigo, Swipe-Hinweis) |
 | 2 | `carousel-intro-2` | „5 Kurse. 100 Deadlines." — das Problem |
-| 3 | `carousel-intro-3` | „Alles, was dein Semester braucht." — Fristen-Board · Lernplan · Noten |
+| 3 | `carousel-intro-3` | „Alles, was dein Semester braucht." — echter Board-Screenshot (`board.png`) |
 | 4 | `carousel-intro-4` | „Kostenlos. Werbefrei. Offline." — Vertrauen |
 | 5 | `carousel-intro-5` | „Hol dir den Überblick." — CTA |
 

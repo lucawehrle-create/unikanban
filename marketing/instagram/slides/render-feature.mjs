@@ -4,7 +4,7 @@
 import { chromium } from 'playwright-core'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const OUT = __dirname
@@ -13,6 +13,13 @@ const CHROME_CANDIDATES = [
   '/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell',
 ]
 const executablePath = CHROME_CANDIDATES.find((p) => existsSync(p))
+
+// Echte App-Screenshots (wie auf der Landing-Page) als Base64-Data-URI einbetten,
+// damit der Headless-Browser sie ohne lokalen Server laden kann.
+const SHOT_DIR = join(__dirname, '../../../public/landing')
+const shotCache = {}
+const shotUri = (file) =>
+  (shotCache[file] ??= `data:image/png;base64,${readFileSync(join(SHOT_DIR, file)).toString('base64')}`)
 
 // ----------------------------------------------------------------- Slides
 const SLIDES = [
@@ -33,24 +40,23 @@ const SLIDES = [
 
   { file: 'feat-4', theme: 'paper', kicker: 'Feature 3 · Fristen-Board',
     title: 'Drei Farben.\nVoller Überblick.',
-    badges: [
-      { dot: '#EF4444', label: 'Überfällig', desc: 'springt sofort ins Auge' },
-      { dot: '#F59E0B', label: 'Heute fällig', desc: 'kommt heute dran' },
-      { dot: '#EAB308', label: 'Diese Woche', desc: 'steht als Nächstes an' },
-    ],
-    sub: 'Farbcodiert nach Kurs, sortiert nach »Diese Woche«.' },
+    shot: 'board.png',
+    sub: 'Farbcodiert nach Kurs, »Diese Woche« zuerst.' },
 
   { file: 'feat-5', theme: 'paper', kicker: 'Feature 4 · Lernplan',
     title: 'Lernplan auf\nKnopfdruck.',
-    sub: 'Klausurdatum rein → ein verteilter Plan über mehrere Tage, in Lern-Sessions. Schluss mit Last-Minute-Panik.' },
+    shot: 'plans.png',
+    sub: 'Klausurdatum rein → verteilter Plan über mehrere Tage.' },
 
   { file: 'feat-6', theme: 'paper', kicker: 'Feature 5 · Stundenplan',
     title: 'Wo du gerade\nsein solltest.',
-    sub: 'Wochenraster mit Jetzt-Linie und Anwesenheit. Ein Blick genügt — und du weißt, wo es langgeht.' },
+    shot: 'schedule.png',
+    sub: 'Wochenraster mit Jetzt-Linie und Anwesenheit.' },
 
   { file: 'feat-7', theme: 'paper', kicker: 'Feature 6 · Noten & ECTS',
     title: 'Sieh, wie weit\ndu bist.',
-    sub: 'Notenschnitt und ECTS-Fortschritt — live berechnet, pro Semester aufgeschlüsselt. Nicht raten, sehen.' },
+    shot: 'study.png',
+    sub: 'Notenschnitt & ECTS — live berechnet, pro Semester.' },
 
   { file: 'feat-8', theme: 'indigo', kicker: 'Alles drin?',
     title: 'Und alles\nan einem Ort.',
@@ -92,6 +98,12 @@ function body(s) {
       <span class="chip"><span>Blatt&nbsp;3</span> <span class="t-course">#ana2</span> <span class="t-type">@übung</span> <span class="t-due">!fr</span></span>
     </div>`
   }
+  if (s.shot) {
+    html += `<div class="frame">
+      <div class="bar"><span class="d" style="background:#FCA5A5"></span><span class="d" style="background:#FCD34D"></span><span class="d" style="background:#6EE7B7"></span><span class="url">semban.de</span></div>
+      <img src="${shotUri(s.shot)}" alt="">
+    </div>`
+  }
   if (s.sub) html += `<p class="sub">${nl2br(s.sub)}</p>`
   if (s.button) html += `<div class="btn">${esc(s.button)}</div>`
   return html
@@ -116,6 +128,9 @@ function pageHtml(s) {
   .wordmark { font-size:42px; font-weight:700; letter-spacing:-0.01em; color:${white ? '#fff' : '#1E1B2E'}; }
   .stage { position:absolute; inset:0; padding:330px 96px; display:flex; flex-direction:column;
     align-items:center; justify-content:center; text-align:center; }
+  body.has-shot .stage { padding:250px 80px; }
+  body.has-shot .title { font-size:82px; }
+  body.has-shot .kicker { margin-bottom:36px; }
   .kicker { font-size:27px; font-weight:700; letter-spacing:0.16em; text-transform:uppercase;
     color:${white ? '#fff' : '#6366F1'};
     background:${white ? 'rgba(255,255,255,.16)' : 'rgba(99,102,241,.10)'};
@@ -136,6 +151,14 @@ function pageHtml(s) {
   .b-text { display:flex; flex-direction:column; gap:4px; }
   .b-text b { font-size:44px; font-weight:700; color:#1E1B2E; }
   .b-text span { font-size:32px; color:#6E6A7C; }
+  .frame { margin-top:50px; width:912px; border-radius:34px; overflow:hidden; background:#fff;
+    box-shadow:0 34px 80px rgba(30,27,46,.20); border:1px solid rgba(0,0,0,.06); }
+  .bar { display:flex; align-items:center; gap:14px; padding:24px 32px; background:#F3F1EC;
+    border-bottom:1px solid rgba(0,0,0,.06); }
+  .bar .d { width:22px; height:22px; border-radius:50%; }
+  .bar .url { margin-left:18px; font-size:28px; color:#9A95A6; background:#fff; padding:10px 28px;
+    border-radius:999px; border:1px solid rgba(0,0,0,.08); }
+  .frame img { display:block; width:100%; }
   .capture { margin-top:60px; display:flex; flex-direction:column; align-items:center; gap:26px; }
   .kbd { font-size:46px; font-weight:700; color:#1E1B2E; background:#fff; border:2px solid #E4E0D8;
     border-bottom-width:6px; border-radius:18px; padding:12px 34px; }
@@ -150,7 +173,7 @@ function pageHtml(s) {
     padding:30px 64px; border-radius:999px; box-shadow:0 14px 34px rgba(0,0,0,.18); }
   .footer { position:absolute; bottom:188px; left:0; right:0; text-align:center; font-size:34px;
     font-weight:700; color:${white ? 'rgba(255,255,255,.95)' : '#9A95A6'}; }
-  </style></head><body>
+  </style></head><body class="${s.shot ? 'has-shot' : ''}">
     <div class="bg1"></div><div class="bg2"></div>
     <div class="header">${logoMark(white)}<span class="wordmark">SemBan</span></div>
     <div class="stage">${body(s)}</div>

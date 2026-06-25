@@ -15,7 +15,7 @@ CTA, Paper-Slides dazwischen.
 | 1 | `carousel-spaced-1` | Cover: „Du lernst nicht zu wenig. — Du lernst zu spät." |
 | 2 | `carousel-spaced-2` | Die Nachtschicht-Lüge — Cramming bleibt nicht hängen |
 | 3 | `carousel-spaced-3` | Lernen · Pause · Wiederholen (Tag 1 / 3 / 7) |
-| 4 | `carousel-spaced-4` | Plan statt Panik — verteilter Lernplan automatisch |
+| 4 | `carousel-spaced-4` | Plan statt Panik — echter Lernplan-Screenshot (`plans.png`) |
 | 5 | `carousel-spaced-5` | CTA „Fang heute an. Nicht morgen." |
 
 **Caption** (siehe auch `04-captions-hashtags.md`):
@@ -95,7 +95,7 @@ CTA: **Save & teilen.**
 |---|---|---|
 | 1 | `carousel-noten-1` | Cover: „Wie weit bist du wirklich?" |
 | 2 | `carousel-noten-2` | Problem — ECTS im Kopf rechnen |
-| 3 | `carousel-noten-3` | Lösung — Schnitt · ECTS · pro Semester |
+| 3 | `carousel-noten-3` | Lösung — echter Studium-Screenshot (`study.png`) |
 | 4 | `carousel-noten-4` | Effekt — Fortschritt sichtbar machen motiviert |
 | 5 | `carousel-noten-5` | CTA „Trag deine Noten ein." |
 

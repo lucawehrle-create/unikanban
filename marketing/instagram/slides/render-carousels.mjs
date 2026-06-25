@@ -9,11 +9,17 @@
 import { chromium } from 'playwright-core'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const OUT = __dirname
 const W = 1080, H = 1350
+
+// Echte App-Screenshots (wie auf der Landing-Page) als Base64-Data-URI einbetten.
+const SHOT_DIR = join(__dirname, '../../../public/landing')
+const shotCache = {}
+const shotUri = (file) =>
+  (shotCache[file] ??= `data:image/png;base64,${readFileSync(join(SHOT_DIR, file)).toString('base64')}`)
 const CHROME_CANDIDATES = [
   '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
   '/opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell',
@@ -40,7 +46,8 @@ const SPACED = [
 
   { file: 'carousel-spaced-4', theme: 'paper', kicker: 'Und so machst du es',
     title: 'Plan statt\nPanik.',
-    sub: 'SemBan baut dir den verteilten Lernplan automatisch aus deinem Klausurdatum — aufgeteilt in Sessions, mit Erinnerungen.' },
+    shot: 'plans.png',
+    sub: 'Klausurdatum rein → verteilter Plan, automatisch.' },
 
   { file: 'carousel-spaced-5', theme: 'indigo', kicker: 'Bereit?',
     title: 'Fang heute an.\nNicht morgen.',
@@ -120,11 +127,8 @@ const NOTEN = [
 
   { file: 'carousel-noten-3', theme: 'paper', kicker: 'Die Lösung',
     title: 'Alles auf\neinen Blick.',
-    list: [
-      { label: 'Notenschnitt', desc: 'live berechnet, nicht geschätzt' },
-      { label: 'ECTS-Fortschritt', desc: 'wie viel vom Studium geschafft ist' },
-      { label: 'Pro Semester', desc: 'aufgeschlüsselt, Modul für Modul' },
-    ] },
+    shot: 'study.png',
+    sub: 'Notenschnitt, ECTS-Fortschritt & Prognose — live.' },
 
   { file: 'carousel-noten-4', theme: 'paper', kicker: 'Der Effekt',
     title: 'Sehen, wie\nweit du bist.',
@@ -167,6 +171,12 @@ function bodyHtml(s) {
         <span class="li-text"><b>${esc(it.label)}</b><span>${esc(it.desc)}</span></span></div>`)
       .join('')}</div>`
   }
+  if (s.shot) {
+    html += `<div class="frame">
+      <div class="bar"><span class="d" style="background:#FCA5A5"></span><span class="d" style="background:#FCD34D"></span><span class="d" style="background:#6EE7B7"></span><span class="url">semban.de</span></div>
+      <img src="${shotUri(s.shot)}" alt="">
+    </div>`
+  }
   if (s.sub) html += `<p class="sub">${nl2br(s.sub)}</p>`
   if (s.button) html += `<div class="btn">${esc(s.button)}</div>`
   return html
@@ -191,6 +201,9 @@ function pageHtml(s) {
   .wordmark { font-size:38px; font-weight:700; letter-spacing:-0.01em; color:${white ? '#fff' : '#1E1B2E'}; }
   .stage { position:absolute; inset:0; padding:210px 90px 200px; display:flex; flex-direction:column;
     align-items:center; justify-content:center; text-align:center; }
+  body.has-shot .stage { padding:150px 70px; }
+  body.has-shot .title { font-size:70px; }
+  body.has-shot .kicker { margin-bottom:30px; }
   .kicker { font-size:25px; font-weight:700; letter-spacing:0.16em; text-transform:uppercase;
     color:${white ? '#fff' : '#6366F1'};
     background:${white ? 'rgba(255,255,255,.16)' : 'rgba(99,102,241,.10)'};
@@ -207,11 +220,19 @@ function pageHtml(s) {
   .li-text { display:flex; flex-direction:column; gap:6px; }
   .li-text b { font-size:42px; font-weight:700; color:#1E1B2E; }
   .li-text span { font-size:32px; color:#6E6A7C; }
+  .frame { margin-top:42px; width:840px; border-radius:30px; overflow:hidden; background:#fff;
+    box-shadow:0 30px 70px rgba(30,27,46,.20); border:1px solid rgba(0,0,0,.06); }
+  .bar { display:flex; align-items:center; gap:13px; padding:20px 28px; background:#F3F1EC;
+    border-bottom:1px solid rgba(0,0,0,.06); }
+  .bar .d { width:20px; height:20px; border-radius:50%; }
+  .bar .url { margin-left:16px; font-size:25px; color:#9A95A6; background:#fff; padding:9px 26px;
+    border-radius:999px; border:1px solid rgba(0,0,0,.08); }
+  .frame img { display:block; width:100%; }
   .btn { margin-top:52px; background:#fff; color:#4F46E5; font-size:44px; font-weight:700;
     padding:28px 60px; border-radius:999px; box-shadow:0 14px 34px rgba(0,0,0,.18); }
   .footer { position:absolute; bottom:120px; left:0; right:0; text-align:center; font-size:32px;
     font-weight:700; color:${white ? 'rgba(255,255,255,.95)' : '#9A95A6'}; }
-  </style></head><body>
+  </style></head><body class="${s.shot ? 'has-shot' : ''}">
     <div class="bg1"></div><div class="bg2"></div>
     <div class="header">${logoMark(white)}<span class="wordmark">SemBan</span></div>
     <div class="stage">${bodyHtml(s)}</div>
