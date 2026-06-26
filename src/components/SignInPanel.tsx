@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, Loader2 } from 'lucide-react'
+import { Check, Eye, EyeOff, Loader2 } from 'lucide-react'
 import {
   resetPassword,
   signInWithApple,
@@ -16,6 +16,8 @@ export function SignInPanel() {
   const [mode, setMode] = useState<Mode>('signin')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [showPw, setShowPw] = useState(false)
   const [busy, setBusy] = useState(false)
   const [redirecting, setRedirecting] = useState<'google' | 'apple' | null>(null)
   const [msg, setMsg] = useState('')
@@ -44,8 +46,13 @@ export function SignInPanel() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
-    setBusy(true)
     clearMessages()
+    // Bei der Registrierung müssen beide Passwörter übereinstimmen.
+    if (mode === 'signup' && password !== confirm) {
+      setErr('Die Passwörter stimmen nicht überein.')
+      return
+    }
+    setBusy(true)
     try {
       if (mode === 'signup') {
         const { needsConfirm } = await signUpWithEmail(email, password)
@@ -113,15 +120,43 @@ export function SignInPanel() {
           placeholder="E-Mail"
           className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-400"
         />
-        <input
-          type="password"
-          required
-          minLength={6}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Passwort"
-          className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-400"
-        />
+        <div className="relative">
+          <input
+            type={showPw ? 'text' : 'password'}
+            required
+            minLength={6}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Passwort"
+            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+            className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 pr-10 text-sm outline-none focus:border-brand-400"
+          />
+          <button
+            type="button"
+            onClick={() => setShowPw((v) => !v)}
+            aria-label={showPw ? 'Passwort verbergen' : 'Passwort anzeigen'}
+            aria-pressed={showPw}
+            className="absolute inset-y-0 right-0 flex items-center px-3 text-stone-400 hover:text-stone-600"
+          >
+            {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+          </button>
+        </div>
+        {mode === 'signup' && (
+          <input
+            type={showPw ? 'text' : 'password'}
+            required
+            minLength={6}
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            placeholder="Passwort bestätigen"
+            autoComplete="new-password"
+            aria-invalid={confirm.length > 0 && confirm !== password}
+            className="w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm outline-none focus:border-brand-400"
+          />
+        )}
+        {mode === 'signup' && confirm.length > 0 && confirm !== password && (
+          <p className="px-1 text-xs text-red-600">Die Passwörter stimmen nicht überein.</p>
+        )}
         {shownErr && (
           <div className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{shownErr}</div>
         )}
@@ -141,7 +176,11 @@ export function SignInPanel() {
 
       <div className="flex items-center justify-between text-xs">
         <button
-          onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
+          onClick={() => {
+            setMode(mode === 'signin' ? 'signup' : 'signin')
+            setConfirm('')
+            clearMessages()
+          }}
           className="font-medium text-stone-600 hover:text-stone-800"
         >
           {mode === 'signin' ? 'Neu? Konto erstellen' : 'Schon ein Konto? Anmelden'}
