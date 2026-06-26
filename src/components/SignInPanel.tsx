@@ -12,8 +12,8 @@ import { useSync } from '@/lib/sync'
 type Mode = 'signin' | 'signup'
 
 /** Anmelde-/Registrier-Formular (Google, Apple, E-Mail+Passwort). */
-export function SignInPanel() {
-  const [mode, setMode] = useState<Mode>('signin')
+export function SignInPanel({ initialMode = 'signin' }: { initialMode?: Mode }) {
+  const [mode, setMode] = useState<Mode>(initialMode)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')

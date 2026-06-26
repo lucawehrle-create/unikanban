@@ -55,6 +55,9 @@ export default function App() {
   const conflict = useSync((s) => s.conflict)
   // Landing zeigen, bis der Besucher auf „Anmelden/Loslegen" tippt.
   const [showAuth, setShowAuth] = useState(false)
+  // Mit welchem Modus die Anmeldung öffnet: „Kostenlos starten" → Registrieren,
+  // „Anmelden" → Login.
+  const [authMode, setAuthMode] = useState<'signin' | 'signup'>('signup')
 
   // Cloud-Sync (no-op, falls nicht konfiguriert) einmalig initialisieren.
   useEffect(() => {
@@ -122,11 +125,20 @@ export default function App() {
     if (!showAuth) {
       return (
         <Suspense fallback={<div className="h-full bg-cream-50" />}>
-          <Landing onStart={() => setShowAuth(true)} />
+          <Landing
+            onStart={() => {
+              setAuthMode('signup')
+              setShowAuth(true)
+            }}
+            onSignIn={() => {
+              setAuthMode('signin')
+              setShowAuth(true)
+            }}
+          />
         </Suspense>
       )
     }
-    return <AuthGate onBack={() => setShowAuth(false)} />
+    return <AuthGate initialMode={authMode} onBack={() => setShowAuth(false)} />
   }
   // Eingeloggt, aber lokal noch keine Daten: erst warten, bis der Sync wirklich
   // bestätigt hat, dass es nichts gibt ('synced'). Bei langsamer/fehlender

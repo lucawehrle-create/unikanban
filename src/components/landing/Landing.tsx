@@ -92,7 +92,13 @@ const eyebrowCls = 'text-xs font-semibold uppercase tracking-[0.12em] text-stone
 
 /* ---------------- root ---------------- */
 
-export default function Landing({ onStart }: { onStart: () => void }) {
+export default function Landing({
+  onStart,
+  onSignIn,
+}: {
+  onStart: () => void
+  onSignIn: () => void
+}) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const lenisRef = useRef<Lenis | null>(null)
   const { scrollYProgress } = useScroll({ container: scrollRef })
@@ -172,7 +178,7 @@ export default function Landing({ onStart }: { onStart: () => void }) {
         />
 
         <div className="relative z-10 transform-gpu [isolation:isolate]">
-          <Nav onStart={onStart} />
+          <Nav onStart={onStart} onSignIn={onSignIn} />
           <main>
             <Hero onStart={onStart} progress={scrollYProgress} onHowItWorks={scrollToFeatures} />
             <Problem />
@@ -244,7 +250,7 @@ function BrowserFrame({
   )
 }
 
-function Nav({ onStart }: { onStart: () => void }) {
+function Nav({ onStart, onSignIn }: { onStart: () => void; onSignIn: () => void }) {
   return (
     <header className="sticky top-0 z-40 bg-cream-50/80 backdrop-blur-md">
       <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3 sm:px-6">
@@ -256,7 +262,7 @@ function Nav({ onStart }: { onStart: () => void }) {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={onStart}
+            onClick={onSignIn}
             className="hidden text-sm font-medium text-stone-500 transition hover:text-stone-800 sm:inline"
           >
             Anmelden

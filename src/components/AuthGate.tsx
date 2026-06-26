@@ -2,8 +2,10 @@ import { ArrowLeft } from 'lucide-react'
 import { Logo } from './Logo'
 import { SignInPanel } from './SignInPanel'
 
+type Mode = 'signin' | 'signup'
+
 /** Vollbild-Anmeldung: ohne Login gibt es keinen Zugriff auf die Daten. */
-export function AuthGate({ onBack }: { onBack?: () => void }) {
+export function AuthGate({ onBack, initialMode }: { onBack?: () => void; initialMode?: Mode }) {
   return (
     <div className="relative flex h-full items-center justify-center p-4">
       {onBack && (
@@ -24,7 +26,7 @@ export function AuthGate({ onBack }: { onBack?: () => void }) {
             Melde dich an, um auf dein Semester zuzugreifen – auf allen Geräten synchron.
           </p>
         </div>
-        <SignInPanel />
+        <SignInPanel initialMode={initialMode} />
       </div>
     </div>
   )
