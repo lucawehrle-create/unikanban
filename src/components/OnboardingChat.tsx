@@ -138,6 +138,7 @@ const STEP_OF: Record<Phase, number> = {
 const TOTAL_STEPS = 7
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const STORE_KEY = 'semban.onboarding.v1'
 
 /** Konversationelles Onboarding: eine Frage nach der anderen, Parser darunter. */
 export function OnboardingChat() {
@@ -170,13 +171,41 @@ export function OnboardingChat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [msgs, typing, phase, courses])
 
-  // Begrüßung
+  // Wiederherstellen (nach Tab-Wechsel/Reload) – sonst Begrüßung.
   useEffect(() => {
     if (started.current) return
     started.current = true
+    try {
+      const raw = localStorage.getItem(STORE_KEY)
+      const s = raw ? JSON.parse(raw) : null
+      if (s && Array.isArray(s.msgs) && s.msgs.length && typeof s.phase === 'string' && s.phase !== 'boot' && s.phase !== 'done') {
+        setMsgs(s.msgs)
+        if (s.draft) draft.current = { ...draft.current, ...s.draft }
+        if (Array.isArray(s.courses)) setCourses(s.courses)
+        if (typeof s.weeklyDay === 'number') setWeeklyDay(s.weeklyDay)
+        if (typeof s.priorEcts === 'string') setPriorEcts(s.priorEcts)
+        if (typeof s.priorAvg === 'string') setPriorAvg(s.priorAvg)
+        if (typeof s.text === 'string') setText(s.text)
+        setPhase(s.phase as Phase)
+        return
+      }
+    } catch { /* defekter Speicher → frisch starten */ }
     void say(['Hi! 👋 Ich richte SemBan mit dir ein — das dauert keine Minute.', 'Was studierst du?'], 'subject')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Fortschritt sichern: jeder Schritt überlebt Tab-Wechsel/Reload.
+  useEffect(() => {
+    if (!started.current || phase === 'boot') return
+    try {
+      if (phase === 'done') localStorage.removeItem(STORE_KEY)
+      else
+        localStorage.setItem(
+          STORE_KEY,
+          JSON.stringify({ msgs, phase, draft: draft.current, courses, weeklyDay, priorEcts, priorAvg, text }),
+        )
+    } catch { /* z.B. Speicher voll → ignorieren */ }
+  }, [msgs, phase, courses, weeklyDay, priorEcts, priorAvg, text])
 
   async function say(lines: string[], next: Phase) {
     for (const line of lines) {
@@ -225,7 +254,8 @@ export function OnboardingChat() {
       [
         `${name} — notiert.`,
         'Start setze ich auf diese Woche, 14 Wochen Vorlesungszeit (später unter „Studium" änderbar).',
-        'Jetzt zu deinen Kursen 📚 — tipp sie einfach untereinander oder füg deinen Stundenplan ein.',
+        `Welche Kurse belegst du in ${name}? 📚`,
+        'Tipp sie einfach untereinander — oder füg deinen Stundenplan ein.',
       ],
       'courses',
     )
@@ -474,6 +504,7 @@ export function OnboardingChat() {
     if (busy) return
     setBusy(true)
     try {
+      try { localStorage.removeItem(STORE_KEY) } catch { /* ignore */ }
       await seedIfEmpty()
       useUI.getState().setDemo(true)
     } finally {
@@ -529,7 +560,7 @@ export function OnboardingChat() {
 
       {/* Verlauf */}
       <div className="flex-1 overflow-y-auto px-4 py-5">
-        <div className="mx-auto flex max-w-md flex-col gap-2.5">
+        <div className="mx-auto flex max-w-xl flex-col gap-2.5">
           {msgs.map((m) => (
             <Bubble key={m.id} role={m.role}>{m.text}</Bubble>
           ))}
@@ -625,7 +656,7 @@ export function OnboardingChat() {
 
       {/* Eingabe / Chips */}
       <div className="border-t border-stone-200/70 bg-white/70 px-4 py-3 backdrop-blur">
-        <div className="mx-auto max-w-md">
+        <div className="mx-auto max-w-xl">
           {phase === 'type' && (
             <ChipRow>
               {(['bachelor', 'master', 'other'] as ProgramType[]).map((t) => (
@@ -789,7 +820,8 @@ function SumRow({ label, value }: { label: string; value: string }) {
   )
 }
 function ChipRow({ children }: { children: React.ReactNode }) {
-  return <div className="flex flex-wrap gap-2">{children}</div>
+  // Antwort-Optionen auf der Nutzer-Seite (rechts) – wie die eigenen Bubbles.
+  return <div className="flex flex-wrap justify-end gap-2">{children}</div>
 }
 function Chip({ children, onClick, primary }: { children: React.ReactNode; onClick: () => void; primary?: boolean }) {
   return (
