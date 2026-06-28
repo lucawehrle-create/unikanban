@@ -68,13 +68,16 @@ const SLIDES = [
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 const nl2br = (s) => esc(s).replace(/\n/g, '<br>')
 
-function logoMark(white) {
-  const bg = white ? '#ffffff' : '#6366F1'
-  const tick = white ? '#6366F1' : '#ffffff'
-  return `<span class="mark" style="background:${bg}">
-    <svg width="34" height="34" viewBox="0 0 24 24" fill="none">
-      <path d="M5 12.5l4.2 4.2L19 7" stroke="${tick}" stroke-width="2.6"
-        stroke-linecap="round" stroke-linejoin="round"/></svg></span>`
+function logoMark() {
+  // Echtes SemBan-Markenzeichen (1:1 wie src/components/Logo.tsx / public/icon.svg).
+  return `<svg class="mark" width="60" height="60" viewBox="0 0 512 512" role="img" aria-label="SemBan">
+    <rect width="512" height="512" rx="112" fill="#2a2a6e"/>
+    <rect x="120" y="220" width="64" height="172" rx="32" fill="#ffffff"/>
+    <rect x="216" y="150" width="64" height="242" rx="32" fill="#ffffff"/>
+    <rect x="316" y="178" width="76" height="76" rx="20" fill="#f5c645"/>
+    <path d="M340 202 L368 230 M368 202 L340 230" stroke="#16161d" stroke-width="18" stroke-linecap="round"/>
+    <rect x="316" y="272" width="76" height="120" rx="38" fill="#e9633c"/>
+  </svg>`
 }
 
 function body(s) {
@@ -123,9 +126,8 @@ function pageHtml(s) {
   .bg2 { width:420px; height:420px; bottom:-140px; left:-150px; transform:rotate(12deg); }
   .header { position:absolute; top:150px; left:0; right:0; display:flex; align-items:center;
     justify-content:center; gap:18px; }
-  .mark { width:60px; height:60px; border-radius:16px; display:flex; align-items:center;
-    justify-content:center; box-shadow:0 6px 18px rgba(79,70,229,.25); }
-  .wordmark { font-size:42px; font-weight:700; letter-spacing:-0.01em; color:${white ? '#fff' : '#1E1B2E'}; }
+  .mark { width:60px; height:60px; border-radius:14px; box-shadow:0 6px 18px rgba(42,42,110,.28); }
+  .wordmark { font-size:42px; font-weight:700; letter-spacing:-0.01em; color:${white ? '#fff' : '#2a2a6e'}; }
   .stage { position:absolute; inset:0; padding:330px 96px; display:flex; flex-direction:column;
     align-items:center; justify-content:center; text-align:center; }
   body.has-shot .stage { padding:250px 80px; }
@@ -175,7 +177,7 @@ function pageHtml(s) {
     font-weight:700; color:${white ? 'rgba(255,255,255,.95)' : '#9A95A6'}; }
   </style></head><body class="${s.shot ? 'has-shot' : ''}">
     <div class="bg1"></div><div class="bg2"></div>
-    <div class="header">${logoMark(white)}<span class="wordmark">SemBan</span></div>
+    <div class="header">${logoMark()}<span class="wordmark">SemBan</span></div>
     <div class="stage">${body(s)}</div>
     ${s.note ? `<div class="footer">${esc(s.note)}</div>` : ''}
   </body></html>`
