@@ -23,7 +23,7 @@ const COMMON_PROGRAMS: { icon: string; name: string }[] = [
   { icon: '📊', name: 'BWL' },
   { icon: '💻', name: 'Informatik' },
   { icon: '⚙️', name: 'Maschinenbau' },
-  { icon: '⚖️', name: 'Rechtswissenschaft' },
+  { icon: '⚖️', name: 'Jura' },
   { icon: '🩺', name: 'Medizin' },
   { icon: '🧠', name: 'Psychologie' },
 ]
@@ -657,7 +657,9 @@ export function OnboardingChat() {
   const todayISO = format(new Date(), 'yyyy-MM-dd')
 
   return (
-    <div className="flex h-full flex-col bg-cream-50">
+    <div className="flex h-full justify-center bg-stone-100 sm:items-center sm:p-4">
+      {/* Abgegrenzte Chat-Karte: Vollbild auf Mobil, zentrierte Karte auf Desktop. */}
+      <div className="flex h-full w-full max-w-xl flex-col overflow-hidden bg-cream-50 sm:h-[min(90vh,860px)] sm:rounded-3xl sm:shadow-xl sm:ring-1 sm:ring-stone-200/80">
       {/* Kopf */}
       <header className="flex items-center gap-3 border-b border-stone-200/70 bg-white/70 px-4 py-3 backdrop-blur">
         {histLen > 0 && phase !== 'boot' && phase !== 'done' && (
@@ -1043,6 +1045,7 @@ export function OnboardingChat() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   )
