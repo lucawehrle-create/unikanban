@@ -10,7 +10,11 @@ export function BottomNav() {
   const examChip = examBadge(useExamStatus())
 
   return (
-    <nav data-tour="nav" className="shrink-0 border-t border-stone-200/70 bg-white/85 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
+    // Bewusst solide (kein backdrop-blur): translucente/komposite Leisten lösen
+    // auf iOS-WebKit einen Repaint-Bug aus – die aktive Markierung wird dann
+    // erst beim nächsten Antippen neu gezeichnet. Auf Mobil ist der Blur ohnehin
+    // deaktiviert, optisch ändert sich also nichts.
+    <nav data-tour="nav" className="shrink-0 border-t border-stone-200/70 bg-white pb-[env(safe-area-inset-bottom)] sm:hidden">
       <div className="flex items-stretch">
         {VIEWS.map((v) => {
           const Icon = v.icon
@@ -19,6 +23,11 @@ export function BottomNav() {
             <button
               key={v.id}
               data-tour={v.id === 'study' ? 'tab-study' : undefined}
+              // iOS-WebKit (Safari & Chrome) verschluckt auf solchen Tab-Leisten
+              // oft den ersten Tap – die Markierung wandert dann erst beim
+              // zweiten mit. Wir reagieren schon auf pointerdown (sofort) und
+              // behalten onClick für Tastatur/Barrierefreiheit.
+              onPointerDown={() => setView(v.id)}
               onClick={() => setView(v.id)}
               aria-label={v.label}
               aria-current={active ? 'page' : undefined}
