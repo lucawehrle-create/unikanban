@@ -103,16 +103,17 @@ function toDraft(name: string, idx: number): CourseDraft {
 type Msg = { id: string; role: 'bot' | 'user'; text: string }
 type Phase =
   | 'boot' | 'subject' | 'type' | 'fachsemester' | 'semester' | 'semesterCustom'
-  | 'courses' | 'times' | 'weeklyWhich' | 'weeklyDay' | 'exams'
+  | 'courses' | 'finishOrMore' | 'times' | 'weeklyWhich' | 'weeklyDay' | 'exams'
   | 'prior' | 'priorInput' | 'review' | 'done'
 
-// Fortschritt: welcher der sichtbaren Schritte ist aktiv (für die Kopf-Leiste).
+// Fortschritt orientiert sich am kurzen Pflicht-Pfad (Studiengang → Abschluss →
+// Kurse → fast fertig); optionale Schritte verlängern die Leiste bewusst nicht.
 const STEP_OF: Record<Phase, number> = {
-  boot: 0, subject: 0, type: 0, fachsemester: 0, semester: 1, semesterCustom: 1,
-  courses: 2, times: 3, weeklyWhich: 4, weeklyDay: 4, exams: 5,
-  prior: 6, priorInput: 6, review: 7, done: 7,
+  boot: 0, subject: 0, type: 1, fachsemester: 3, semester: 1, semesterCustom: 1,
+  courses: 2, finishOrMore: 3, times: 3, weeklyWhich: 3, weeklyDay: 3, exams: 3,
+  prior: 3, priorInput: 3, review: 3, done: 3,
 }
-const TOTAL_STEPS = 8
+const TOTAL_STEPS = 4
 
 type DraftShape = {
   name: string; type: ProgramType; target: number; fs: number
@@ -216,7 +217,7 @@ export function OnboardingChat() {
         return
       }
     } catch { /* defekter Speicher → frisch starten */ }
-    void say(['Hi! 👋 Ich richte SemBan mit dir ein — das dauert keine Minute.', 'Was studierst du?'], 'subject')
+    void say(['Hi! 👋 In 30 Sekunden startklar — was studierst du?'], 'subject')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -237,26 +238,31 @@ export function OnboardingChat() {
     for (const line of lines) {
       if (!reduceMotion) {
         setTyping(true)
-        await sleep(Math.min(700, 280 + line.length * 12))
+        await sleep(Math.min(230, 60 + line.length * 4))
         setTyping(false)
       }
       setMsgs((m) => [...m, { id: uid(), role: 'bot', text: line }])
-      if (!reduceMotion) await sleep(140)
+      if (!reduceMotion) await sleep(45)
     }
     setPhase(next)
   }
   const pushUser = (t: string) => setMsgs((m) => [...m, { id: uid(), role: 'user', text: t }])
 
   // ---- Schritt-Handler ----------------------------------------------------
-  // Studiengang gesetzt (per Kachel oder Freitext) → passend weiterleiten.
+  // Kursfrage — Pflicht-Pfad endet hier (alles Weitere ist optional).
+  function goCourses() {
+    setPhase('boot')
+    void say(['Welche Kurse hast du gerade? 📚', 'Tipp sie untereinander — oder füg deinen Stundenplan ein.'], 'courses')
+  }
+
+  // Studiengang gesetzt (per Kachel oder Freitext) → direkt zu Abschluss/Kursen.
   function setSubject(name: string, type?: ProgramType, fs?: number) {
     draft.current.name = name
     if (type) { draft.current.type = type; draft.current.target = TARGET_BY_TYPE[type] }
     if (fs) draft.current.fs = fs
     setPhase('boot')
-    if (!type) { void say([`${name} — cool.`, 'Bachelor oder Master?'], 'type'); return }
-    if (!fs) { void say([`Alles klar: ${name} · ${TYPE_LABEL[type]}.`, 'In welchem Fachsemester bist du?'], 'fachsemester'); return }
-    void say([`Alles klar: ${name} · ${TYPE_LABEL[type]} · ${fs}. Semester.`, 'Welches Semester läuft gerade?'], 'semester')
+    if (!type) { void say(['Bachelor oder Master?'], 'type'); return }
+    goCourses()
   }
 
   function submitSubject() {
@@ -275,11 +281,9 @@ export function OnboardingChat() {
     setSubject(name)
   }
 
-  // Nach Bachelor/Master → Fachsemester (falls noch unbekannt), sonst Semester-Name.
+  // Nach Bachelor/Master direkt zu den Kursen (Pflicht-Pfad kurz halten).
   function afterType() {
-    setPhase('boot')
-    if (draft.current.fs) { void say(['Welches Semester läuft gerade?'], 'semester'); return }
-    void say(['In welchem Fachsemester bist du?'], 'fachsemester')
+    goCourses()
   }
   function chooseType(t: ProgramType) {
     checkpoint('type')
@@ -303,8 +307,7 @@ export function OnboardingChat() {
     checkpoint('fachsemester')
     draft.current.fs = n
     pushUser(`${n}. Semester`)
-    setPhase('boot')
-    void say(['Welches Semester läuft gerade?'], 'semester')
+    goPrior()
   }
   function submitFsText() {
     const v = text.trim()
@@ -314,8 +317,7 @@ export function OnboardingChat() {
     draft.current.fs = Number.isFinite(n) ? n : 0
     pushUser(v)
     setText('')
-    setPhase('boot')
-    void say(['Welches Semester läuft gerade?'], 'semester')
+    goPrior()
   }
 
   function chooseSemester(name: string) {
@@ -383,9 +385,20 @@ export function OnboardingChat() {
     setPhase('boot')
     void say(
       [
-        'Wann finden die Vorlesungen statt? (optional)',
-        'Tipp bei einem Kurs auf „+ Zeit" und wähl Tag & Uhrzeit.',
+        'Das reicht zum Loslegen 🎉',
+        'Magst du noch Zeiten, Übungsblätter & Klausurtermine ergänzen? Daraus baue ich dir Lernpläne.',
       ],
+      'finishOrMore',
+    )
+  }
+
+  // „Mehr einrichten" → der optionale, wertvolle Teil (Zeiten/Blätter/Klausuren).
+  function goMore() {
+    checkpoint('finishOrMore')
+    pushUser('Mehr einrichten')
+    setPhase('boot')
+    void say(
+      ['Wann finden die Vorlesungen statt? (optional)', 'Tipp bei einem Kurs auf „+ Zeit" und wähl Tag & Uhrzeit.'],
       'times',
     )
   }
@@ -467,6 +480,11 @@ export function OnboardingChat() {
   function examsDone() {
     checkpoint('exams')
     draft.current.courses = courses
+    if (!draft.current.fs) {
+      setPhase('boot')
+      void say(['Fast fertig — in welchem Fachsemester bist du?'], 'fachsemester')
+      return
+    }
     goPrior()
   }
 
@@ -542,13 +560,15 @@ export function OnboardingChat() {
     await say([`Perfekt — ich lege dein Semester, ${parts.join(', ')} an … 🚀`], 'done')
     try {
       useUI.getState().setDemo(false)
+      // Ohne ausgefüllten Studienstand: grob aus dem Fachsemester schätzen.
+      const priorE = d.priorEcts || (d.fs > 1 ? (d.fs - 1) * 30 : 0)
       const pid = await createProgram({
         name: d.name.trim() || 'Mein Studium',
         type: d.type,
         targetEcts: d.target,
-        priorEcts: d.priorEcts || undefined,
+        priorEcts: priorE || undefined,
         priorGradeAvg: d.priorAvg || undefined,
-        priorGradedEcts: d.priorEcts || undefined,
+        priorGradedEcts: priorE || undefined,
       })
       const sid = await createSemester({
         programId: pid,
@@ -928,10 +948,17 @@ export function OnboardingChat() {
             <div className="space-y-2">
               <ChipRow>
                 <Chip primary onClick={coursesDone}>
-                  {reviewing.current ? 'Fertig' : courses.length ? `Passt — weiter (${courses.length})` : 'Weiter'}
+                  {reviewing.current ? 'Fertig' : courses.length ? `Weiter (${courses.length})` : 'Weiter'}
                 </Chip>
               </ChipRow>
             </div>
+          )}
+
+          {phase === 'finishOrMore' && (
+            <ChipRow>
+              <Chip onClick={goMore}>Mehr einrichten</Chip>
+              <Chip primary onClick={() => { pushUser('Direkt loslegen 🚀'); void finish() }}>Direkt loslegen 🚀</Chip>
+            </ChipRow>
           )}
 
           {phase === 'times' && (
