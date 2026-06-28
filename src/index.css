@@ -85,6 +85,19 @@
   color-scheme: light;
 }
 
+/* iOS Safari hält jeden Tap ~300 ms zurück, um auf einen zweiten (Doppeltipp-
+   Zoom) zu warten – dadurch wirkt es, als müsste man Buttons doppelt antippen,
+   bis z. B. die aktive Tab-Markierung mitwandert. „manipulation" schaltet den
+   Doppeltipp-Zoom für Bedienelemente ab (Pinch-Zoom bleibt erhalten), Taps
+   lösen sofort und einfach aus. */
+button,
+a,
+label,
+[role='button'],
+[role='tab'] {
+  touch-action: manipulation;
+}
+
 html,
 body,
 #root {
