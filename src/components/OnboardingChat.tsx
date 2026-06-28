@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { startOfWeek, format } from 'date-fns'
-import { FileText, Send, Sparkles, X } from 'lucide-react'
+import { ArrowLeft, FileText, Send, Sparkles, X } from 'lucide-react'
 import { Logo } from './Logo'
-import type { Course, CourseSlot, ProgramType, RecurringConfig, SlotKind } from '@/db/types'
+import type { Course, CourseSlot, ProgramType, RecurringConfig, SlotKind, Task } from '@/db/types'
 import { db, uid } from '@/db/db'
 import { createProgram, createSemester } from '@/lib/actions'
 import { generateRecurringTasks } from '@/lib/recurring'
+import { makePhases } from '@/lib/taskTypes'
 import { seedIfEmpty } from '@/lib/seed'
 import { useUI } from '@/store/ui'
 import { cn } from '@/lib/cn'
@@ -112,30 +113,69 @@ function makeShort(name: string): string {
   return short || name.replace(/\s+/g, '').slice(0, 4).toUpperCase() || 'KURS'
 }
 
+/** „18.02." / „18.2.2027" → yyyy-MM-dd (ohne Jahr: nächstes künftiges Datum). */
+function parseExamDate(rest: string): string | null {
+  const m = rest.match(/(\d{1,2})\.\s*(\d{1,2})\.?\s*(\d{2,4})?/)
+  if (!m) return null
+  const day = Number(m[1]), mon = Number(m[2])
+  if (mon < 1 || mon > 12 || day < 1 || day > 31) return null
+  const today = new Date()
+  const year = m[3] ? (Number(m[3]) < 100 ? 2000 + Number(m[3]) : Number(m[3])) : today.getFullYear()
+  let d = new Date(year, mon - 1, day)
+  const midnight = new Date(today.getFullYear(), today.getMonth(), today.getDate())
+  if (!m[3] && d.getTime() < midnight.getTime()) d = new Date(year + 1, mon - 1, day)
+  if (Number.isNaN(d.getTime()) || d.getDate() !== day) return null
+  return format(d, 'yyyy-MM-dd')
+}
+
 interface CourseDraft {
   name: string
   short: string
   color: string
   slots: CourseSlot[]
   weekly: boolean
+  exam?: string // yyyy-MM-dd
 }
 function toDraft(name: string, idx: number): CourseDraft {
   return { name, short: makeShort(name), color: PALETTE[idx % PALETTE.length], slots: [], weekly: false }
 }
 
+/** Findet den Kurs, dessen Name/Kürzel in der Zeile vorkommt (längster zuerst). */
+function matchCourse(line: string, list: CourseDraft[]): number | null {
+  const low = line.toLowerCase()
+  const idx = list
+    .map((c, i) => ({ i, key: c.name.toLowerCase() }))
+    .sort((a, b) => b.key.length - a.key.length)
+    .find(({ i, key }) => low.includes(key) || low.startsWith(list[i].short.toLowerCase()))?.i
+  return idx ?? null
+}
+/** Schneidet den erkannten Kursnamen/das Kürzel vom Zeilenanfang ab. */
+function stripCourse(line: string, c: CourseDraft): string {
+  const low = line.toLowerCase()
+  if (low.includes(c.name.toLowerCase())) return line.slice(low.indexOf(c.name.toLowerCase()) + c.name.length)
+  return line.replace(new RegExp('^' + c.short, 'i'), '')
+}
+
 type Msg = { id: string; role: 'bot' | 'user'; text: string }
 type Phase =
   | 'boot' | 'subject' | 'type' | 'semester' | 'semesterCustom'
-  | 'courses' | 'times' | 'weeklyWhich' | 'weeklyDay'
+  | 'courses' | 'times' | 'weeklyWhich' | 'weeklyDay' | 'exams'
   | 'prior' | 'priorInput' | 'review' | 'done'
 
 // Fortschritt: welcher der sichtbaren Schritte ist aktiv (für die Kopf-Leiste).
 const STEP_OF: Record<Phase, number> = {
   boot: 0, subject: 0, type: 0, semester: 1, semesterCustom: 1,
-  courses: 2, times: 3, weeklyWhich: 4, weeklyDay: 4,
-  prior: 5, priorInput: 5, review: 6, done: 6,
+  courses: 2, times: 3, weeklyWhich: 4, weeklyDay: 4, exams: 5,
+  prior: 6, priorInput: 6, review: 7, done: 7,
 }
-const TOTAL_STEPS = 7
+const TOTAL_STEPS = 8
+
+// Schritte, zu denen „Zurück" zurückspringen kann (stabile Frage-Phasen).
+type Checkpoint = {
+  phase: Phase; msgsLen: number
+  draft: { name: string; type: ProgramType; target: number; semName: string; semStart: string; semWeeks: number; courses: CourseDraft[]; priorEcts: number; priorAvg: number }
+  courses: CourseDraft[]; weeklyDay: number; priorEcts: string; priorAvg: string
+}
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const STORE_KEY = 'semban.onboarding.v1'
@@ -166,6 +206,42 @@ export function OnboardingChat() {
   const started = useRef(false)
   const reviewing = useRef(false) // true, wenn vom Überblick aus Kurse bearbeitet werden
   const maxStep = useRef(0) // höchster erreichter Schritt (für die Fortschrittsleiste)
+  const history = useRef<Checkpoint[]>([]) // Zurück-Stapel
+  const [histLen, setHistLen] = useState(0)
+  // Animationen/Verzögerungen bei „prefers-reduced-motion" überspringen.
+  const reduceMotion = useRef(
+    typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false,
+  ).current
+
+  // Momentaufnahme vor dem Beantworten eines Schritts (für „Zurück").
+  function checkpoint(atPhase: Phase) {
+    history.current.push({
+      phase: atPhase,
+      msgsLen: msgs.length,
+      draft: JSON.parse(JSON.stringify(draft.current)),
+      courses: JSON.parse(JSON.stringify(courses)),
+      weeklyDay, priorEcts, priorAvg,
+    })
+    setHistLen(history.current.length)
+  }
+
+  function goBack() {
+    const cp = history.current.pop()
+    setHistLen(history.current.length)
+    if (!cp) return
+    setTyping(false)
+    reviewing.current = false
+    setMsgs((m) => m.slice(0, cp.msgsLen))
+    draft.current = cp.draft
+    setCourses(cp.courses)
+    setWeeklyDay(cp.weeklyDay)
+    setPriorEcts(cp.priorEcts)
+    setPriorAvg(cp.priorAvg)
+    setText('')
+    setPhase(cp.phase)
+  }
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -209,11 +285,13 @@ export function OnboardingChat() {
 
   async function say(lines: string[], next: Phase) {
     for (const line of lines) {
-      setTyping(true)
-      await sleep(Math.min(700, 280 + line.length * 12))
-      setTyping(false)
+      if (!reduceMotion) {
+        setTyping(true)
+        await sleep(Math.min(700, 280 + line.length * 12))
+        setTyping(false)
+      }
       setMsgs((m) => [...m, { id: uid(), role: 'bot', text: line }])
-      await sleep(140)
+      if (!reduceMotion) await sleep(140)
     }
     setPhase(next)
   }
@@ -223,6 +301,7 @@ export function OnboardingChat() {
   function submitSubject() {
     const v = text.trim()
     if (!v) return
+    checkpoint('subject')
     pushUser(v)
     setText('')
     const { name, type, fs } = parseSubject(v)
@@ -239,6 +318,7 @@ export function OnboardingChat() {
   }
 
   function chooseType(t: ProgramType) {
+    checkpoint('type')
     draft.current.type = t
     draft.current.target = TARGET_BY_TYPE[t]
     pushUser(TYPE_LABEL[t])
@@ -247,6 +327,7 @@ export function OnboardingChat() {
   }
 
   function chooseSemester(name: string) {
+    checkpoint('semester')
     draft.current.semName = name
     pushUser(name)
     setPhase('boot')
@@ -306,6 +387,7 @@ export function OnboardingChat() {
       void say(['Aktualisiert ✅'], 'review')
       return
     }
+    checkpoint('courses')
     setPhase('boot')
     void say(
       [
@@ -325,21 +407,10 @@ export function OnboardingChat() {
     setCourses((cur) => {
       const next = cur.map((c) => ({ ...c, slots: [...c.slots] }))
       for (const line of lines) {
-        // Kurs per Name/Kürzel am Zeilenanfang finden (längster Name zuerst).
-        const idx = next
-          .map((c, i) => ({ i, key: c.name.toLowerCase() }))
-          .sort((a, b) => b.key.length - a.key.length)
-          .find(({ i, key }) => {
-            const low = line.toLowerCase()
-            return low.includes(key) || low.startsWith(next[i].short.toLowerCase())
-          })?.i
+        const idx = matchCourse(line, next)
         if (idx == null) continue
         const c = next[idx]
-        const rest = line
-          .toLowerCase().includes(c.name.toLowerCase())
-          ? line.slice(line.toLowerCase().indexOf(c.name.toLowerCase()) + c.name.length)
-          : line.replace(new RegExp('^' + c.short, 'i'), '')
-        const slot = parseSlotFromText(rest)
+        const slot = parseSlotFromText(stripCourse(line, c))
         if (!slot) continue
         c.slots.push({ id: uid(), ...slot })
         matched++
@@ -361,6 +432,7 @@ export function OnboardingChat() {
   }
 
   function timesDone() {
+    checkpoint('times')
     setPhase('boot')
     void say(
       [
@@ -375,12 +447,25 @@ export function OnboardingChat() {
     setCourses((cur) => cur.map((c, j) => (j === i ? { ...c, weekly: !c.weekly } : c)))
   }
 
+  // Übergang zum (optionalen) Klausur-Schritt — schaltet später den Lernplan frei.
+  function goExams(lead: string[]) {
+    setPhase('boot')
+    void say(
+      [
+        ...lead,
+        'Wann sind deine Klausuren? (optional)',
+        'Schreib z.B. „Analysis II 18.02." — eine Zeile pro Klausur. Damit ist dein Lernplan später nur einen Klick entfernt.',
+      ],
+      'exams',
+    )
+  }
+
   function weeklyWhichDone() {
+    checkpoint('weeklyWhich')
     if (!courses.some((c) => c.weekly)) {
       pushUser('Keine')
       draft.current.courses = courses
-      setPhase('boot')
-      void say(['Alles klar, keine Serien.', 'Hast du schon ECTS oder einen Schnitt aus früheren Semestern?'], 'prior')
+      goExams(['Alles klar, keine Serien.'])
       return
     }
     pushUser(courses.filter((c) => c.weekly).map((c) => c.short).join(', '))
@@ -389,14 +474,50 @@ export function OnboardingChat() {
   }
 
   function chooseWeeklyDay(day: number) {
+    checkpoint('weeklyDay')
     setWeeklyDay(day)
     pushUser(WEEKDAY_SHORT[day])
+    draft.current.courses = courses
+    goExams([])
+  }
+
+  function addExams() {
+    const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean)
+    if (!lines.length) return
+    pushUser(text.trim())
+    setText('')
+    let matched = 0
+    setCourses((cur) => {
+      const next = cur.map((c) => ({ ...c }))
+      for (const line of lines) {
+        const idx = matchCourse(line, next)
+        if (idx == null) continue
+        const date = parseExamDate(stripCourse(line, next[idx]))
+        if (!date) continue
+        next[idx].exam = date
+        matched++
+      }
+      const missed = lines.length - matched
+      const out: string[] = []
+      if (matched) out.push(`${matched} Klausurtermin${matched > 1 ? 'e' : ''} eingetragen ✅`)
+      if (missed) out.push(matched
+        ? `${missed} Zeile${missed > 1 ? 'n' : ''} ohne Treffer — beginn mit Kursname + Datum (z.B. „Analysis II 18.02.").`
+        : `Hmm, keinen Treffer. Format: Kursname + Datum, z.B. „${next[0]?.name ?? 'Analysis II'} 18.02.".`)
+      setPhase('boot')
+      void say(out.length ? out : ['Alles klar.'], 'exams')
+      return next
+    })
+  }
+
+  function examsDone() {
+    checkpoint('exams')
     draft.current.courses = courses
     setPhase('boot')
     void say(['Hast du schon ECTS oder einen Schnitt aus früheren Semestern?'], 'prior')
   }
 
   function choosePrior(withPrior: boolean) {
+    checkpoint('prior')
     if (!withPrior) {
       draft.current.priorEcts = 0
       draft.current.priorAvg = 0
@@ -438,12 +559,13 @@ export function OnboardingChat() {
     const d = draft.current
     const list = courses.filter((c) => c.name.trim())
     const weeklyN = list.filter((c) => c.weekly).length
+    const examN = list.filter((c) => c.exam).length
     const taskApprox = weeklyN * d.semWeeks
+    const parts = [`${list.length} Kurs${list.length === 1 ? '' : 'e'}`]
+    if (taskApprox) parts.push(`~${taskApprox} Abgaben`)
+    if (examN) parts.push(`${examN} Klausur${examN === 1 ? '' : 'en'}`)
     setPhase('done')
-    await say(
-      [`Perfekt — ich lege dein Semester, ${list.length} Kurs${list.length === 1 ? '' : 'e'}${taskApprox ? ` und ~${taskApprox} Abgaben` : ''} an … 🚀`],
-      'done',
-    )
+    await say([`Perfekt — ich lege dein Semester, ${parts.join(', ')} an … 🚀`], 'done')
     try {
       useUI.getState().setDemo(false)
       const pid = await createProgram({
@@ -487,11 +609,37 @@ export function OnboardingChat() {
           }
         })
       if (records.length) await db.courses.bulkAdd(records)
-      // Wöchentliche Serien → echte Aufgaben fürs ganze Semester materialisieren.
-      if (sem) {
-        const tasks = records.flatMap((c) => generateRecurringTasks(c, sem))
-        if (tasks.length) await db.tasks.bulkAdd(tasks)
+      // Klausuren als Termine (type 'klausur') – Lernplan ist damit nur 1 Klick entfernt.
+      const nowIso = new Date().toISOString()
+      const examTasks: Task[] = []
+      records.forEach((rec, i) => {
+        const ex = list[i]?.exam
+        if (!ex) return
+        examTasks.push({
+          id: uid(),
+          semesterId: sid,
+          courseId: rec.id,
+          type: 'klausur',
+          title: `Klausur ${rec.name}`,
+          status: 'offen',
+          priority: 'hoch',
+          dueDate: new Date(`${ex}T09:00:00`).toISOString(),
+          phases: makePhases('klausur'),
+          order: 900 + i,
+          createdAt: nowIso,
+        })
+      })
+      // Eine Klausurenphase über die Klausurtermine (für Countdown/Klausurphase-Ansicht).
+      const examDates = list.map((c) => c.exam).filter((x): x is string => !!x).sort()
+      if (examDates.length) {
+        await db.semesters.update(sid, {
+          examPhases: [{ id: uid(), label: 'Klausurenphase', start: examDates[0], end: examDates[examDates.length - 1] }],
+        })
       }
+      // Wöchentliche Serien → echte Aufgaben fürs ganze Semester materialisieren.
+      const recurringTasks = sem ? records.flatMap((c) => generateRecurringTasks(c, sem)) : []
+      const allTasks = [...recurringTasks, ...examTasks]
+      if (allTasks.length) await db.tasks.bulkAdd(allTasks)
       // App rendert nach Anlegen automatisch um (programCount > 0).
     } catch {
       setBusy(false)
@@ -513,18 +661,20 @@ export function OnboardingChat() {
   }
 
   // ---- Eingabezeile je nach Phase -----------------------------------------
-  const multiline = phase === 'courses' || phase === 'times'
-  const showText = phase === 'subject' || phase === 'semesterCustom' || phase === 'courses' || phase === 'times'
+  const multiline = phase === 'courses' || phase === 'times' || phase === 'exams'
+  const showText = phase === 'subject' || phase === 'semesterCustom' || multiline
   const placeholder =
     phase === 'subject' ? 'z.B. Informatik Bachelor, 3. Semester'
       : phase === 'semesterCustom' ? 'z.B. WiSe 2026/27'
         : phase === 'times' ? 'z.B. Analysis II Mo 10-12 HS1'
-          : 'z.B. Analysis II, Lineare Algebra, Programmierung'
+          : phase === 'exams' ? 'z.B. Analysis II 18.02.'
+            : 'z.B. Analysis II, Lineare Algebra, Programmierung'
   function onSubmitText() {
     if (phase === 'subject') submitSubject()
     else if (phase === 'semesterCustom') submitSemesterCustom()
     else if (phase === 'courses') addCourses()
     else if (phase === 'times') addTimes()
+    else if (phase === 'exams') addExams()
   }
 
   // Fortschritt steigt nur (kein Zurückspringen während „boot"/Tippen).
@@ -535,6 +685,15 @@ export function OnboardingChat() {
     <div className="flex h-full flex-col bg-cream-50">
       {/* Kopf */}
       <header className="flex items-center gap-3 border-b border-stone-200/70 bg-white/70 px-4 py-3 backdrop-blur">
+        {histLen > 0 && phase !== 'boot' && phase !== 'done' && (
+          <button
+            onClick={goBack}
+            aria-label="Einen Schritt zurück"
+            className="-ml-1 rounded-full p-1.5 text-stone-400 transition hover:bg-stone-100 hover:text-stone-700"
+          >
+            <ArrowLeft size={18} />
+          </button>
+        )}
         <Logo size={34} />
         <div className="leading-tight">
           <div className="text-sm font-bold text-stone-800">SemBan-Assistent</div>
@@ -560,20 +719,20 @@ export function OnboardingChat() {
 
       {/* Verlauf */}
       <div className="flex-1 overflow-y-auto px-4 py-5">
-        <div className="mx-auto flex max-w-xl flex-col gap-2.5">
+        <div className="mx-auto flex max-w-xl flex-col gap-2.5" role="log" aria-live="polite" aria-label="Gespräch mit dem SemBan-Assistenten">
           {msgs.map((m) => (
             <Bubble key={m.id} role={m.role}>{m.text}</Bubble>
           ))}
           {typing && (
             <Bubble role="bot">
-              <span className="inline-flex gap-1 py-0.5">
+              <span className="inline-flex gap-1 py-0.5" aria-label="SemBan schreibt">
                 <Dot /> <Dot d="0.15s" /> <Dot d="0.3s" />
               </span>
             </Bubble>
           )}
 
-          {/* Kurs-Chips (mit Termin-Hinweis ab dem Zeiten-Schritt) */}
-          {(phase === 'courses' || phase === 'times' || phase === 'prior' || phase === 'priorInput') && courses.length > 0 && (
+          {/* Kurs-Chips (mit Termin-/Klausur-Hinweis ab den optionalen Schritten) */}
+          {(phase === 'courses' || phase === 'times' || phase === 'exams' || phase === 'prior' || phase === 'priorInput') && courses.length > 0 && (
             <div className="mt-1 flex flex-wrap gap-1.5">
               {courses.map((c, i) => (
                 <span
@@ -587,8 +746,11 @@ export function OnboardingChat() {
                       {c.slots.map((s) => `${WEEKDAY_SHORT[s.weekday]} ${s.start}`).join(' · ')}
                     </span>
                   )}
+                  {c.exam && (
+                    <span className="text-[10px] font-normal text-amber-600">📝 {format(new Date(c.exam), 'dd.MM.')}</span>
+                  )}
                   {phase === 'courses' && (
-                    <button onClick={() => removeCourse(i)} className="rounded-full p-0.5 text-stone-300 hover:bg-stone-100 hover:text-stone-500">
+                    <button onClick={() => removeCourse(i)} aria-label={`${c.name} entfernen`} className="rounded-full p-0.5 text-stone-300 hover:bg-stone-100 hover:text-stone-500">
                       <X size={12} />
                     </button>
                   )}
@@ -622,6 +784,7 @@ export function OnboardingChat() {
                       <div className="text-[11px] text-stone-400">
                         {c.slots.length ? c.slots.map((s) => `${WEEKDAY_SHORT[s.weekday]} ${s.start}`).join(' · ') : 'keine Zeit'}
                         {c.weekly ? ' · wöchentl. Blatt' : ''}
+                        {c.exam ? ` · Klausur ${format(new Date(c.exam), 'dd.MM.')}` : ''}
                       </div>
                     </div>
                     <input
@@ -633,6 +796,8 @@ export function OnboardingChat() {
                     <button
                       onClick={() => toggleWeekly(i)}
                       title="Wöchentliche Übungsblätter"
+                      aria-label={`Wöchentliche Übungsblätter für ${c.name} ${c.weekly ? 'aus' : 'ein'}schalten`}
+                      aria-pressed={c.weekly}
                       className={cn('shrink-0 rounded-md p-1.5 transition', c.weekly ? 'bg-brand-400 text-stone-900' : 'text-stone-300 hover:bg-stone-100 hover:text-stone-500')}
                     >
                       <FileText size={14} />
@@ -690,6 +855,14 @@ export function OnboardingChat() {
             </ChipRow>
           )}
 
+          {phase === 'exams' && (
+            <ChipRow>
+              <Chip primary onClick={examsDone}>
+                {courses.some((c) => c.exam) ? 'Fertig — weiter' : 'Überspringen'}
+              </Chip>
+            </ChipRow>
+          )}
+
           {phase === 'weeklyWhich' && (
             <div className="space-y-2">
               <ChipRow>
@@ -742,7 +915,7 @@ export function OnboardingChat() {
                 onChange={(e) => setPriorAvg(e.target.value)} placeholder="Schnitt z.B. 2,1"
                 className="w-full rounded-full border border-stone-200 px-4 py-2 text-sm outline-none focus:border-brand-400"
               />
-              <button onClick={submitPrior} className="shrink-0 rounded-full bg-brand-400 p-2.5 text-stone-900 hover:bg-brand-500">
+              <button onClick={submitPrior} aria-label="Übernehmen" className="shrink-0 rounded-full bg-brand-400 p-2.5 text-stone-900 hover:bg-brand-500">
                 <Send size={16} />
               </button>
             </div>
@@ -759,6 +932,7 @@ export function OnboardingChat() {
             <div className="flex items-end gap-2">
               <textarea
                 autoFocus rows={multiline ? 2 : 1} value={text}
+                aria-label="Deine Antwort"
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey && !multiline) { e.preventDefault(); onSubmitText() }
@@ -770,6 +944,7 @@ export function OnboardingChat() {
               <button
                 onClick={onSubmitText}
                 disabled={!text.trim()}
+                aria-label="Senden"
                 className="shrink-0 rounded-full bg-brand-400 p-2.5 text-stone-900 hover:bg-brand-500 disabled:opacity-40"
               >
                 <Send size={16} />
