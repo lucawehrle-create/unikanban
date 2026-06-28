@@ -18,6 +18,16 @@ const PALETTE = [
 const TARGET_BY_TYPE: Record<ProgramType, number> = { bachelor: 180, master: 120, other: 180 }
 const TYPE_LABEL: Record<ProgramType, string> = { bachelor: 'Bachelor', master: 'Master', other: 'Sonstiges' }
 
+// Die häufigsten Studiengänge in Deutschland (nach Einschreibungen) als Schnellwahl.
+const COMMON_PROGRAMS: { icon: string; name: string }[] = [
+  { icon: '📊', name: 'BWL' },
+  { icon: '💻', name: 'Informatik' },
+  { icon: '⚙️', name: 'Maschinenbau' },
+  { icon: '⚖️', name: 'Rechtswissenschaft' },
+  { icon: '🩺', name: 'Medizin' },
+  { icon: '🧠', name: 'Psychologie' },
+]
+
 function suggestSemester(d = new Date()): string {
   const m = d.getMonth() + 1
   const y = d.getFullYear()
@@ -92,22 +102,26 @@ function toDraft(name: string, idx: number): CourseDraft {
 
 type Msg = { id: string; role: 'bot' | 'user'; text: string }
 type Phase =
-  | 'boot' | 'subject' | 'type' | 'semester' | 'semesterCustom'
+  | 'boot' | 'subject' | 'type' | 'fachsemester' | 'semester' | 'semesterCustom'
   | 'courses' | 'times' | 'weeklyWhich' | 'weeklyDay' | 'exams'
   | 'prior' | 'priorInput' | 'review' | 'done'
 
 // Fortschritt: welcher der sichtbaren Schritte ist aktiv (für die Kopf-Leiste).
 const STEP_OF: Record<Phase, number> = {
-  boot: 0, subject: 0, type: 0, semester: 1, semesterCustom: 1,
+  boot: 0, subject: 0, type: 0, fachsemester: 0, semester: 1, semesterCustom: 1,
   courses: 2, times: 3, weeklyWhich: 4, weeklyDay: 4, exams: 5,
   prior: 6, priorInput: 6, review: 7, done: 7,
 }
 const TOTAL_STEPS = 8
 
+type DraftShape = {
+  name: string; type: ProgramType; target: number; fs: number
+  semName: string; semStart: string; semWeeks: number
+  courses: CourseDraft[]; priorEcts: number; priorAvg: number
+}
 // Schritte, zu denen „Zurück" zurückspringen kann (stabile Frage-Phasen).
 type Checkpoint = {
-  phase: Phase; msgsLen: number
-  draft: { name: string; type: ProgramType; target: number; semName: string; semStart: string; semWeeks: number; courses: CourseDraft[]; priorEcts: number; priorAvg: number }
+  phase: Phase; msgsLen: number; draft: DraftShape
   courses: CourseDraft[]; weeklyDay: number; priorEcts: string; priorAvg: string
 }
 
@@ -123,12 +137,12 @@ export function OnboardingChat() {
   const [busy, setBusy] = useState(false)
 
   // Entwurfsdaten
-  const draft = useRef({
-    name: '', type: 'bachelor' as ProgramType, target: 180,
+  const draft = useRef<DraftShape>({
+    name: '', type: 'bachelor', target: 180, fs: 0,
     semName: suggestSemester(),
     semStart: format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'),
     semWeeks: 14,
-    courses: [] as CourseDraft[],
+    courses: [],
     priorEcts: 0, priorAvg: 0,
   })
   const [courses, setCourses] = useState<CourseDraft[]>([])
@@ -234,6 +248,17 @@ export function OnboardingChat() {
   const pushUser = (t: string) => setMsgs((m) => [...m, { id: uid(), role: 'user', text: t }])
 
   // ---- Schritt-Handler ----------------------------------------------------
+  // Studiengang gesetzt (per Kachel oder Freitext) → passend weiterleiten.
+  function setSubject(name: string, type?: ProgramType, fs?: number) {
+    draft.current.name = name
+    if (type) { draft.current.type = type; draft.current.target = TARGET_BY_TYPE[type] }
+    if (fs) draft.current.fs = fs
+    setPhase('boot')
+    if (!type) { void say([`${name} — cool.`, 'Bachelor oder Master?'], 'type'); return }
+    if (!fs) { void say([`Alles klar: ${name} · ${TYPE_LABEL[type]}.`, 'In welchem Fachsemester bist du?'], 'fachsemester'); return }
+    void say([`Alles klar: ${name} · ${TYPE_LABEL[type]} · ${fs}. Semester.`, 'Welches Semester läuft gerade?'], 'semester')
+  }
+
   function submitSubject() {
     const v = text.trim()
     if (!v) return
@@ -241,23 +266,54 @@ export function OnboardingChat() {
     pushUser(v)
     setText('')
     const { name, type, fs } = parseSubject(v)
-    draft.current.name = name
-    setPhase('boot')
-    if (type) {
-      draft.current.type = type
-      draft.current.target = TARGET_BY_TYPE[type]
-      const fsNote = fs ? ` (${fs}. Semester)` : ''
-      void say([`Alles klar: ${name} · ${TYPE_LABEL[type]}${fsNote}.`, 'Welches Semester läuft gerade?'], 'semester')
-    } else {
-      void say([`${name} — cool.`, 'Bachelor oder Master?'], 'type')
-    }
+    setSubject(name, type, fs)
+  }
+  function pickSubject(name: string) {
+    checkpoint('subject')
+    pushUser(name)
+    setText('')
+    setSubject(name)
   }
 
+  // Nach Bachelor/Master → Fachsemester (falls noch unbekannt), sonst Semester-Name.
+  function afterType() {
+    setPhase('boot')
+    if (draft.current.fs) { void say(['Welches Semester läuft gerade?'], 'semester'); return }
+    void say(['In welchem Fachsemester bist du?'], 'fachsemester')
+  }
   function chooseType(t: ProgramType) {
     checkpoint('type')
     draft.current.type = t
     draft.current.target = TARGET_BY_TYPE[t]
     pushUser(TYPE_LABEL[t])
+    afterType()
+  }
+  function submitTypeText() {
+    const v = text.trim()
+    if (!v) return
+    checkpoint('type')
+    draft.current.type = parseSubject(v).type ?? 'other'
+    draft.current.target = TARGET_BY_TYPE[draft.current.type]
+    pushUser(v)
+    setText('')
+    afterType()
+  }
+
+  function chooseFs(n: number) {
+    checkpoint('fachsemester')
+    draft.current.fs = n
+    pushUser(`${n}. Semester`)
+    setPhase('boot')
+    void say(['Welches Semester läuft gerade?'], 'semester')
+  }
+  function submitFsText() {
+    const v = text.trim()
+    if (!v) return
+    checkpoint('fachsemester')
+    const n = parseInt(v.replace(/\D/g, ''), 10)
+    draft.current.fs = Number.isFinite(n) ? n : 0
+    pushUser(v)
+    setText('')
     setPhase('boot')
     void say(['Welches Semester läuft gerade?'], 'semester')
   }
@@ -411,6 +467,25 @@ export function OnboardingChat() {
   function examsDone() {
     checkpoint('exams')
     draft.current.courses = courses
+    goPrior()
+  }
+
+  // Fachsemester clever nutzen: 1. Semester → keine Vorerfahrung; höher → ECTS schätzen.
+  function goPrior() {
+    const fs = draft.current.fs
+    if (fs === 1) {
+      draft.current.priorEcts = 0
+      draft.current.priorAvg = 0
+      goReview()
+      return
+    }
+    if (fs > 1) {
+      const est = (fs - 1) * 30
+      setPriorEcts(String(est))
+      setPhase('boot')
+      void say([`Du bist im ${fs}. Semester — grob ${est} ECTS bisher? (anpassbar; Schnitt optional)`], 'priorInput')
+      return
+    }
     setPhase('boot')
     void say(['Hast du schon ECTS oder einen Schnitt aus früheren Semestern?'], 'prior')
   }
@@ -561,13 +636,17 @@ export function OnboardingChat() {
 
   // ---- Eingabezeile je nach Phase -----------------------------------------
   const multiline = phase === 'courses'
-  const showText = phase === 'subject' || phase === 'semesterCustom' || phase === 'courses'
+  const showText = phase === 'subject' || phase === 'type' || phase === 'fachsemester' || phase === 'semesterCustom' || phase === 'courses'
   const placeholder =
-    phase === 'subject' ? 'z.B. Informatik Bachelor, 3. Semester'
-      : phase === 'semesterCustom' ? 'z.B. WiSe 2026/27'
-        : 'z.B. Analysis II, Lineare Algebra, Programmierung'
+    phase === 'subject' ? 'Anderes Fach eingeben…'
+      : phase === 'type' ? 'Anderer Abschluss (z.B. Staatsexamen)…'
+        : phase === 'fachsemester' ? 'Anderes (z.B. 12)…'
+          : phase === 'semesterCustom' ? 'z.B. WiSe 2026/27'
+            : 'z.B. Analysis II, Lineare Algebra, Programmierung'
   function onSubmitText() {
     if (phase === 'subject') submitSubject()
+    else if (phase === 'type') submitTypeText()
+    else if (phase === 'fachsemester') submitFsText()
     else if (phase === 'semesterCustom') submitSemesterCustom()
     else if (phase === 'courses') addCourses()
   }
@@ -798,12 +877,42 @@ export function OnboardingChat() {
       {/* Eingabe / Chips */}
       <div className="border-t border-stone-200/70 bg-white/70 px-4 py-3 backdrop-blur">
         <div className="mx-auto max-w-xl">
+          {phase === 'subject' && (
+            <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {COMMON_PROGRAMS.map((p) => (
+                <button
+                  key={p.name}
+                  onClick={() => pickSubject(p.name)}
+                  className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5 text-sm font-medium text-stone-700 ring-1 ring-stone-200 transition hover:bg-stone-50 active:scale-[.98]"
+                >
+                  <span className="text-lg leading-none">{p.icon}</span>
+                  <span className="truncate">{p.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
           {phase === 'type' && (
             <ChipRow>
               {(['bachelor', 'master', 'other'] as ProgramType[]).map((t) => (
                 <Chip key={t} onClick={() => chooseType(t)}>{TYPE_LABEL[t]}</Chip>
               ))}
             </ChipRow>
+          )}
+
+          {phase === 'fachsemester' && (
+            <div className="mb-2 flex flex-wrap justify-end gap-2">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                <button
+                  key={n}
+                  onClick={() => chooseFs(n)}
+                  aria-label={`${n}. Fachsemester`}
+                  className="h-10 w-10 rounded-full bg-white text-sm font-semibold text-stone-600 ring-1 ring-stone-200 transition hover:bg-stone-50 active:scale-95"
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
           )}
 
           {phase === 'semester' && (
@@ -907,7 +1016,7 @@ export function OnboardingChat() {
           {showText && (
             <div className="flex items-end gap-2">
               <textarea
-                autoFocus rows={multiline ? 2 : 1} value={text}
+                autoFocus={phase === 'semesterCustom' || phase === 'courses'} rows={multiline ? 2 : 1} value={text}
                 aria-label="Deine Antwort"
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => {
