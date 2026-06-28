@@ -150,6 +150,8 @@ export function OnboardingChat() {
   const [weeklyDay, setWeeklyDay] = useState(5) // Fr
   const [priorEcts, setPriorEcts] = useState('')
   const [priorAvg, setPriorAvg] = useState('')
+  // Sichtbare Viewport-Höhe (schrumpft mit der Tastatur) → kein Layout-Sprung.
+  const [vpH, setVpH] = useState<number | null>(null)
   // Offener Mini-Editor für einen neuen Stundenplan-Slot (welcher Kurs + Felder).
   const [slotEdit, setSlotEdit] = useState<{ course: number; weekday: number; start: string; end: string; room: string } | null>(null)
 
@@ -197,6 +199,21 @@ export function OnboardingChat() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [msgs, typing, phase, courses])
+
+  // Höhe an den sichtbaren Viewport koppeln (iOS-Tastatur verkleinert ihn) –
+  // so bleibt die Eingabe sichtbar und das Layout springt nicht.
+  useEffect(() => {
+    const vv = typeof window !== 'undefined' ? window.visualViewport : null
+    if (!vv) return
+    const update = () => setVpH(vv.height)
+    update()
+    vv.addEventListener('resize', update)
+    vv.addEventListener('scroll', update)
+    return () => {
+      vv.removeEventListener('resize', update)
+      vv.removeEventListener('scroll', update)
+    }
+  }, [])
 
   // Wiederherstellen (nach Tab-Wechsel/Reload) – sonst Begrüßung.
   useEffect(() => {
@@ -677,7 +694,10 @@ export function OnboardingChat() {
   const todayISO = format(new Date(), 'yyyy-MM-dd')
 
   return (
-    <div className="flex h-full justify-center bg-stone-100 sm:items-center sm:p-4">
+    <div
+      className="ob-chat ob-chat-root flex justify-center overflow-hidden bg-stone-100 sm:items-center sm:p-4"
+      style={vpH ? { height: `${vpH}px` } : undefined}
+    >
       {/* Abgegrenzte Chat-Karte: Vollbild auf Mobil, zentrierte Karte auf Desktop. */}
       <div className="flex h-full w-full max-w-xl flex-col overflow-hidden bg-cream-50 sm:h-[min(90vh,860px)] sm:rounded-3xl sm:shadow-xl sm:ring-1 sm:ring-stone-200/80">
       {/* Kopf */}
@@ -999,7 +1019,7 @@ export function OnboardingChat() {
           {phase === 'priorInput' && (
             <div className="flex items-center gap-2">
               <input
-                type="number" inputMode="decimal" autoFocus value={priorEcts}
+                type="number" inputMode="decimal" value={priorEcts}
                 onChange={(e) => setPriorEcts(e.target.value)} placeholder="bisherige ECTS"
                 className="w-full rounded-full border border-stone-200 bg-white px-4 py-2 text-sm outline-none focus:border-brand-400"
               />
@@ -1031,7 +1051,7 @@ export function OnboardingChat() {
           {showText && (
             <div className="flex items-end gap-2">
               <textarea
-                autoFocus={phase === 'semesterCustom' || phase === 'courses'} rows={multiline ? 2 : 1} value={text}
+                rows={multiline ? 2 : 1} value={text}
                 aria-label="Deine Antwort"
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => {

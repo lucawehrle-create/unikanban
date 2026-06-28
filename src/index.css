@@ -91,6 +91,20 @@ body,
   height: 100%;
 }
 
+/* Onboarding-Chat: füllt die echte (dynamische) Viewport-Höhe – ohne dass die
+   Tastatur das Layout sprengt. JS setzt zusätzlich die Visual-Viewport-Höhe. */
+.ob-chat-root {
+  height: 100vh;
+  height: 100dvh;
+}
+/* iOS zoomt bei Fokus auf Felder < 16px. Auf Mobil daher mind. 16px. */
+@media (max-width: 639.98px) {
+  .ob-chat input,
+  .ob-chat textarea {
+    font-size: 16px;
+  }
+}
+
 body {
   margin: 0;
   -webkit-font-smoothing: antialiased;
