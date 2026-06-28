@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { startOfWeek, format } from 'date-fns'
 import { ArrowLeft, FileText, Send, Sparkles, X } from 'lucide-react'
 import { Logo } from './Logo'
-import type { Course, CourseSlot, ProgramType, RecurringConfig, SlotKind, Task } from '@/db/types'
+import type { Course, CourseSlot, ProgramType, RecurringConfig, Task } from '@/db/types'
 import { db, uid } from '@/db/db'
 import { createProgram, createSemester } from '@/lib/actions'
 import { generateRecurringTasks } from '@/lib/recurring'
@@ -52,43 +52,8 @@ function parseCourses(raw: string): string[] {
     .filter(Boolean)
 }
 
-// Wochentag → 1 = Montag … 7 = Sonntag (Slot-/Recurring-Konvention).
-const WEEKDAY_1: Record<string, number> = {
-  mo: 1, mon: 1, montag: 1, di: 2, die: 2, dienstag: 2, mi: 3, mit: 3, mittwoch: 3,
-  do: 4, don: 4, donnerstag: 4, fr: 5, fre: 5, freitag: 5, sa: 6, sam: 6, samstag: 6, so: 7, son: 7, sonntag: 7,
-}
+// 1 = Montag … 7 = Sonntag (Slot-/Recurring-Konvention).
 const WEEKDAY_SHORT = ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
-
-function pad2(n: number) {
-  return String(n).padStart(2, '0')
-}
-
-/** „Mo 10-12 HS1" → Wochentag + Zeit + Raum. Kurszuordnung passiert außerhalb. */
-function parseSlotFromText(rest: string): Omit<CourseSlot, 'id'> | null {
-  const lower = rest.toLowerCase()
-  let weekday = 0
-  for (const tok of lower.split(/[\s,]+/)) {
-    if (tok in WEEKDAY_1) { weekday = WEEKDAY_1[tok]; break }
-  }
-  if (!weekday) return null
-  const m = rest.match(/(\d{1,2})(?::(\d{2}))?\s*(?:-|–|bis)\s*(\d{1,2})(?::(\d{2}))?/)
-  if (!m) return null
-  const start = `${pad2(Number(m[1]))}:${m[2] ?? '00'}`
-  const end = `${pad2(Number(m[3]))}:${m[4] ?? '00'}`
-  let kind: SlotKind = 'vorlesung'
-  if (/tut/i.test(rest)) kind = 'tutorium'
-  else if (/übung|ueb/i.test(rest)) kind = 'uebung'
-  else if (/seminar/i.test(rest)) kind = 'seminar'
-  // Raum = Rest nach Entfernen von Wochentag- und Zeit-Teil.
-  const room = rest
-    .replace(m[0], '')
-    .replace(/\b(mo|di|mi|do|fr|sa|so|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b/gi, '')
-    .replace(/\b(vorlesung|vl|übung|ueb|tut(orium)?|seminar)\b/gi, '')
-    .replace(/[,;]/g, ' ')
-    .replace(/\s{2,}/g, ' ')
-    .trim()
-  return { kind, weekday, start, end, room: room || undefined }
-}
 
 const ROMAN: Record<string, string> = {
   i: '1', ii: '2', iii: '3', iv: '4', v: '5', vi: '6', vii: '7', viii: '8', ix: '9', x: '10',
@@ -113,21 +78,6 @@ function makeShort(name: string): string {
   return short || name.replace(/\s+/g, '').slice(0, 4).toUpperCase() || 'KURS'
 }
 
-/** „18.02." / „18.2.2027" → yyyy-MM-dd (ohne Jahr: nächstes künftiges Datum). */
-function parseExamDate(rest: string): string | null {
-  const m = rest.match(/(\d{1,2})\.\s*(\d{1,2})\.?\s*(\d{2,4})?/)
-  if (!m) return null
-  const day = Number(m[1]), mon = Number(m[2])
-  if (mon < 1 || mon > 12 || day < 1 || day > 31) return null
-  const today = new Date()
-  const year = m[3] ? (Number(m[3]) < 100 ? 2000 + Number(m[3]) : Number(m[3])) : today.getFullYear()
-  let d = new Date(year, mon - 1, day)
-  const midnight = new Date(today.getFullYear(), today.getMonth(), today.getDate())
-  if (!m[3] && d.getTime() < midnight.getTime()) d = new Date(year + 1, mon - 1, day)
-  if (Number.isNaN(d.getTime()) || d.getDate() !== day) return null
-  return format(d, 'yyyy-MM-dd')
-}
-
 interface CourseDraft {
   name: string
   short: string
@@ -138,22 +88,6 @@ interface CourseDraft {
 }
 function toDraft(name: string, idx: number): CourseDraft {
   return { name, short: makeShort(name), color: PALETTE[idx % PALETTE.length], slots: [], weekly: false }
-}
-
-/** Findet den Kurs, dessen Name/Kürzel in der Zeile vorkommt (längster zuerst). */
-function matchCourse(line: string, list: CourseDraft[]): number | null {
-  const low = line.toLowerCase()
-  const idx = list
-    .map((c, i) => ({ i, key: c.name.toLowerCase() }))
-    .sort((a, b) => b.key.length - a.key.length)
-    .find(({ i, key }) => low.includes(key) || low.startsWith(list[i].short.toLowerCase()))?.i
-  return idx ?? null
-}
-/** Schneidet den erkannten Kursnamen/das Kürzel vom Zeilenanfang ab. */
-function stripCourse(line: string, c: CourseDraft): string {
-  const low = line.toLowerCase()
-  if (low.includes(c.name.toLowerCase())) return line.slice(low.indexOf(c.name.toLowerCase()) + c.name.length)
-  return line.replace(new RegExp('^' + c.short, 'i'), '')
 }
 
 type Msg = { id: string; role: 'bot' | 'user'; text: string }
@@ -201,6 +135,8 @@ export function OnboardingChat() {
   const [weeklyDay, setWeeklyDay] = useState(5) // Fr
   const [priorEcts, setPriorEcts] = useState('')
   const [priorAvg, setPriorAvg] = useState('')
+  // Offener Mini-Editor für einen neuen Stundenplan-Slot (welcher Kurs + Felder).
+  const [slotEdit, setSlotEdit] = useState<{ course: number; weekday: number; start: string; end: string; room: string } | null>(null)
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const started = useRef(false)
@@ -392,43 +328,34 @@ export function OnboardingChat() {
     void say(
       [
         'Wann finden die Vorlesungen statt? (optional)',
-        'Schreib z.B. „Analysis II Mo 10-12 HS1" — eine Zeile pro Termin.',
+        'Tipp bei einem Kurs auf „+ Zeit" und wähl Tag & Uhrzeit.',
       ],
       'times',
     )
   }
 
-  function addTimes() {
-    const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean)
-    if (!lines.length) return
-    pushUser(text.trim())
-    setText('')
-    let matched = 0
-    setCourses((cur) => {
-      const next = cur.map((c) => ({ ...c, slots: [...c.slots] }))
-      for (const line of lines) {
-        const idx = matchCourse(line, next)
-        if (idx == null) continue
-        const c = next[idx]
-        const slot = parseSlotFromText(stripCourse(line, c))
-        if (!slot) continue
-        c.slots.push({ id: uid(), ...slot })
-        matched++
-      }
-      const missed = lines.length - matched
-      const lines2: string[] = []
-      if (matched) lines2.push(`${matched} Termin${matched > 1 ? 'e' : ''} eingetragen ✅`)
-      if (missed) {
-        lines2.push(
-          matched
-            ? `${missed} Zeile${missed > 1 ? 'n' : ''} konnte ich nicht zuordnen. Beginn am besten mit dem Kursnamen.`
-            : `Das konnte ich keinem Kurs zuordnen. Beginn die Zeile mit dem Kursnamen, z.B.: ${next.map((c) => c.name).slice(0, 3).join(', ')}`,
-        )
-      }
-      setPhase('boot')
-      void say(lines2.length ? lines2 : ['Alles klar.'], 'times')
-      return next
-    })
+  // --- Strukturierte Eingabe: Stundenplan-Slots (kein Freitext) ---
+  function openSlotEdit(course: number) {
+    setSlotEdit({ course, weekday: 0, start: '10:00', end: '12:00', room: '' })
+  }
+  function addSlot() {
+    if (!slotEdit || !slotEdit.weekday || !slotEdit.start) return
+    const { course, weekday, start, end, room } = slotEdit
+    setCourses((cur) =>
+      cur.map((c, j) =>
+        j === course
+          ? { ...c, slots: [...c.slots, { id: uid(), kind: 'vorlesung', weekday, start, end: end || start, room: room.trim() || undefined }] }
+          : c,
+      ),
+    )
+    setSlotEdit(null)
+  }
+  function removeSlot(course: number, slotId: string) {
+    setCourses((cur) => cur.map((c, j) => (j === course ? { ...c, slots: c.slots.filter((s) => s.id !== slotId) } : c)))
+  }
+  // --- Strukturierte Eingabe: Klausurdatum je Kurs (nativer Date-Picker) ---
+  function setExam(course: number, date: string) {
+    setCourses((cur) => cur.map((c, j) => (j === course ? { ...c, exam: date || undefined } : c)))
   }
 
   function timesDone() {
@@ -454,7 +381,7 @@ export function OnboardingChat() {
       [
         ...lead,
         'Wann sind deine Klausuren? (optional)',
-        'Schreib z.B. „Analysis II 18.02." — eine Zeile pro Klausur. Damit ist dein Lernplan später nur einen Klick entfernt.',
+        'Wähl je Kurs einfach ein Datum — daraus baust du später deinen Lernplan.',
       ],
       'exams',
     )
@@ -479,34 +406,6 @@ export function OnboardingChat() {
     pushUser(WEEKDAY_SHORT[day])
     draft.current.courses = courses
     goExams([])
-  }
-
-  function addExams() {
-    const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean)
-    if (!lines.length) return
-    pushUser(text.trim())
-    setText('')
-    let matched = 0
-    setCourses((cur) => {
-      const next = cur.map((c) => ({ ...c }))
-      for (const line of lines) {
-        const idx = matchCourse(line, next)
-        if (idx == null) continue
-        const date = parseExamDate(stripCourse(line, next[idx]))
-        if (!date) continue
-        next[idx].exam = date
-        matched++
-      }
-      const missed = lines.length - matched
-      const out: string[] = []
-      if (matched) out.push(`${matched} Klausurtermin${matched > 1 ? 'e' : ''} eingetragen ✅`)
-      if (missed) out.push(matched
-        ? `${missed} Zeile${missed > 1 ? 'n' : ''} ohne Treffer — beginn mit Kursname + Datum (z.B. „Analysis II 18.02.").`
-        : `Hmm, keinen Treffer. Format: Kursname + Datum, z.B. „${next[0]?.name ?? 'Analysis II'} 18.02.".`)
-      setPhase('boot')
-      void say(out.length ? out : ['Alles klar.'], 'exams')
-      return next
-    })
   }
 
   function examsDone() {
@@ -661,25 +560,22 @@ export function OnboardingChat() {
   }
 
   // ---- Eingabezeile je nach Phase -----------------------------------------
-  const multiline = phase === 'courses' || phase === 'times' || phase === 'exams'
-  const showText = phase === 'subject' || phase === 'semesterCustom' || multiline
+  const multiline = phase === 'courses'
+  const showText = phase === 'subject' || phase === 'semesterCustom' || phase === 'courses'
   const placeholder =
     phase === 'subject' ? 'z.B. Informatik Bachelor, 3. Semester'
       : phase === 'semesterCustom' ? 'z.B. WiSe 2026/27'
-        : phase === 'times' ? 'z.B. Analysis II Mo 10-12 HS1'
-          : phase === 'exams' ? 'z.B. Analysis II 18.02.'
-            : 'z.B. Analysis II, Lineare Algebra, Programmierung'
+        : 'z.B. Analysis II, Lineare Algebra, Programmierung'
   function onSubmitText() {
     if (phase === 'subject') submitSubject()
     else if (phase === 'semesterCustom') submitSemesterCustom()
     else if (phase === 'courses') addCourses()
-    else if (phase === 'times') addTimes()
-    else if (phase === 'exams') addExams()
   }
 
   // Fortschritt steigt nur (kein Zurückspringen während „boot"/Tippen).
   if (phase !== 'boot') maxStep.current = Math.max(maxStep.current, STEP_OF[phase])
   const shownStep = maxStep.current
+  const todayISO = format(new Date(), 'yyyy-MM-dd')
 
   return (
     <div className="flex h-full flex-col bg-cream-50">
@@ -731,8 +627,8 @@ export function OnboardingChat() {
             </Bubble>
           )}
 
-          {/* Kurs-Chips (mit Termin-/Klausur-Hinweis ab den optionalen Schritten) */}
-          {(phase === 'courses' || phase === 'times' || phase === 'exams' || phase === 'prior' || phase === 'priorInput') && courses.length > 0 && (
+          {/* Kurs-Chips (mit Termin-/Klausur-Hinweis in den Bestätigungs-Schritten) */}
+          {(phase === 'courses' || phase === 'prior' || phase === 'priorInput') && courses.length > 0 && (
             <div className="mt-1 flex flex-wrap gap-1.5">
               {courses.map((c, i) => (
                 <span
@@ -755,6 +651,86 @@ export function OnboardingChat() {
                     </button>
                   )}
                 </span>
+              ))}
+            </div>
+          )}
+
+          {/* Stundenplan-Editor (strukturiert, kein Freitext) */}
+          {phase === 'times' && courses.length > 0 && (
+            <div className="mt-1 rounded-2xl bg-white p-3 text-sm shadow-sm ring-1 ring-stone-200">
+              {courses.map((c, i) => (
+                <div key={i} className="border-b border-stone-100 py-2 last:border-0">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.color }} />
+                    <span className="flex-1 truncate font-medium text-stone-800">{c.name}</span>
+                    {slotEdit?.course !== i && (
+                      <button onClick={() => openSlotEdit(i)} className="rounded-full bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600 hover:bg-stone-200">
+                        + Zeit
+                      </button>
+                    )}
+                  </div>
+                  {c.slots.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1.5 pl-5">
+                      {c.slots.map((s) => (
+                        <span key={s.id} className="inline-flex items-center gap-1 rounded-full bg-stone-50 px-2 py-0.5 text-[11px] text-stone-600 ring-1 ring-stone-200">
+                          {WEEKDAY_SHORT[s.weekday]} {s.start}–{s.end}{s.room ? ` · ${s.room}` : ''}
+                          <button onClick={() => removeSlot(i, s.id)} aria-label="Termin entfernen" className="text-stone-300 hover:text-stone-500">
+                            <X size={11} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {slotEdit?.course === i && (
+                    <div className="mt-2 space-y-2 rounded-xl bg-stone-50 p-2.5">
+                      <div className="flex flex-wrap gap-1">
+                        {[1, 2, 3, 4, 5, 6].map((d) => (
+                          <button
+                            key={d}
+                            onClick={() => setSlotEdit((s) => (s ? { ...s, weekday: d } : s))}
+                            aria-pressed={slotEdit.weekday === d}
+                            className={cn('rounded-full px-2.5 py-1 text-xs font-medium', slotEdit.weekday === d ? 'bg-brand-400 text-stone-900' : 'bg-white text-stone-500 ring-1 ring-stone-200')}
+                          >
+                            {WEEKDAY_SHORT[d]}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <input type="time" value={slotEdit.start} aria-label="Beginn" onChange={(e) => setSlotEdit((s) => (s ? { ...s, start: e.target.value } : s))} className="rounded-lg border border-stone-200 px-2 py-1 text-xs outline-none focus:border-brand-400" />
+                        <span className="text-stone-400">–</span>
+                        <input type="time" value={slotEdit.end} aria-label="Ende" onChange={(e) => setSlotEdit((s) => (s ? { ...s, end: e.target.value } : s))} className="rounded-lg border border-stone-200 px-2 py-1 text-xs outline-none focus:border-brand-400" />
+                        <input value={slotEdit.room} placeholder="Raum (optional)" aria-label="Raum" onChange={(e) => setSlotEdit((s) => (s ? { ...s, room: e.target.value } : s))} className="min-w-0 flex-1 rounded-lg border border-stone-200 px-2 py-1 text-xs outline-none focus:border-brand-400" />
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={addSlot} disabled={!slotEdit.weekday} className="rounded-full bg-brand-400 px-3 py-1 text-xs font-semibold text-stone-900 disabled:opacity-40">Hinzufügen</button>
+                        <button onClick={() => setSlotEdit(null)} className="rounded-full px-3 py-1 text-xs font-medium text-stone-500 hover:bg-stone-100">Abbrechen</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Klausur-Editor (nativer Datums-Picker je Kurs) */}
+          {phase === 'exams' && courses.length > 0 && (
+            <div className="mt-1 rounded-2xl bg-white p-3 text-sm shadow-sm ring-1 ring-stone-200">
+              {courses.map((c, i) => (
+                <div key={i} className="flex items-center gap-2 border-b border-stone-100 py-2 last:border-0">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.color }} />
+                  <span className="flex-1 truncate font-medium text-stone-800">{c.name}</span>
+                  <input
+                    type="date" value={c.exam || ''} min={todayISO}
+                    aria-label={`Klausurdatum ${c.name}`}
+                    onChange={(e) => setExam(i, e.target.value)}
+                    className="rounded-lg border border-stone-200 px-2 py-1 text-xs outline-none focus:border-brand-400"
+                  />
+                  {c.exam && (
+                    <button onClick={() => setExam(i, '')} aria-label="Datum entfernen" className="rounded-md p-1 text-stone-300 hover:text-stone-500">
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           )}
