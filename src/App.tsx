@@ -7,7 +7,7 @@ import { useUI } from '@/store/ui'
 import { Header } from '@/components/Header'
 import { BottomNav } from '@/components/BottomNav'
 import { DemoBanner } from '@/components/DemoBanner'
-import { Onboarding } from '@/components/Onboarding'
+import { OnboardingChat } from '@/components/OnboardingChat'
 import { QuickAdd } from '@/components/QuickAdd'
 import { FilterBar } from '@/components/FilterBar'
 import { Board } from '@/components/Board'
@@ -147,7 +147,7 @@ export default function App() {
   if (isSyncConfigured && user && programCount === 0 && syncStatus !== 'synced') {
     return <SyncLoading />
   }
-  if (programCount === 0) return <Onboarding />
+  if (programCount === 0) return <OnboardingChat />
   if (!program) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-stone-400">Lädt…</div>

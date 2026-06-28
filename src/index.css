@@ -115,3 +115,9 @@ body {
   background-color: rgb(168 162 158 / 0.35);
   border-radius: 9999px;
 }
+
+/* Tipp-Indikator im Chat-Onboarding */
+@keyframes sb-typing {
+  0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-2px); }
+}
