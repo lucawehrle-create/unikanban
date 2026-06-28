@@ -8,7 +8,22 @@ Charcoal). Format 4:5 (Feed) bzw. 1:1 (Profil). Direkt postbar.
 | `post-was-ist-semban.jpeg` | Carousel-Cover „Was ist SemBan?" (Woche 1, Mo) | „Was ist SemBan?" |
 | `post-zu-spaet.png` | Study-Hack Single/Carousel-Cover (Woche 1, Mi) | Spaced Repetition |
 | `post-nicht-faul.png` | Zitat-Karte (Woche 2, Do) | „Nicht faul. Nur schlecht organisiert." |
-| `profilbild.png` | Profilbild (1:1, kreis-sicher) | — |
+| `profilbild.png` | Profilbild (1:1, kreis-sicher) — **echtes Logo, navy** (= `profil-navy`) | — |
+
+### Profilbild-Varianten (echtes SemBan-Logo, 1080×1080, kreis-sicher)
+
+Erzeugt mit `render-profil.mjs` (`node marketing/instagram/visuals/render-profil.mjs`).
+Motiv mittig, funktioniert im Instagram-Kreis-Zuschnitt. **Empfehlung: navy**
+(volle Markenfarbe, größtes Logo → auch im winzigen Profilkreis erkennbar).
+
+| Datei | Look | Hinweis |
+|---|---|---|
+| `profil-navy.png` | Navy randlos, Logo groß & mittig | **Standard** (= `profilbild.png`) |
+| `profil-indigo.png` | Marken-Indigo randlos | lebendiger, knalliger |
+| `profil-cream.png` | Navy Logo-Kachel auf Cream | „App-Badge"-Look, Logo etwas kleiner |
+
+> Das frühere KI-generierte `profilbild.png` (S+Häkchen, Indigo) war **off-brand**
+> und wurde durch das echte Markenzeichen ersetzt.
 
 ## Story-Highlight-Cover (1:1, kreis-sicher, ohne Text)
 
