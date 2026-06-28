@@ -150,8 +150,8 @@ export function OnboardingChat() {
   const [weeklyDay, setWeeklyDay] = useState(5) // Fr
   const [priorEcts, setPriorEcts] = useState('')
   const [priorAvg, setPriorAvg] = useState('')
-  // Sichtbarer Viewport (schrumpft/verschiebt sich mit der Tastatur) → kein Sprung.
-  const [vp, setVp] = useState<{ h: number; top: number } | null>(null)
+  // Höhe des sichtbaren Viewports (schrumpft mit der Tastatur) → kein Sprung.
+  const [vpHeight, setVpHeight] = useState<number | null>(null)
   // Offener Mini-Editor für einen neuen Stundenplan-Slot (welcher Kurs + Felder).
   const [slotEdit, setSlotEdit] = useState<{ course: number; weekday: number; start: string; end: string; room: string } | null>(null)
 
@@ -200,27 +200,35 @@ export function OnboardingChat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [msgs, typing, phase, courses])
 
-  // Container fix am SICHTBAREN Viewport verankern: iOS positioniert fixe/normale
-  // Elemente am Layout-Viewport, nicht am visuellen – daher Höhe UND Offset folgen.
+  // iOS scrollt die Seite, wenn ein Feld fokussiert wird – das verschiebt das
+  // Layout. Lösung: Dokument hart sperren (position:fixed) UND die Container-Höhe
+  // an den sichtbaren Viewport koppeln (verkleinert sich mit der Tastatur).
   useEffect(() => {
-    const vv = typeof window !== 'undefined' ? window.visualViewport : null
-    if (!vv) return
-    const update = () => setVp({ h: vv.height, top: vv.offsetTop })
-    update()
-    vv.addEventListener('resize', update)
-    vv.addEventListener('scroll', update)
-    return () => {
-      vv.removeEventListener('resize', update)
-      vv.removeEventListener('scroll', update)
+    if (typeof document === 'undefined') return
+    const vv = window.visualViewport
+    const body = document.body.style
+    const html = document.documentElement.style
+    const prev = { bp: body.position, bo: body.overflow, bw: body.width, bh: body.height, ho: html.overflow }
+    body.position = 'fixed'
+    body.overflow = 'hidden'
+    body.width = '100%'
+    body.height = '100%'
+    html.overflow = 'hidden'
+    const update = () => {
+      if (vv) setVpHeight(vv.height)
+      window.scrollTo(0, 0)
     }
-  }, [])
-
-  // Hintergrund-Scroll/Bounce verhindern, solange das Onboarding läuft.
-  useEffect(() => {
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    update()
+    vv?.addEventListener('resize', update)
+    vv?.addEventListener('scroll', update)
     return () => {
-      document.body.style.overflow = prev
+      vv?.removeEventListener('resize', update)
+      vv?.removeEventListener('scroll', update)
+      body.position = prev.bp
+      body.overflow = prev.bo
+      body.width = prev.bw
+      body.height = prev.bh
+      html.overflow = prev.ho
     }
   }, [])
 
@@ -705,7 +713,7 @@ export function OnboardingChat() {
   return (
     <div
       className="ob-chat ob-chat-root fixed left-0 right-0 top-0 flex justify-center overflow-hidden bg-stone-100 sm:items-center sm:p-4"
-      style={vp ? { top: `${vp.top}px`, height: `${vp.h}px` } : undefined}
+      style={vpHeight ? { height: `${vpHeight}px` } : undefined}
     >
       {/* Abgegrenzte Chat-Karte: Vollbild auf Mobil, zentrierte Karte auf Desktop. */}
       <div className="flex h-full w-full max-w-xl flex-col overflow-hidden bg-cream-50 sm:h-[min(90vh,860px)] sm:rounded-3xl sm:shadow-xl sm:ring-1 sm:ring-stone-200/80">
