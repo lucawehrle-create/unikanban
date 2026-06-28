@@ -16,14 +16,19 @@ Markenzeichen oben ist das **echte SemBan-Logo** (Balken-Kachel, identisch zur A
 
 ---
 
-## Tipps  (4 Slides)
+## Tipps  (6 Slides — zusammenhängender Slider)
 
-| Datei | Aussage | Sticker live |
-|---|---|---|
-| `story-tipp-1` | „Fang früher an. Nicht härter." | **Quiz**: „Wann lernst du?" |
-| `story-tipp-2` | „Plane die Woche, nicht den Tag." | — |
-| `story-tipp-3` | „Folge der Ampel" (rot/orange/gelb) | — |
-| `story-tipp-4` | „Teile Großes in Kleines." | — |
+Gebaut als echter Mini-Guide: **Cover-Hook → 4 nummerierte Tipps (01–04)
+mit Fortschrittsanzeige & eigener Mini-Visualisierung → CTA-Abschluss.**
+
+| Datei | Aussage | Visual | Sticker live |
+|---|---|---|---|
+| `story-tipp-1` | Cover: „4 Lerntipps fürs Semester." | — | **Quiz**: „Wann lernst du?" |
+| `story-tipp-2` | 01 · „Fang früher an. Nicht härter." | verteilt vs. Nachtschicht (Balken) | — |
+| `story-tipp-3` | 02 · „Plane die Woche, nicht den Tag." | Wochenstreifen Mo–So | — |
+| `story-tipp-4` | 03 · „Folge der Ampel." (rot/orange/gelb) | Ampel-Legende | — |
+| `story-tipp-5` | 04 · „Teile Großes in Kleines." | Berg → abhakbare Schritte | — |
+| `story-tipp-6` | CTA: „SemBan macht das Planen." | — | — |
 
 ## Updates  (2 Slides — Build in Public)
 
