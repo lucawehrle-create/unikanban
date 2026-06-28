@@ -435,8 +435,9 @@ export function OnboardingChat() {
     setPhase('boot')
     void say(
       [
-        'Das reicht zum Loslegen 🎉',
-        'Magst du noch Zeiten, Übungsblätter & Klausurtermine ergänzen? Daraus baue ich dir Lernpläne.',
+        'Fast fertig! 🎉 Das reicht schon, um loszulegen.',
+        'Du kannst optional noch Vorlesungszeiten, wöchentliche Übungsblätter & Klausurtermine eintragen — dann erstelle ich dir automatisch Stundenplan & Lernplan.',
+        'Alles kannst du aber auch jederzeit später in der App ergänzen.',
       ],
       'finishOrMore',
     )
@@ -445,7 +446,7 @@ export function OnboardingChat() {
   // „Mehr einrichten" → der optionale, wertvolle Teil (Zeiten/Blätter/Klausuren).
   function goMore() {
     checkpoint('finishOrMore')
-    pushUser('Mehr einrichten')
+    pushUser('Ja, ergänzen')
     setPhase('boot')
     void say(
       ['Wann finden die Vorlesungen statt? (optional)', 'Tipp bei einem Kurs auf „+ Zeit" und wähl Tag & Uhrzeit.'],
@@ -992,7 +993,7 @@ export function OnboardingChat() {
 
           {phase === 'finishOrMore' && (
             <ChipRow>
-              <Chip onClick={goMore}>Mehr einrichten</Chip>
+              <Chip onClick={goMore}>Ja, ergänzen (2 Min)</Chip>
               <Chip primary onClick={() => { pushUser('Direkt loslegen 🚀'); void finish() }}>Direkt loslegen 🚀</Chip>
             </ChipRow>
           )}
