@@ -152,6 +152,7 @@ export function OnboardingChat() {
   const [priorAvg, setPriorAvg] = useState('')
   // Höhe des sichtbaren Viewports (schrumpft mit der Tastatur) → kein Sprung.
   const [vpHeight, setVpHeight] = useState<number | null>(null)
+  const [fieldFocused, setFieldFocused] = useState(false)
   // Offener Mini-Editor für einen neuen Stundenplan-Slot (welcher Kurs + Felder).
   const [slotEdit, setSlotEdit] = useState<{ course: number; weekday: number; start: string; end: string; room: string } | null>(null)
 
@@ -200,9 +201,10 @@ export function OnboardingChat() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [msgs, typing, phase, courses])
 
-  // iOS scrollt die Seite, wenn ein Feld fokussiert wird – das verschiebt das
-  // Layout. Lösung: Dokument hart sperren (position:fixed) UND die Container-Höhe
-  // an den sichtbaren Viewport koppeln (verkleinert sich mit der Tastatur).
+  // Dokument hart sperren (iOS scrollt sonst beim Fokussieren) + Container-Höhe
+  // nur AN DIE TASTATUR koppeln, solange ein Feld fokussiert ist. Beim Blur wird
+  // sofort auf die volle Höhe zurückgesetzt (focusout feuert zuverlässig, das
+  // visualViewport-resize beim Schließen leider nicht immer).
   useEffect(() => {
     if (typeof document === 'undefined') return
     const vv = window.visualViewport
@@ -214,16 +216,30 @@ export function OnboardingChat() {
     body.width = '100%'
     body.height = '100%'
     html.overflow = 'hidden'
-    const update = () => {
+
+    const isField = (t: EventTarget | null) => {
+      const el = t as HTMLElement | null
+      return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT')
+    }
+    const onVV = () => {
       if (vv) setVpHeight(vv.height)
       window.scrollTo(0, 0)
     }
-    update()
-    vv?.addEventListener('resize', update)
-    vv?.addEventListener('scroll', update)
+    const onFocusIn = (e: FocusEvent) => { if (isField(e.target)) setFieldFocused(true) }
+    const onFocusOut = () => {
+      setFieldFocused(false)
+      window.scrollTo(0, 0)
+    }
+    onVV()
+    vv?.addEventListener('resize', onVV)
+    vv?.addEventListener('scroll', onVV)
+    document.addEventListener('focusin', onFocusIn)
+    document.addEventListener('focusout', onFocusOut)
     return () => {
-      vv?.removeEventListener('resize', update)
-      vv?.removeEventListener('scroll', update)
+      vv?.removeEventListener('resize', onVV)
+      vv?.removeEventListener('scroll', onVV)
+      document.removeEventListener('focusin', onFocusIn)
+      document.removeEventListener('focusout', onFocusOut)
       body.position = prev.bp
       body.overflow = prev.bo
       body.width = prev.bw
@@ -713,7 +729,7 @@ export function OnboardingChat() {
   return (
     <div
       className="ob-chat ob-chat-root fixed left-0 right-0 top-0 flex justify-center overflow-hidden bg-stone-100 sm:items-center sm:p-4"
-      style={vpHeight ? { height: `${vpHeight}px` } : undefined}
+      style={fieldFocused && vpHeight ? { height: `${vpHeight}px` } : undefined}
     >
       {/* Abgegrenzte Chat-Karte: Vollbild auf Mobil, zentrierte Karte auf Desktop. */}
       <div className="flex h-full w-full max-w-xl flex-col overflow-hidden bg-cream-50 sm:h-[min(90vh,860px)] sm:rounded-3xl sm:shadow-xl sm:ring-1 sm:ring-stone-200/80">
