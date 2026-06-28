@@ -54,16 +54,85 @@ function parseSubject(raw: string): { name: string; type?: ProgramType; fs?: num
   return { name: name || t, type, fs }
 }
 
-/** Freitext/Paste in einzelne Kursnamen zerlegen. */
-function parseCourses(raw: string): string[] {
-  return raw
-    .split(/[\n,;]+/)
-    .map((s) => s.replace(/^[-•*\d.)\s]+/, '').trim())
-    .filter(Boolean)
-}
-
 // 1 = Montag … 7 = Sonntag (Slot-/Recurring-Konvention).
 const WEEKDAY_SHORT = ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+
+// --- Smart-Paste: aus eingefügten Stundenplan-Zeilen Kurs + Zeit erkennen ----
+// Zeitspanne, z.B. „10-12", „10:00–12:00", „10 bis 12 Uhr".
+const TIME_RE = /\b(\d{1,2})(?::(\d{2}))?\s*(?:-|–|—|bis)\s*(\d{1,2})(?::(\d{2}))?(?:\s*uhr)?/i
+// Wochentag (Voll- oder Kurzform) als eigenes Wort.
+const DAY_RE = /\b(montags?|dienstags?|mittwochs?|donnerstags?|freitags?|samstags?|sonnabends?|sonntags?|mo|di|mi|do|fr|sa|so)\b\.?/gi
+// Raum – bewusst konservativ (lieber zu selten erkennen als Namen zerstören).
+const ROOM_RE = /\b(?:raum|geb\.?|gebäude)\s+([\w.\-/]+)|\b((?:hs|sr)\s?\.?\s?-?\s?\d+[a-z]?)\b/i
+const DAY_NUM: Record<string, number> = {
+  mo: 1, montag: 1, montags: 1, di: 2, dienstag: 2, dienstags: 2, mi: 3, mittwoch: 3, mittwochs: 3,
+  do: 4, donnerstag: 4, donnerstags: 4, fr: 5, freitag: 5, freitags: 5,
+  sa: 6, samstag: 6, samstags: 6, sonnabend: 6, sonnabends: 6, so: 7, sonntag: 7, sonntags: 7,
+}
+
+function hhmm(h: string, m?: string): string {
+  const hi = Math.min(23, Math.max(0, parseInt(h, 10)))
+  return `${String(hi).padStart(2, '0')}:${(m ?? '00').padStart(2, '0')}`
+}
+
+interface ParsedCourse { name: string; slots: CourseSlot[] }
+
+/** Eine einzelne Stundenplan-Zeile zu Kursname + Slots auflösen. */
+function parseCourseLine(raw: string): ParsedCourse {
+  const cleaned = raw.replace(/^[\s\-•*•\d.)]+/, '').trim()
+  const time = TIME_RE.exec(cleaned)
+  // Slots entstehen nur, wenn Tag UND Zeit erkennbar sind (hohe Präzision):
+  // „Physik 1-3" oder „Mo Seminar" bleiben so unangetastet reine Namen.
+  if (!time) return { name: cleaned, slots: [] }
+
+  const days: number[] = []
+  let rest = cleaned.replace(DAY_RE, (m) => {
+    const n = DAY_NUM[m.replace(/\.$/, '').toLowerCase()]
+    if (n && !days.includes(n)) days.push(n)
+    return ' '
+  })
+  if (!days.length) return { name: cleaned, slots: [] }
+
+  rest = rest.replace(TIME_RE, ' ')
+  let room: string | undefined
+  const rm = ROOM_RE.exec(rest)
+  if (rm) {
+    room = (rm[1] ?? rm[2]).replace(/\s+/g, ' ').trim()
+    rest = rest.replace(ROOM_RE, ' ')
+  }
+  const name = rest
+    .replace(/\buhr\b/gi, ' ')
+    .replace(/[,;/+]+/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/^[\s,;/+-]+|[\s,;/+-]+$/g, '')
+    .trim()
+  const start = hhmm(time[1], time[2])
+  const end = hhmm(time[3], time[4])
+  const slots: CourseSlot[] = days.map((weekday) => ({
+    id: uid(), kind: 'vorlesung', weekday, start, end: end || start, room,
+  }))
+  return { name: name || cleaned, slots }
+}
+
+/**
+ * Freitext/Paste in Kurse zerlegen. Zeilen mit erkennbarer Uhrzeit gelten als
+ * Stundenplan-Einträge (am Stück geparst, damit „Mo, Mi 10-12" zusammenbleibt);
+ * zeitlose Zeilen sind reine Namenslisten und werden zusätzlich an Kommas geteilt
+ * („Analysis, Lineare Algebra, Programmierung").
+ */
+function parseCourses(raw: string): ParsedCourse[] {
+  const out: ParsedCourse[] = []
+  for (const entry of raw.split(/[\n;]+/).map((e) => e.trim()).filter(Boolean)) {
+    if (TIME_RE.test(entry)) {
+      out.push(parseCourseLine(entry))
+    } else {
+      for (const part of entry.split(/,/).map((s) => s.replace(/^[\s\-•*•\d.)]+/, '').trim()).filter(Boolean)) {
+        out.push({ name: part, slots: [] })
+      }
+    }
+  }
+  return out
+}
 
 const ROMAN: Record<string, string> = {
   i: '1', ii: '2', iii: '3', iv: '4', v: '5', vi: '6', vii: '7', viii: '8', ix: '9', x: '10',
@@ -302,7 +371,7 @@ export function OnboardingChat() {
   // Kursfrage — Pflicht-Pfad endet hier (alles Weitere ist optional).
   function goCourses() {
     setPhase('boot')
-    void say(['Welche Kurse hast du gerade? 📚', 'Tipp sie untereinander — oder füg deinen Stundenplan ein.'], 'courses')
+    void say(['Welche Kurse hast du gerade? 📚', 'Tipp sie untereinander – oder füg deinen Stundenplan ein. Zeiten wie „Mo 10–12" erkenne ich automatisch. 🗓️'], 'courses')
   }
 
   // Studiengang gesetzt (per Kachel oder Freitext) → direkt zu Abschluss/Kursen.
@@ -380,7 +449,7 @@ export function OnboardingChat() {
         `${name} — notiert.`,
         'Start setze ich auf diese Woche, 14 Wochen Vorlesungszeit (später unter „Studium" änderbar).',
         `Welche Kurse belegst du in ${name}? 📚`,
-        'Tipp sie einfach untereinander — oder füg deinen Stundenplan ein.',
+        'Tipp sie untereinander – oder füg deinen Stundenplan ein. Zeiten wie „Mo 10–12" erkenne ich automatisch. 🗓️',
       ],
       'courses',
     )
@@ -394,21 +463,26 @@ export function OnboardingChat() {
   }
 
   function addCourses() {
-    const names = parseCourses(text)
-    if (!names.length) return
+    const parsed = parseCourses(text)
+    if (!parsed.length) return
     pushUser(text.trim())
     setText('')
     setCourses((cur) => {
       const seen = new Set(cur.map((c) => c.name.toLowerCase()))
       const merged = [...cur]
-      for (const n of names) {
-        if (seen.has(n.toLowerCase())) continue
-        seen.add(n.toLowerCase())
-        merged.push(toDraft(n, merged.length))
+      let withTimes = 0
+      for (const p of parsed) {
+        if (seen.has(p.name.toLowerCase())) continue
+        seen.add(p.name.toLowerCase())
+        const d = toDraft(p.name, merged.length)
+        d.slots = p.slots
+        if (p.slots.length) withTimes++
+        merged.push(d)
       }
       const added = merged.length - cur.length
+      const base = added === 1 ? '1 Kurs übernommen ✅' : `${added} Kurse übernommen ✅`
       setPhase('boot')
-      void say([added === 1 ? '1 Kurs übernommen ✅' : `${added} Kurse übernommen ✅`], 'courses')
+      void say([withTimes ? `${base} — Zeiten gleich miterkannt 🗓️` : base], 'courses')
       return merged
     })
   }
@@ -713,7 +787,7 @@ export function OnboardingChat() {
       : phase === 'type' ? 'Anderer Abschluss (z.B. Staatsexamen)…'
         : phase === 'fachsemester' ? 'Anderes (z.B. 12)…'
           : phase === 'semesterCustom' ? 'z.B. WiSe 2026/27'
-            : 'z.B. Analysis II, Lineare Algebra, Programmierung'
+            : 'z.B. Analysis II  ·  oder: Mo 10–12 Analysis II HS1'
   function onSubmitText() {
     if (phase === 'subject') submitSubject()
     else if (phase === 'type') submitTypeText()
@@ -794,7 +868,7 @@ export function OnboardingChat() {
                   {c.name}
                   {c.slots.length > 0 && (
                     <span className="text-[10px] font-normal text-stone-400">
-                      {c.slots.map((s) => `${WEEKDAY_SHORT[s.weekday]} ${s.start}`).join(' · ')}
+                      {c.slots.map((s) => `${WEEKDAY_SHORT[s.weekday]} ${s.start}–${s.end}`).join(' · ')}
                     </span>
                   )}
                   {c.exam && (
