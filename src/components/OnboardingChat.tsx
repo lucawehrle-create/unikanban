@@ -892,15 +892,9 @@ export function OnboardingChat() {
             </div>
           )}
 
-          <div ref={bottomRef} />
-        </div>
-      </div>
-
-      {/* Eingabe / Chips */}
-      <div className="border-t border-stone-200/70 bg-white/70 px-4 py-3 backdrop-blur">
-        <div className="mx-auto max-w-xl">
+          {/* Antwort-Optionen & Aktionen — direkt im Verlauf, unter der Frage. */}
           {phase === 'subject' && (
-            <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               {COMMON_PROGRAMS.map((p) => (
                 <button
                   key={p.name}
@@ -923,7 +917,7 @@ export function OnboardingChat() {
           )}
 
           {phase === 'fachsemester' && (
-            <div className="mb-2 flex flex-wrap justify-end gap-2">
+            <div className="flex flex-wrap gap-2">
               {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                 <button
                   key={n}
@@ -937,21 +931,10 @@ export function OnboardingChat() {
             </div>
           )}
 
-          {phase === 'semester' && (
+          {phase === 'courses' && courses.length > 0 && (
             <ChipRow>
-              <Chip primary onClick={() => chooseSemester(suggestSemester())}>{suggestSemester()}</Chip>
-              <Chip onClick={() => { setPhase('semesterCustom'); setText('') }}>Anderes…</Chip>
+              <Chip primary onClick={coursesDone}>{reviewing.current ? 'Fertig' : `Weiter (${courses.length})`}</Chip>
             </ChipRow>
-          )}
-
-          {phase === 'courses' && (
-            <div className="space-y-2">
-              <ChipRow>
-                <Chip primary onClick={coursesDone}>
-                  {reviewing.current ? 'Fertig' : courses.length ? `Weiter (${courses.length})` : 'Weiter'}
-                </Chip>
-              </ChipRow>
-            </div>
           )}
 
           {phase === 'finishOrMore' && (
@@ -963,17 +946,13 @@ export function OnboardingChat() {
 
           {phase === 'times' && (
             <ChipRow>
-              <Chip primary onClick={timesDone}>
-                {courses.some((c) => c.slots.length) ? 'Fertig — weiter' : 'Überspringen'}
-              </Chip>
+              <Chip primary onClick={timesDone}>{courses.some((c) => c.slots.length) ? 'Fertig — weiter' : 'Überspringen'}</Chip>
             </ChipRow>
           )}
 
           {phase === 'exams' && (
             <ChipRow>
-              <Chip primary onClick={examsDone}>
-                {courses.some((c) => c.exam) ? 'Fertig — weiter' : 'Überspringen'}
-              </Chip>
+              <Chip primary onClick={examsDone}>{courses.some((c) => c.exam) ? 'Fertig — weiter' : 'Überspringen'}</Chip>
             </ChipRow>
           )}
 
@@ -1022,12 +1001,12 @@ export function OnboardingChat() {
               <input
                 type="number" inputMode="decimal" autoFocus value={priorEcts}
                 onChange={(e) => setPriorEcts(e.target.value)} placeholder="bisherige ECTS"
-                className="w-full rounded-full border border-stone-200 px-4 py-2 text-sm outline-none focus:border-brand-400"
+                className="w-full rounded-full border border-stone-200 bg-white px-4 py-2 text-sm outline-none focus:border-brand-400"
               />
               <input
                 type="number" inputMode="decimal" step="0.1" value={priorAvg}
                 onChange={(e) => setPriorAvg(e.target.value)} placeholder="Schnitt z.B. 2,1"
-                className="w-full rounded-full border border-stone-200 px-4 py-2 text-sm outline-none focus:border-brand-400"
+                className="w-full rounded-full border border-stone-200 bg-white px-4 py-2 text-sm outline-none focus:border-brand-400"
               />
               <button onClick={submitPrior} aria-label="Übernehmen" className="shrink-0 rounded-full bg-brand-400 p-2.5 text-stone-900 hover:bg-brand-500">
                 <Send size={16} />
@@ -1042,6 +1021,13 @@ export function OnboardingChat() {
             </ChipRow>
           )}
 
+          <div ref={bottomRef} />
+        </div>
+      </div>
+
+      {/* Eingabe-Leiste: nur noch Texteingabe (falls relevant), sonst Vertrauens-Hinweis. */}
+      <div className="border-t border-stone-200/70 bg-white/70 px-4 py-3 backdrop-blur">
+        <div className="mx-auto max-w-xl">
           {showText && (
             <div className="flex items-end gap-2">
               <textarea
@@ -1066,7 +1052,7 @@ export function OnboardingChat() {
             </div>
           )}
 
-          {(phase === 'done' || phase === 'boot') && !showText && (
+          {!showText && (
             <div className="flex items-center justify-center gap-1.5 py-1 text-[11px] text-stone-400">
               <Sparkles size={12} /> Sicher in deinem Konto · auf allen Geräten synchron
             </div>
@@ -1110,8 +1096,8 @@ function SumRow({ label, value }: { label: string; value: string }) {
   )
 }
 function ChipRow({ children }: { children: React.ReactNode }) {
-  // Antwort-Optionen auf der Nutzer-Seite (rechts) – wie die eigenen Bubbles.
-  return <div className="flex flex-wrap justify-end gap-2">{children}</div>
+  // Antwort-Optionen linksbündig im Verlauf – direkt unter der Bot-Frage.
+  return <div className="flex flex-wrap gap-2">{children}</div>
 }
 function Chip({ children, onClick, primary }: { children: React.ReactNode; onClick: () => void; primary?: boolean }) {
   return (
