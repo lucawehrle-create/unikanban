@@ -97,10 +97,11 @@ body,
   height: 100vh;
   height: 100dvh;
 }
-/* iOS zoomt bei Fokus auf Felder < 16px. Auf Mobil daher mind. 16px. */
+/* iOS zoomt bei Fokus auf Felder < 16px. App-weit auf Mobil daher mind. 16px. */
 @media (max-width: 639.98px) {
-  .ob-chat input,
-  .ob-chat textarea {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  textarea,
+  select {
     font-size: 16px;
   }
 }
