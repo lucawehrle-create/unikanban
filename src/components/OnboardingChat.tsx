@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { startOfWeek, format } from 'date-fns'
 import { Send, Sparkles, X } from 'lucide-react'
 import { Logo } from './Logo'
-import type { ProgramType } from '@/db/types'
+import type { Course, CourseSlot, ProgramType, RecurringConfig, SlotKind } from '@/db/types'
 import { db, uid } from '@/db/db'
 import { createProgram, createSemester } from '@/lib/actions'
+import { generateRecurringTasks } from '@/lib/recurring'
 import { seedIfEmpty } from '@/lib/seed'
 import { useUI } from '@/store/ui'
 import { cn } from '@/lib/cn'
@@ -50,19 +51,66 @@ function parseCourses(raw: string): string[] {
     .filter(Boolean)
 }
 
+// Wochentag → 1 = Montag … 7 = Sonntag (Slot-/Recurring-Konvention).
+const WEEKDAY_1: Record<string, number> = {
+  mo: 1, mon: 1, montag: 1, di: 2, die: 2, dienstag: 2, mi: 3, mit: 3, mittwoch: 3,
+  do: 4, don: 4, donnerstag: 4, fr: 5, fre: 5, freitag: 5, sa: 6, sam: 6, samstag: 6, so: 7, son: 7, sonntag: 7,
+}
+const WEEKDAY_SHORT = ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+
+function pad2(n: number) {
+  return String(n).padStart(2, '0')
+}
+
+/** „Mo 10-12 HS1" → Wochentag + Zeit + Raum. Kurszuordnung passiert außerhalb. */
+function parseSlotFromText(rest: string): Omit<CourseSlot, 'id'> | null {
+  const lower = rest.toLowerCase()
+  let weekday = 0
+  for (const tok of lower.split(/[\s,]+/)) {
+    if (tok in WEEKDAY_1) { weekday = WEEKDAY_1[tok]; break }
+  }
+  if (!weekday) return null
+  const m = rest.match(/(\d{1,2})(?::(\d{2}))?\s*(?:-|–|bis)\s*(\d{1,2})(?::(\d{2}))?/)
+  if (!m) return null
+  const start = `${pad2(Number(m[1]))}:${m[2] ?? '00'}`
+  const end = `${pad2(Number(m[3]))}:${m[4] ?? '00'}`
+  let kind: SlotKind = 'vorlesung'
+  if (/tut/i.test(rest)) kind = 'tutorium'
+  else if (/übung|ueb/i.test(rest)) kind = 'uebung'
+  else if (/seminar/i.test(rest)) kind = 'seminar'
+  // Raum = Rest nach Entfernen von Wochentag- und Zeit-Teil.
+  const room = rest
+    .replace(m[0], '')
+    .replace(/\b(mo|di|mi|do|fr|sa|so|montag|dienstag|mittwoch|donnerstag|freitag|samstag|sonntag)\b/gi, '')
+    .replace(/\b(vorlesung|vl|übung|ueb|tut(orium)?|seminar)\b/gi, '')
+    .replace(/[,;]/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+  return { kind, weekday, start, end, room: room || undefined }
+}
+
 interface CourseDraft {
   name: string
   short: string
   color: string
+  slots: CourseSlot[]
+  weekly: boolean
 }
 function toDraft(name: string, idx: number): CourseDraft {
-  return { name, short: name.replace(/\s+/g, '').slice(0, 4).toUpperCase(), color: PALETTE[idx % PALETTE.length] }
+  return {
+    name,
+    short: name.replace(/\s+/g, '').slice(0, 4).toUpperCase(),
+    color: PALETTE[idx % PALETTE.length],
+    slots: [],
+    weekly: false,
+  }
 }
 
 type Msg = { id: string; role: 'bot' | 'user'; text: string }
 type Phase =
   | 'boot' | 'subject' | 'type' | 'semester' | 'semesterCustom'
-  | 'courses' | 'prior' | 'priorInput' | 'done'
+  | 'courses' | 'times' | 'weeklyWhich' | 'weeklyDay'
+  | 'prior' | 'priorInput' | 'done'
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -84,6 +132,7 @@ export function OnboardingChat() {
     priorEcts: 0, priorAvg: 0,
   })
   const [courses, setCourses] = useState<CourseDraft[]>([])
+  const [weeklyDay, setWeeklyDay] = useState(5) // Fr
   const [priorEcts, setPriorEcts] = useState('')
   const [priorAvg, setPriorAvg] = useState('')
 
@@ -192,6 +241,84 @@ export function OnboardingChat() {
       void say(['Mindestens ein Kurs wäre super — tipp einfach den Namen 🙂'], 'courses')
       return
     }
+    setPhase('boot')
+    void say(
+      [
+        'Wann finden die Vorlesungen statt? (optional)',
+        'Schreib z.B. „Analysis II Mo 10-12 HS1" — eine Zeile pro Termin.',
+      ],
+      'times',
+    )
+  }
+
+  function addTimes() {
+    const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean)
+    if (!lines.length) return
+    pushUser(text.trim())
+    setText('')
+    let matched = 0
+    setCourses((cur) => {
+      const next = cur.map((c) => ({ ...c, slots: [...c.slots] }))
+      for (const line of lines) {
+        // Kurs per Name/Kürzel am Zeilenanfang finden (längster Name zuerst).
+        const idx = next
+          .map((c, i) => ({ i, key: c.name.toLowerCase() }))
+          .sort((a, b) => b.key.length - a.key.length)
+          .find(({ i, key }) => {
+            const low = line.toLowerCase()
+            return low.includes(key) || low.startsWith(next[i].short.toLowerCase())
+          })?.i
+        if (idx == null) continue
+        const c = next[idx]
+        const rest = line
+          .toLowerCase().includes(c.name.toLowerCase())
+          ? line.slice(line.toLowerCase().indexOf(c.name.toLowerCase()) + c.name.length)
+          : line.replace(new RegExp('^' + c.short, 'i'), '')
+        const slot = parseSlotFromText(rest)
+        if (!slot) continue
+        c.slots.push({ id: uid(), ...slot })
+        matched++
+      }
+      setPhase('boot')
+      void say(
+        [matched ? `${matched} Termin${matched > 1 ? 'e' : ''} eingetragen ✅` : 'Hmm, das konnte ich keinem Kurs zuordnen — du kannst es später unter „Stundenplan" ergänzen.'],
+        'times',
+      )
+      return next
+    })
+  }
+
+  function timesDone() {
+    setPhase('boot')
+    void say(
+      [
+        '⭐ Jetzt die Superkraft: Bei welchen Kursen gibt es wöchentliche Übungsblätter?',
+        'Ich lege dir daraus automatisch das ganze Semester an Abgaben an. (Tipp die Kurse an)',
+      ],
+      'weeklyWhich',
+    )
+  }
+
+  function toggleWeekly(i: number) {
+    setCourses((cur) => cur.map((c, j) => (j === i ? { ...c, weekly: !c.weekly } : c)))
+  }
+
+  function weeklyWhichDone() {
+    if (!courses.some((c) => c.weekly)) {
+      pushUser('Keine')
+      draft.current.courses = courses
+      setPhase('boot')
+      void say(['Alles klar, keine Serien.', 'Hast du schon ECTS oder einen Schnitt aus früheren Semestern?'], 'prior')
+      return
+    }
+    pushUser(courses.filter((c) => c.weekly).map((c) => c.short).join(', '))
+    setPhase('boot')
+    void say(['An welchem Tag ist meist die Abgabe?'], 'weeklyDay')
+  }
+
+  function chooseWeeklyDay(day: number) {
+    setWeeklyDay(day)
+    pushUser(WEEKDAY_SHORT[day])
     draft.current.courses = courses
     setPhase('boot')
     void say(['Hast du schon ECTS oder einen Schnitt aus früheren Semestern?'], 'prior')
@@ -236,17 +363,39 @@ export function OnboardingChat() {
         startDate: d.semStart,
         weeks: d.semWeeks,
       })
-      const toAdd = d.courses
+      const sem = await db.semesters.get(sid)
+      const records: Course[] = d.courses
         .filter((c) => c.name.trim())
-        .map((c) => ({
-          id: uid(),
-          semesterId: sid,
-          name: c.name.trim(),
-          short: (c.short.trim() || c.name.slice(0, 4)).toUpperCase(),
-          color: c.color,
-          slots: [],
-        }))
-      if (toAdd.length) await db.courses.bulkAdd(toAdd)
+        .map((c) => {
+          const recurring: RecurringConfig[] | undefined =
+            c.weekly && sem
+              ? [{
+                  id: uid(),
+                  type: 'uebung',
+                  labelPrefix: 'Übungsblatt',
+                  weekday: weeklyDay,
+                  time: '12:00',
+                  count: sem.weeks,
+                  startWeek: 1,
+                  intervalWeeks: 1,
+                }]
+              : undefined
+          return {
+            id: uid(),
+            semesterId: sid,
+            name: c.name.trim(),
+            short: (c.short.trim() || c.name.slice(0, 4)).toUpperCase(),
+            color: c.color,
+            slots: c.slots,
+            recurring,
+          }
+        })
+      if (records.length) await db.courses.bulkAdd(records)
+      // Wöchentliche Serien → echte Aufgaben fürs ganze Semester materialisieren.
+      if (sem) {
+        const tasks = records.flatMap((c) => generateRecurringTasks(c, sem))
+        if (tasks.length) await db.tasks.bulkAdd(tasks)
+      }
       // App rendert nach Anlegen automatisch um (programCount > 0).
     } catch {
       setBusy(false)
@@ -267,15 +416,18 @@ export function OnboardingChat() {
   }
 
   // ---- Eingabezeile je nach Phase -----------------------------------------
-  const showText = phase === 'subject' || phase === 'semesterCustom' || phase === 'courses'
+  const multiline = phase === 'courses' || phase === 'times'
+  const showText = phase === 'subject' || phase === 'semesterCustom' || phase === 'courses' || phase === 'times'
   const placeholder =
     phase === 'subject' ? 'z.B. Informatik Bachelor, 3. Semester'
       : phase === 'semesterCustom' ? 'z.B. WiSe 2026/27'
-        : 'z.B. Analysis II, Lineare Algebra, Programmierung'
+        : phase === 'times' ? 'z.B. Analysis II Mo 10-12 HS1'
+          : 'z.B. Analysis II, Lineare Algebra, Programmierung'
   function onSubmitText() {
     if (phase === 'subject') submitSubject()
     else if (phase === 'semesterCustom') submitSemesterCustom()
     else if (phase === 'courses') addCourses()
+    else if (phase === 'times') addTimes()
   }
 
   return (
@@ -310,8 +462,8 @@ export function OnboardingChat() {
             </Bubble>
           )}
 
-          {/* Kurs-Chips */}
-          {(phase === 'courses' || phase === 'prior' || phase === 'priorInput') && courses.length > 0 && (
+          {/* Kurs-Chips (mit Termin-Hinweis ab dem Zeiten-Schritt) */}
+          {(phase === 'courses' || phase === 'times' || phase === 'prior' || phase === 'priorInput') && courses.length > 0 && (
             <div className="mt-1 flex flex-wrap gap-1.5">
               {courses.map((c, i) => (
                 <span
@@ -320,6 +472,11 @@ export function OnboardingChat() {
                 >
                   <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.color }} />
                   {c.name}
+                  {c.slots.length > 0 && (
+                    <span className="text-[10px] font-normal text-stone-400">
+                      {c.slots.map((s) => `${WEEKDAY_SHORT[s.weekday]} ${s.start}`).join(' · ')}
+                    </span>
+                  )}
                   {phase === 'courses' && (
                     <button onClick={() => removeCourse(i)} className="rounded-full p-0.5 text-stone-300 hover:bg-stone-100 hover:text-stone-500">
                       <X size={12} />
@@ -362,6 +519,47 @@ export function OnboardingChat() {
             </div>
           )}
 
+          {phase === 'times' && (
+            <ChipRow>
+              <Chip primary onClick={timesDone}>
+                {courses.some((c) => c.slots.length) ? 'Fertig — weiter' : 'Überspringen'}
+              </Chip>
+            </ChipRow>
+          )}
+
+          {phase === 'weeklyWhich' && (
+            <div className="space-y-2">
+              <ChipRow>
+                {courses.map((c, i) => (
+                  <button
+                    key={i}
+                    onClick={() => toggleWeekly(i)}
+                    className={cn(
+                      'inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium transition active:scale-[.98]',
+                      c.weekly ? 'bg-brand-400 text-stone-900' : 'bg-white text-stone-600 ring-1 ring-stone-200 hover:bg-stone-50',
+                    )}
+                  >
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.color }} />
+                    {c.short}
+                  </button>
+                ))}
+              </ChipRow>
+              <ChipRow>
+                <Chip primary onClick={weeklyWhichDone}>
+                  {courses.some((c) => c.weekly) ? `Weiter (${courses.filter((c) => c.weekly).length})` : 'Keine — weiter'}
+                </Chip>
+              </ChipRow>
+            </div>
+          )}
+
+          {phase === 'weeklyDay' && (
+            <ChipRow>
+              {[1, 2, 3, 4, 5].map((d) => (
+                <Chip key={d} primary={d === 5} onClick={() => chooseWeeklyDay(d)}>{WEEKDAY_SHORT[d]}</Chip>
+              ))}
+            </ChipRow>
+          )}
+
           {phase === 'prior' && (
             <ChipRow>
               <Chip onClick={() => choosePrior(false)}>Erstsemester / nein</Chip>
@@ -390,11 +588,11 @@ export function OnboardingChat() {
           {showText && (
             <div className="flex items-end gap-2">
               <textarea
-                autoFocus rows={phase === 'courses' ? 2 : 1} value={text}
+                autoFocus rows={multiline ? 2 : 1} value={text}
                 onChange={(e) => setText(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey && phase !== 'courses') { e.preventDefault(); onSubmitText() }
-                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && phase === 'courses') { e.preventDefault(); onSubmitText() }
+                  if (e.key === 'Enter' && !e.shiftKey && !multiline) { e.preventDefault(); onSubmitText() }
+                  if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && multiline) { e.preventDefault(); onSubmitText() }
                 }}
                 placeholder={placeholder}
                 className="max-h-32 w-full resize-none rounded-2xl border border-stone-200 px-4 py-2.5 text-sm outline-none focus:border-brand-400"
