@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { startOfWeek, format } from 'date-fns'
-import { Send, Sparkles, X } from 'lucide-react'
+import { FileText, Send, Sparkles, X } from 'lucide-react'
 import { Logo } from './Logo'
 import type { Course, CourseSlot, ProgramType, RecurringConfig, SlotKind } from '@/db/types'
 import { db, uid } from '@/db/db'
@@ -89,6 +89,29 @@ function parseSlotFromText(rest: string): Omit<CourseSlot, 'id'> | null {
   return { kind, weekday, start, end, room: room || undefined }
 }
 
+const ROMAN: Record<string, string> = {
+  i: '1', ii: '2', iii: '3', iv: '4', v: '5', vi: '6', vii: '7', viii: '8', ix: '9', x: '10',
+}
+const SHORT_STOP = new Set(['und', 'der', 'die', 'das', 'für', 'in', 'im', 'zur', 'zum', 'von', 'mit', 'des', 'zu', 'an'])
+
+/** Aussagekräftiges Kürzel: „Analysis II" → ANA2, „Lineare Algebra" → LA. */
+function makeShort(name: string): string {
+  const tokens = name.trim().split(/\s+/).filter(Boolean)
+  if (!tokens.length) return 'KURS'
+  // Abschließende Nummer (Ziffer oder römisch) separat behalten.
+  let num = ''
+  const last = tokens[tokens.length - 1].toLowerCase().replace(/[.)]/g, '')
+  if (/^\d{1,2}$/.test(last)) { num = last; tokens.pop() }
+  else if (last in ROMAN) { num = ROMAN[last]; tokens.pop() }
+  const words = tokens.filter((w) => !SHORT_STOP.has(w.toLowerCase()) && /[a-zäöü]/i.test(w))
+  let base: string
+  if (words.length >= 2) base = words.slice(0, 3).map((w) => w[0]).join('')
+  else if (words.length === 1) base = words[0].slice(0, num ? 3 : 4)
+  else base = (tokens[0] ?? name).slice(0, 4)
+  const short = (base + num).toUpperCase().replace(/[^A-ZÄÖÜ0-9]/g, '').slice(0, 5)
+  return short || name.replace(/\s+/g, '').slice(0, 4).toUpperCase() || 'KURS'
+}
+
 interface CourseDraft {
   name: string
   short: string
@@ -97,20 +120,22 @@ interface CourseDraft {
   weekly: boolean
 }
 function toDraft(name: string, idx: number): CourseDraft {
-  return {
-    name,
-    short: name.replace(/\s+/g, '').slice(0, 4).toUpperCase(),
-    color: PALETTE[idx % PALETTE.length],
-    slots: [],
-    weekly: false,
-  }
+  return { name, short: makeShort(name), color: PALETTE[idx % PALETTE.length], slots: [], weekly: false }
 }
 
 type Msg = { id: string; role: 'bot' | 'user'; text: string }
 type Phase =
   | 'boot' | 'subject' | 'type' | 'semester' | 'semesterCustom'
   | 'courses' | 'times' | 'weeklyWhich' | 'weeklyDay'
-  | 'prior' | 'priorInput' | 'done'
+  | 'prior' | 'priorInput' | 'review' | 'done'
+
+// Fortschritt: welcher der sichtbaren Schritte ist aktiv (für die Kopf-Leiste).
+const STEP_OF: Record<Phase, number> = {
+  boot: 0, subject: 0, type: 0, semester: 1, semesterCustom: 1,
+  courses: 2, times: 3, weeklyWhich: 4, weeklyDay: 4,
+  prior: 5, priorInput: 5, review: 6, done: 6,
+}
+const TOTAL_STEPS = 7
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -138,6 +163,8 @@ export function OnboardingChat() {
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const started = useRef(false)
+  const reviewing = useRef(false) // true, wenn vom Überblick aus Kurse bearbeitet werden
+  const maxStep = useRef(0) // höchster erreichter Schritt (für die Fortschrittsleiste)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -241,6 +268,14 @@ export function OnboardingChat() {
       void say(['Mindestens ein Kurs wäre super — tipp einfach den Namen 🙂'], 'courses')
       return
     }
+    draft.current.courses = courses
+    // Aus dem Überblick zurück → direkt wieder zum Überblick (Zeiten/Serien bleiben).
+    if (reviewing.current) {
+      reviewing.current = false
+      setPhase('boot')
+      void say(['Aktualisiert ✅'], 'review')
+      return
+    }
     setPhase('boot')
     void say(
       [
@@ -279,11 +314,18 @@ export function OnboardingChat() {
         c.slots.push({ id: uid(), ...slot })
         matched++
       }
+      const missed = lines.length - matched
+      const lines2: string[] = []
+      if (matched) lines2.push(`${matched} Termin${matched > 1 ? 'e' : ''} eingetragen ✅`)
+      if (missed) {
+        lines2.push(
+          matched
+            ? `${missed} Zeile${missed > 1 ? 'n' : ''} konnte ich nicht zuordnen. Beginn am besten mit dem Kursnamen.`
+            : `Das konnte ich keinem Kurs zuordnen. Beginn die Zeile mit dem Kursnamen, z.B.: ${next.map((c) => c.name).slice(0, 3).join(', ')}`,
+        )
+      }
       setPhase('boot')
-      void say(
-        [matched ? `${matched} Termin${matched > 1 ? 'e' : ''} eingetragen ✅` : 'Hmm, das konnte ich keinem Kurs zuordnen — du kannst es später unter „Stundenplan" ergänzen.'],
-        'times',
-      )
+      void say(lines2.length ? lines2 : ['Alles klar.'], 'times')
       return next
     })
   }
@@ -326,8 +368,10 @@ export function OnboardingChat() {
 
   function choosePrior(withPrior: boolean) {
     if (!withPrior) {
+      draft.current.priorEcts = 0
+      draft.current.priorAvg = 0
       pushUser('Erstsemester / nein')
-      void finish()
+      goReview()
       return
     }
     pushUser('Ja, eintragen')
@@ -338,16 +382,39 @@ export function OnboardingChat() {
     draft.current.priorEcts = Number(priorEcts) || 0
     draft.current.priorAvg = Number(priorAvg) || 0
     pushUser(`${draft.current.priorEcts || 0} ECTS · Ø ${draft.current.priorAvg || '—'}`)
-    void finish()
+    goReview()
+  }
+
+  function goReview() {
+    draft.current.courses = courses
+    setPhase('boot')
+    void say(['Super — fast geschafft! Schau bitte einmal drüber:'], 'review')
+  }
+
+  function editCoursesFromReview() {
+    reviewing.current = true
+    setPhase('boot')
+    void say(['Klar — pass deine Kurse an und tipp dann auf „Fertig".'], 'courses')
+  }
+
+  function editShort(i: number, val: string) {
+    const v = val.toUpperCase().replace(/[^A-ZÄÖÜ0-9]/g, '').slice(0, 6)
+    setCourses((cur) => cur.map((c, j) => (j === i ? { ...c, short: v } : c)))
   }
 
   async function finish() {
     if (busy) return
     setBusy(true)
+    const d = draft.current
+    const list = courses.filter((c) => c.name.trim())
+    const weeklyN = list.filter((c) => c.weekly).length
+    const taskApprox = weeklyN * d.semWeeks
     setPhase('done')
-    await say(['Perfekt — ich leg alles an … 🚀'], 'done')
+    await say(
+      [`Perfekt — ich lege dein Semester, ${list.length} Kurs${list.length === 1 ? '' : 'e'}${taskApprox ? ` und ~${taskApprox} Abgaben` : ''} an … 🚀`],
+      'done',
+    )
     try {
-      const d = draft.current
       useUI.getState().setDemo(false)
       const pid = await createProgram({
         name: d.name.trim() || 'Mein Studium',
@@ -364,8 +431,7 @@ export function OnboardingChat() {
         weeks: d.semWeeks,
       })
       const sem = await db.semesters.get(sid)
-      const records: Course[] = d.courses
-        .filter((c) => c.name.trim())
+      const records: Course[] = list
         .map((c) => {
           const recurring: RecurringConfig[] | undefined =
             c.weekly && sem
@@ -400,7 +466,7 @@ export function OnboardingChat() {
     } catch {
       setBusy(false)
       setPhase('boot')
-      void say(['Da ist etwas schiefgelaufen 😕 — bitte versuch es nochmal.'], 'prior')
+      void say(['Da ist etwas schiefgelaufen 😕 — bitte versuch es nochmal.'], 'review')
     }
   }
 
@@ -430,6 +496,10 @@ export function OnboardingChat() {
     else if (phase === 'times') addTimes()
   }
 
+  // Fortschritt steigt nur (kein Zurückspringen während „boot"/Tippen).
+  if (phase !== 'boot') maxStep.current = Math.max(maxStep.current, STEP_OF[phase])
+  const shownStep = maxStep.current
+
   return (
     <div className="flex h-full flex-col bg-cream-50">
       {/* Kopf */}
@@ -447,6 +517,15 @@ export function OnboardingChat() {
           Beispieldaten
         </button>
       </header>
+      {/* Fortschritt */}
+      <div className="flex gap-1 bg-white/70 px-4 pb-2.5 backdrop-blur">
+        {Array.from({ length: TOTAL_STEPS }).map((_, i) => (
+          <span
+            key={i}
+            className={cn('h-1 flex-1 rounded-full transition-colors', i <= shownStep ? 'bg-brand-400' : 'bg-stone-200')}
+          />
+        ))}
+      </div>
 
       {/* Verlauf */}
       <div className="flex-1 overflow-y-auto px-4 py-5">
@@ -487,6 +566,59 @@ export function OnboardingChat() {
             </div>
           )}
 
+          {/* Überblick zum Bestätigen */}
+          {phase === 'review' && (
+            <div className="mt-1 rounded-2xl bg-white p-4 text-sm shadow-sm ring-1 ring-stone-200">
+              <div className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-stone-400">Dein Überblick</div>
+              <SumRow label="Studiengang" value={`${draft.current.name} · ${TYPE_LABEL[draft.current.type]}`} />
+              <SumRow
+                label="Semester"
+                value={`${draft.current.semName} · ab ${format(new Date(draft.current.semStart), 'dd.MM.yyyy')} · ${draft.current.semWeeks} Wochen`}
+              />
+              <SumRow
+                label="Vorerfahrung"
+                value={draft.current.priorEcts ? `${draft.current.priorEcts} ECTS · Ø ${draft.current.priorAvg || '—'}` : 'Erstsemester'}
+              />
+              <div className="mb-1.5 mt-3 text-[11px] font-medium text-stone-500">
+                Kurse ({courses.length}) · Kürzel & Blätter (📄) hier anpassbar
+              </div>
+              <div className="space-y-1.5">
+                {courses.map((c, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: c.color }} />
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium text-stone-800">{c.name}</div>
+                      <div className="text-[11px] text-stone-400">
+                        {c.slots.length ? c.slots.map((s) => `${WEEKDAY_SHORT[s.weekday]} ${s.start}`).join(' · ') : 'keine Zeit'}
+                        {c.weekly ? ' · wöchentl. Blatt' : ''}
+                      </div>
+                    </div>
+                    <input
+                      value={c.short}
+                      onChange={(e) => editShort(i, e.target.value)}
+                      aria-label={`Kürzel für ${c.name}`}
+                      className="w-16 rounded-md border border-stone-200 px-2 py-1 text-center text-xs font-semibold uppercase outline-none focus:border-brand-400"
+                    />
+                    <button
+                      onClick={() => toggleWeekly(i)}
+                      title="Wöchentliche Übungsblätter"
+                      className={cn('shrink-0 rounded-md p-1.5 transition', c.weekly ? 'bg-brand-400 text-stone-900' : 'text-stone-300 hover:bg-stone-100 hover:text-stone-500')}
+                    >
+                      <FileText size={14} />
+                    </button>
+                    <button
+                      onClick={() => removeCourse(i)}
+                      title="Entfernen"
+                      className="shrink-0 rounded-md p-1.5 text-stone-300 transition hover:bg-red-50 hover:text-red-500"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div ref={bottomRef} />
         </div>
       </div>
@@ -513,7 +645,7 @@ export function OnboardingChat() {
             <div className="space-y-2">
               <ChipRow>
                 <Chip primary onClick={coursesDone}>
-                  {courses.length ? `Passt — weiter (${courses.length})` : 'Weiter'}
+                  {reviewing.current ? 'Fertig' : courses.length ? `Passt — weiter (${courses.length})` : 'Weiter'}
                 </Chip>
               </ChipRow>
             </div>
@@ -585,6 +717,13 @@ export function OnboardingChat() {
             </div>
           )}
 
+          {phase === 'review' && (
+            <ChipRow>
+              <Chip onClick={editCoursesFromReview}>Kurse bearbeiten</Chip>
+              <Chip primary onClick={() => void finish()}>Los geht&apos;s 🚀</Chip>
+            </ChipRow>
+          )}
+
           {showText && (
             <div className="flex items-end gap-2">
               <textarea
@@ -639,6 +778,14 @@ function Dot({ d = '0s' }: { d?: string }) {
       className="inline-block h-1.5 w-1.5 rounded-full bg-stone-300"
       style={{ animation: 'sb-typing 1s infinite', animationDelay: d }}
     />
+  )
+}
+function SumRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex gap-2 py-0.5">
+      <span className="w-24 shrink-0 text-stone-400">{label}</span>
+      <span className="min-w-0 flex-1 font-medium text-stone-700">{value}</span>
+    </div>
   )
 }
 function ChipRow({ children }: { children: React.ReactNode }) {
