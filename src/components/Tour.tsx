@@ -51,6 +51,17 @@ const STEPS: TourStep[] = [
 
 const PAD = 8
 
+/** Sichtbares Ziel-Element finden (Desktop- und Mobil-Nav teilen sich data-tour;
+ *  das jeweils versteckte hat Größe 0 und wird übersprungen). */
+function findVisibleTarget(target: string): DOMRect | null {
+  const els = document.querySelectorAll(`[data-tour="${target}"]`)
+  for (const el of els) {
+    const r = el.getBoundingClientRect()
+    if (r.width > 0 && r.height > 0) return r
+  }
+  return null
+}
+
 export function Tour() {
   const active = useUI((s) => s.tour)
   const setTour = useUI((s) => s.setTour)
@@ -73,15 +84,15 @@ export function Tour() {
     let raf = 0
     let tries = 0
     const locate = () => {
-      const el = document.querySelector(`[data-tour="${step.target}"]`)
-      if (el) setRect(el.getBoundingClientRect())
+      const r = findVisibleTarget(step.target)
+      if (r) setRect(r)
       else if (tries++ < 40) raf = requestAnimationFrame(locate)
     }
     locate()
 
     const onMove = () => {
-      const el = document.querySelector(`[data-tour="${step.target}"]`)
-      if (el) setRect(el.getBoundingClientRect())
+      const r = findVisibleTarget(step.target)
+      if (r) setRect(r)
     }
     window.addEventListener('resize', onMove)
     window.addEventListener('scroll', onMove, true)

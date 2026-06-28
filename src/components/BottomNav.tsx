@@ -10,7 +10,7 @@ export function BottomNav() {
   const examChip = examBadge(useExamStatus())
 
   return (
-    <nav className="shrink-0 border-t border-stone-200/70 bg-white/85 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
+    <nav data-tour="nav" className="shrink-0 border-t border-stone-200/70 bg-white/85 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden">
       <div className="flex items-stretch">
         {VIEWS.map((v) => {
           const Icon = v.icon
@@ -18,6 +18,7 @@ export function BottomNav() {
           return (
             <button
               key={v.id}
+              data-tour={v.id === 'study' ? 'tab-study' : undefined}
               onClick={() => setView(v.id)}
               aria-label={v.label}
               aria-current={active ? 'page' : undefined}
