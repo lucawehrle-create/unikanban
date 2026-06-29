@@ -654,10 +654,14 @@ export function OnboardingChat() {
     }
     checkpoint('courses')
     setPhase('boot')
+    // Zeiten schon vorhanden (z.B. aus dem Upload)? Dann nicht nochmal anbieten.
+    const hasTimes = courses.some((c) => c.slots.length > 0)
     void say(
       [
         'Fast fertig! 🎉 Das reicht schon, um loszulegen.',
-        'Du kannst optional noch Vorlesungszeiten, wöchentliche Übungsblätter & Klausurtermine eintragen — dann erstelle ich dir automatisch Stundenplan & Lernplan.',
+        hasTimes
+          ? 'Stundenplan steht ✅ Optional kannst du noch wöchentliche Übungsblätter & Klausurtermine eintragen — daraus baue ich dir automatisch deinen Lernplan.'
+          : 'Du kannst optional noch Vorlesungszeiten, wöchentliche Übungsblätter & Klausurtermine eintragen — dann erstelle ich dir automatisch Stundenplan & Lernplan.',
         'Alles kannst du aber auch jederzeit später in der App ergänzen.',
       ],
       'finishOrMore',
@@ -669,6 +673,18 @@ export function OnboardingChat() {
     checkpoint('finishOrMore')
     pushUser('Ja, ergänzen')
     setPhase('boot')
+    // Stehen schon Zeiten (z.B. aus dem Stundenplan-Upload), den Vorlesungszeiten-
+    // Schritt überspringen – sonst wäre er doppelt. Direkt zu den Übungsblättern.
+    if (courses.some((c) => c.slots.length > 0)) {
+      void say(
+        [
+          '⭐ Jetzt die Superkraft: Bei welchen Kursen gibt es wöchentliche Übungsblätter?',
+          'Ich lege dir daraus automatisch das ganze Semester an Abgaben an. (Tipp die Kurse an)',
+        ],
+        'weeklyWhich',
+      )
+      return
+    }
     void say(
       ['Wann finden die Vorlesungen statt? (optional)', 'Tipp bei einem Kurs auf „+ Zeit" und wähl Tag & Uhrzeit.'],
       'times',
