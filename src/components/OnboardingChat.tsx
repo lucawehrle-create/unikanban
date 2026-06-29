@@ -1,6 +1,6 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { startOfWeek, format } from 'date-fns'
-import { ArrowLeft, ChevronDown, Clock, FileText, Loader2, MapPin, Paperclip, Pencil, Send, Sparkles, X } from 'lucide-react'
+import { ArrowLeft, Check, ChevronDown, Clock, FileText, Loader2, MapPin, Paperclip, Pencil, Send, Sparkles, X } from 'lucide-react'
 import { Logo } from './Logo'
 import type { Course, CourseSlot, ProgramType, RecurringConfig, Task } from '@/db/types'
 import { db, uid } from '@/db/db'
@@ -193,17 +193,17 @@ interface CourseDraft {
   color: string
   slots: CourseSlot[]
   weekly: boolean
-  weeklyDay?: number // Abgabetag der Blätter (1=Mo … 7=So), pro Kurs
+  weeklyDays?: number[] // Abgabetage der Blätter (1=Mo … 7=So), pro Kurs – mehrere möglich
   exam?: string // yyyy-MM-dd
 }
 function toDraft(name: string, idx: number): CourseDraft {
   return { name, short: makeShort(name), color: PALETTE[idx % PALETTE.length], slots: [], weekly: false }
 }
 
-/** Sinnvoller Default-Abgabetag eines Kurses: Tag der Übung/des Tutoriums, sonst Fr. */
-function defaultAbgabeDay(slots: CourseSlot[]): number {
+/** Sinnvolle Default-Abgabetage eines Kurses: Tag der Übung/des Tutoriums, sonst Fr. */
+function defaultAbgabeDays(slots: CourseSlot[]): number[] {
   const ex = slots.find((s) => s.kind === 'uebung' || s.kind === 'tutorium')
-  return ex?.weekday ?? 5
+  return [ex?.weekday ?? 5]
 }
 
 /**
@@ -246,7 +246,7 @@ function mergeCourses(cur: CourseDraft[], parsed: ParsedCourse[]): { next: Cours
       if (fresh.length) {
         const slots = [...c.slots, ...fresh]
         const weekly = c.weekly || isWeeklyKind(slots)
-        next[at] = { ...c, slots, weekly, weeklyDay: c.weeklyDay ?? (weekly ? defaultAbgabeDay(slots) : undefined) }
+        next[at] = { ...c, slots, weekly, weeklyDays: c.weeklyDays ?? (weekly ? defaultAbgabeDays(slots) : undefined) }
       }
       continue
     }
@@ -254,7 +254,7 @@ function mergeCourses(cur: CourseDraft[], parsed: ParsedCourse[]): { next: Cours
     d.slots = p.slots
     // Übung/Tutorium erkannt → wöchentliche Blätter sehr wahrscheinlich: vorauswählen.
     d.weekly = isWeeklyKind(p.slots)
-    if (d.weekly) d.weeklyDay = defaultAbgabeDay(p.slots)
+    if (d.weekly) d.weeklyDays = defaultAbgabeDays(p.slots)
     if (p.slots.length) withTimes++
     idxByKey.set(key, next.length)
     next.push(d)
@@ -802,12 +802,12 @@ export function OnboardingChat() {
     if (courses.some((c) => c.weekly)) {
       return [
         '⭐ Bei diesen Kursen habe ich Übungen erkannt – daraus lege ich dir automatisch das ganze Semester an Abgaben an.',
-        'Passt die Auswahl? Tipp zum An- oder Abwählen.',
+        'Passt das? Kurse an-/abwählen und je Kurs den/die Abgabetag(e) einstellen.',
       ]
     }
     return [
       '⭐ Jetzt die Superkraft: Bei welchen Kursen gibt es wöchentliche Übungsblätter?',
-      'Ich lege dir daraus automatisch das ganze Semester an Abgaben an. (Tipp die Kurse an)',
+      'Wähl die Kurse und stell den/die Abgabetag(e) ein – ich lege daraus automatisch das ganze Semester an Abgaben an.',
     ]
   }
 
@@ -822,12 +822,21 @@ export function OnboardingChat() {
       cur.map((c, j) => {
         if (j !== i) return c
         const weekly = !c.weekly
-        return { ...c, weekly, weeklyDay: weekly ? (c.weeklyDay ?? defaultAbgabeDay(c.slots)) : c.weeklyDay }
+        return { ...c, weekly, weeklyDays: weekly ? (c.weeklyDays?.length ? c.weeklyDays : defaultAbgabeDays(c.slots)) : c.weeklyDays }
       }),
     )
   }
-  function setWeeklyDayFor(i: number, day: number) {
-    setCourses((cur) => cur.map((c, j) => (j === i ? { ...c, weeklyDay: day } : c)))
+  // Abgabetag pro Kurs an-/abwählen (mehrere möglich = mehrere Abgaben/Woche).
+  function toggleWeeklyDay(i: number, day: number) {
+    setCourses((cur) =>
+      cur.map((c, j) => {
+        if (j !== i) return c
+        const set = new Set(c.weeklyDays ?? [])
+        if (set.has(day)) set.delete(day)
+        else set.add(day)
+        return { ...c, weeklyDays: [...set].sort((a, b) => a - b) }
+      }),
+    )
   }
 
   // Übergang zum (optionalen) Klausur-Schritt — schaltet später den Lernplan frei.
@@ -843,26 +852,18 @@ export function OnboardingChat() {
     )
   }
 
+  // Kombinierter Schritt: welche Kurse + Abgabetage in einem. Bestätigt direkt.
   function weeklyWhichDone() {
     checkpoint('weeklyWhich')
-    if (!courses.some((c) => c.weekly)) {
+    draft.current.courses = courses
+    const wk = courses.filter((c) => c.weekly && c.weeklyDays?.length)
+    if (!wk.length) {
       pushUser('Keine')
-      draft.current.courses = courses
       goExams(['Alles klar, keine Serien.'])
       return
     }
-    pushUser(courses.filter((c) => c.weekly).map((c) => c.short).join(', '))
-    setPhase('boot')
-    void say(['An welchem Tag gibst du die Blätter ab? (pro Kurs einstellbar)'], 'weeklyDay')
-  }
-
-  function weeklyDayDone() {
-    checkpoint('weeklyDay')
     weeklyConfirmed.current = true // Abgabetage bestätigt → Serien dürfen entstehen
-    draft.current.courses = courses
-    pushUser(
-      courses.filter((c) => c.weekly).map((c) => `${c.short} ${WEEKDAY_SHORT[c.weeklyDay ?? 5]}`).join(', '),
-    )
+    pushUser(wk.map((c) => `${c.short} ${(c.weeklyDays ?? []).map((d) => WEEKDAY_SHORT[d]).join('/')}`).join(', '))
     goExams([])
   }
 
@@ -935,9 +936,12 @@ export function OnboardingChat() {
     setBusy(true)
     const d = draft.current
     const list = courses.filter((c) => c.name.trim())
-    const weeklyN = weeklyConfirmed.current ? list.filter((c) => c.weekly).length : 0
+    // Eine Serie je gewähltem Abgabetag (mehrere Abgaben/Woche möglich).
+    const seriesCount = weeklyConfirmed.current
+      ? list.reduce((n, c) => n + (c.weekly ? (c.weeklyDays?.length ?? 0) : 0), 0)
+      : 0
     const examN = list.filter((c) => c.exam).length
-    const taskApprox = weeklyN * d.semWeeks
+    const taskApprox = seriesCount * d.semWeeks
     const parts = [`${list.length} Kurs${list.length === 1 ? '' : 'e'}`]
     if (taskApprox) parts.push(`~${taskApprox} Abgaben`)
     if (examN) parts.push(`${examN} Klausur${examN === 1 ? '' : 'en'}`)
@@ -964,18 +968,19 @@ export function OnboardingChat() {
       const sem = await db.semesters.get(sid)
       const records: Course[] = list
         .map((c) => {
+          // Je gewähltem Abgabetag eine eigene Wochen-Serie.
           const recurring: RecurringConfig[] | undefined =
-            c.weekly && weeklyConfirmed.current && sem
-              ? [{
+            c.weekly && weeklyConfirmed.current && sem && c.weeklyDays?.length
+              ? c.weeklyDays.map((day) => ({
                   id: uid(),
-                  type: 'uebung',
+                  type: 'uebung' as const,
                   labelPrefix: 'Übungsblatt',
-                  weekday: c.weeklyDay ?? weeklyDay,
+                  weekday: day,
                   time: '12:00',
                   count: sem.weeks,
                   startWeek: 1,
                   intervalWeeks: 1,
-                }]
+                }))
               : undefined
           return {
             id: uid(),
@@ -1323,7 +1328,7 @@ export function OnboardingChat() {
                       <div className="truncate font-medium text-stone-800">{c.name}</div>
                       <div className="text-[11px] text-stone-400">
                         {c.slots.length ? c.slots.map((s) => `${WEEKDAY_SHORT[s.weekday]} ${s.start}`).join(' · ') : 'keine Zeit'}
-                        {c.weekly ? ' · wöchentl. Blatt' : ''}
+                        {c.weekly && c.weeklyDays?.length ? ` · Blatt ${c.weeklyDays.map((d) => WEEKDAY_SHORT[d]).join('/')}` : ''}
                         {c.exam ? ` · Klausur ${format(new Date(c.exam), 'dd.MM.')}` : ''}
                       </div>
                     </div>
@@ -1421,60 +1426,55 @@ export function OnboardingChat() {
 
           {phase === 'weeklyWhich' && (
             <div className="space-y-2">
-              <ChipRow>
-                {courses.map((c, i) => (
-                  <button
-                    key={i}
-                    onClick={() => toggleWeekly(i)}
-                    className={cn(
-                      'inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-sm font-medium transition active:scale-[.98]',
-                      c.weekly ? 'bg-brand-400 text-stone-900' : 'bg-white text-stone-600 ring-1 ring-stone-200 hover:bg-stone-50',
-                    )}
-                  >
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.color }} />
-                    {c.short}
+              {courses.map((c, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    'rounded-xl p-2.5 ring-1 transition',
+                    c.weekly ? 'bg-white ring-stone-200' : 'bg-stone-50/60 ring-stone-200/70',
+                  )}
+                >
+                  <button onClick={() => toggleWeekly(i)} aria-pressed={c.weekly} className="flex w-full items-center gap-2 text-left">
+                    <span
+                      className={cn(
+                        'flex h-5 w-5 shrink-0 items-center justify-center rounded-md transition',
+                        c.weekly ? 'bg-brand-400 text-stone-900' : 'bg-white text-transparent ring-1 ring-stone-300',
+                      )}
+                    >
+                      <Check size={13} strokeWidth={3} />
+                    </span>
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: c.color }} />
+                    <span className="text-sm font-semibold text-stone-700">{c.short}</span>
+                    <span className="min-w-0 flex-1 truncate text-xs text-stone-400">{c.name}</span>
                   </button>
-                ))}
-              </ChipRow>
+                  {c.weekly && (
+                    <div className="mt-2 flex flex-wrap items-center gap-1 pl-7">
+                      <span className="mr-0.5 text-[11px] text-stone-400">Abgabe:</span>
+                      {[1, 2, 3, 4, 5, 6, 7].map((d) => {
+                        const on = (c.weeklyDays ?? []).includes(d)
+                        return (
+                          <button
+                            key={d}
+                            onClick={() => toggleWeeklyDay(i, d)}
+                            aria-pressed={on}
+                            aria-label={`Abgabetag ${WEEKDAY_SHORT[d]} für ${c.short}`}
+                            className={cn(
+                              'rounded-full px-2 py-0.5 text-xs font-medium transition',
+                              on ? 'bg-brand-400 text-stone-900' : 'bg-white text-stone-500 ring-1 ring-stone-200 hover:bg-stone-50',
+                            )}
+                          >
+                            {WEEKDAY_SHORT[d]}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
+              ))}
               <ChipRow>
                 <Chip primary onClick={weeklyWhichDone}>
-                  {courses.some((c) => c.weekly) ? `Weiter (${courses.filter((c) => c.weekly).length})` : 'Keine — weiter'}
+                  {courses.some((c) => c.weekly && c.weeklyDays?.length) ? 'Weiter' : 'Keine — weiter'}
                 </Chip>
-              </ChipRow>
-            </div>
-          )}
-
-          {phase === 'weeklyDay' && (
-            <div className="space-y-2">
-              {courses.map((c, i) =>
-                c.weekly ? (
-                  <div key={i} className="rounded-xl bg-white p-2.5 ring-1 ring-stone-200">
-                    <div className="mb-1.5 flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: c.color }} />
-                      <span className="text-sm font-semibold text-stone-700">{c.short}</span>
-                      <span className="min-w-0 truncate text-xs text-stone-400">{c.name}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      {[1, 2, 3, 4, 5, 6, 7].map((d) => (
-                        <button
-                          key={d}
-                          onClick={() => setWeeklyDayFor(i, d)}
-                          aria-pressed={(c.weeklyDay ?? 5) === d}
-                          aria-label={`Abgabetag ${WEEKDAY_SHORT[d]} für ${c.short}`}
-                          className={cn(
-                            'rounded-full px-2.5 py-1 text-xs font-medium transition',
-                            (c.weeklyDay ?? 5) === d ? 'bg-brand-400 text-stone-900' : 'bg-white text-stone-500 ring-1 ring-stone-200 hover:bg-stone-50',
-                          )}
-                        >
-                          {WEEKDAY_SHORT[d]}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null,
-              )}
-              <ChipRow>
-                <Chip primary onClick={weeklyDayDone}>Weiter</Chip>
               </ChipRow>
             </div>
           )}
