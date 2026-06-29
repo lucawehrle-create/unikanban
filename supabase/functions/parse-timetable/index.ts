@@ -74,7 +74,7 @@ Regeln:
 - Mehrere Sitzungen derselben Veranstaltung (z.B. Vorlesung Mo und Mi) gehören als mehrere "slots" zu EINEM Kurs.
 - Uhrzeiten immer als HH:MM im 24-Stunden-Format.
 - weekday: 1=Montag, 2=Dienstag, … 7=Sonntag.
-- Räume nur angeben, wenn klar erkennbar; sonst weglassen.
+- WICHTIG: Erfasse zu JEDEM Termin den Raum/Hörsaal, wenn er im Plan steht – auch in Klammern, Fußzeilen oder Nebenspalten (z.B. "HS 1", "SR 204", "H 0.16", "Geb. 30.41", "Online", "B302"). Schreibe ihn in das Feld "room". Nur weglassen, wenn wirklich kein Raum dabeisteht.
 - Ignoriere Kopf-/Zeitspalten, Pausen, Legenden, leere Zellen und einmalige Termine.
 - Wenn nichts Verwertbares erkennbar ist, gib eine leere "courses"-Liste zurück.
 Rufe ausschließlich das Tool report_timetable auf.`
@@ -153,7 +153,7 @@ Deno.serve(async (req: Request) => {
             role: 'user',
             content: [
               fileBlock,
-              { type: 'text', text: 'Lies diesen Stundenplan aus und melde die Kurse über das Tool.' },
+              { type: 'text', text: 'Lies diesen Stundenplan aus und melde die Kurse über das Tool. Achte besonders auf die Räume/Hörsäle zu jedem Termin.' },
             ],
           },
         ],

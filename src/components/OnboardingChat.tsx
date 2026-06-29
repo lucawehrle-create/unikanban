@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { startOfWeek, format } from 'date-fns'
-import { ArrowLeft, FileText, Loader2, Paperclip, Send, Sparkles, X } from 'lucide-react'
+import { ArrowLeft, FileText, Loader2, Paperclip, Pencil, Send, Sparkles, X } from 'lucide-react'
 import { Logo } from './Logo'
 import type { Course, CourseSlot, ProgramType, RecurringConfig, Task } from '@/db/types'
 import { db, uid } from '@/db/db'
@@ -187,17 +187,17 @@ function mergeCourses(cur: CourseDraft[], parsed: ParsedCourse[]): { next: Cours
   return { next, added: next.length - cur.length, withTimes }
 }
 
-/** Datei als base64 (ohne data:-Präfix) lesen – für den Stundenplan-Upload. */
-function fileToBase64(f: File): Promise<string> {
+/** Datei als data-URL lesen (Vorschau + base64 fürs Hochladen). */
+function fileToDataUrl(f: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const r = new FileReader()
-    r.onload = () => resolve(String(r.result).split(',')[1] ?? '')
+    r.onload = () => resolve(String(r.result))
     r.onerror = () => reject(r.error)
     r.readAsDataURL(f)
   })
 }
 
-type Msg = { id: string; role: 'bot' | 'user'; text: string }
+type Msg = { id: string; role: 'bot' | 'user'; text: string; attachment?: { name: string; kind: 'image' | 'pdf' } }
 type Phase =
   | 'boot' | 'subject' | 'type' | 'fachsemester' | 'semester' | 'semesterCustom'
   | 'courses' | 'finishOrMore' | 'times' | 'weeklyWhich' | 'weeklyDay' | 'exams'
@@ -257,6 +257,10 @@ export function OnboardingChat() {
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const uploadAvailable = Boolean(supabase)
+  // Bild-Vorschauen (msg-id → data-URL); bewusst NICHT persistiert (zu groß).
+  const [previews, setPreviews] = useState<Record<string, string>>({})
+  // Index des aktuell bearbeiteten Kurses (Kurs-Schritt) oder null.
+  const [editIdx, setEditIdx] = useState<number | null>(null)
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const started = useRef(false)
@@ -529,9 +533,13 @@ export function OnboardingChat() {
     if (!okType) { void say(['Bitte ein Foto (PNG/JPG) oder ein PDF deines Stundenplans. 📎'], 'courses'); return }
     if (f.size > 8 * 1024 * 1024) { void say(['Die Datei ist zu groß (max. 8 MB) – versuch ein kleineres Foto. 📎'], 'courses'); return }
     setUploading(true)
-    pushUser(`📎 ${f.name}`)
+    const isPdf = f.type === 'application/pdf'
+    const msgId = uid()
+    const dataUrl = await fileToDataUrl(f)
+    setMsgs((m) => [...m, { id: msgId, role: 'user', text: f.name, attachment: { name: f.name, kind: isPdf ? 'pdf' : 'image' } }])
+    if (!isPdf) setPreviews((p) => ({ ...p, [msgId]: dataUrl }))
     try {
-      const file = await fileToBase64(f)
+      const file = dataUrl.split(',')[1] ?? ''
       const { data, error } = await supabase.functions.invoke('parse-timetable', {
         body: { file, mediaType: f.type },
       })
@@ -587,10 +595,29 @@ export function OnboardingChat() {
   }, [])
 
   function removeCourse(i: number) {
+    setEditIdx((e) => (e === i ? null : e !== null && e > i ? e - 1 : e))
     setCourses((cur) => cur.filter((_, j) => j !== i).map((c, j) => ({ ...c, color: PALETTE[j % PALETTE.length] })))
   }
 
+  // --- Erkannte Kurse direkt im Kurs-Schritt bearbeiten ---------------------
+  function renameCourse(i: number, name: string) {
+    setCourses((cur) => cur.map((c, j) => (j === i ? { ...c, name, short: makeShort(name) } : c)))
+  }
+  function patchSlot(i: number, slotId: string, patch: Partial<CourseSlot>) {
+    setCourses((cur) =>
+      cur.map((c, j) => (j === i ? { ...c, slots: c.slots.map((s) => (s.id === slotId ? { ...s, ...patch } : s)) } : c)),
+    )
+  }
+  function addEmptySlot(i: number) {
+    setCourses((cur) =>
+      cur.map((c, j) =>
+        j === i ? { ...c, slots: [...c.slots, { id: uid(), kind: 'vorlesung', weekday: 1, start: '10:00', end: '12:00' }] } : c,
+      ),
+    )
+  }
+
   function coursesDone() {
+    setEditIdx(null)
     if (!courses.length) {
       setPhase('boot')
       void say(['Mindestens ein Kurs wäre super — tipp einfach den Namen 🙂'], 'courses')
@@ -957,7 +984,11 @@ export function OnboardingChat() {
       <div className="flex-1 overflow-y-auto px-4 py-5">
         <div className="mx-auto flex max-w-xl flex-col gap-2.5" role="log" aria-live="polite" aria-label="Gespräch mit dem SemBan-Assistenten">
           {msgs.map((m) => (
-            <Bubble key={m.id} role={m.role}>{m.text}</Bubble>
+            <Bubble key={m.id} role={m.role}>
+              {m.attachment
+                ? <AttachmentCard name={m.attachment.name} kind={m.attachment.kind} preview={previews[m.id]} />
+                : m.text}
+            </Bubble>
           ))}
           {typing && (
             <Bubble role="bot">
@@ -967,8 +998,20 @@ export function OnboardingChat() {
             </Bubble>
           )}
 
+          {/* Kurs-Editor (Name, Zeiten, Räume bearbeiten) */}
+          {phase === 'courses' && editIdx !== null && editIdx < courses.length && (
+            <CourseEditor
+              course={courses[editIdx]}
+              onName={(name) => renameCourse(editIdx, name)}
+              onSlot={(slotId, patch) => patchSlot(editIdx, slotId, patch)}
+              onAddSlot={() => addEmptySlot(editIdx)}
+              onRemoveSlot={(slotId) => removeSlot(editIdx, slotId)}
+              onDone={() => setEditIdx(null)}
+            />
+          )}
+
           {/* Kurs-Chips (mit Termin-/Klausur-Hinweis in den Bestätigungs-Schritten) */}
-          {(phase === 'courses' || phase === 'prior' || phase === 'priorInput') && courses.length > 0 && (
+          {((phase === 'courses' && editIdx === null) || phase === 'prior' || phase === 'priorInput') && courses.length > 0 && (
             <div className="mt-1 flex flex-wrap gap-1.5">
               {courses.map((c, i) => (
                 <span
@@ -979,16 +1022,21 @@ export function OnboardingChat() {
                   {c.name}
                   {c.slots.length > 0 && (
                     <span className="text-[10px] font-normal text-stone-400">
-                      {c.slots.map((s) => `${WEEKDAY_SHORT[s.weekday]} ${s.start}–${s.end}`).join(' · ')}
+                      {c.slots.map((s) => `${WEEKDAY_SHORT[s.weekday]} ${s.start}–${s.end}${s.room ? ` (${s.room})` : ''}`).join(' · ')}
                     </span>
                   )}
                   {c.exam && (
                     <span className="text-[10px] font-normal text-amber-600">📝 {format(new Date(c.exam), 'dd.MM.')}</span>
                   )}
                   {phase === 'courses' && (
-                    <button onClick={() => removeCourse(i)} aria-label={`${c.name} entfernen`} className="rounded-full p-0.5 text-stone-300 hover:bg-stone-100 hover:text-stone-500">
-                      <X size={12} />
-                    </button>
+                    <>
+                      <button onClick={() => setEditIdx(i)} aria-label={`${c.name} bearbeiten`} className="rounded-full p-0.5 text-stone-300 hover:bg-stone-100 hover:text-stone-600">
+                        <Pencil size={11} />
+                      </button>
+                      <button onClick={() => removeCourse(i)} aria-label={`${c.name} entfernen`} className="rounded-full p-0.5 text-stone-300 hover:bg-stone-100 hover:text-stone-500">
+                        <X size={12} />
+                      </button>
+                    </>
                   )}
                 </span>
               ))}
@@ -1340,6 +1388,87 @@ export function OnboardingChat() {
         </div>
       )}
       </div>
+    </div>
+  )
+}
+
+function CourseEditor({
+  course, onName, onSlot, onAddSlot, onRemoveSlot, onDone,
+}: {
+  course: CourseDraft
+  onName: (name: string) => void
+  onSlot: (slotId: string, patch: Partial<CourseSlot>) => void
+  onAddSlot: () => void
+  onRemoveSlot: (slotId: string) => void
+  onDone: () => void
+}) {
+  return (
+    <div className="mt-1 space-y-3 rounded-2xl bg-white p-3 text-sm shadow-sm ring-1 ring-stone-200">
+      <div className="flex items-center gap-2">
+        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: course.color }} />
+        <input
+          value={course.name}
+          aria-label="Kursname"
+          onChange={(e) => onName(e.target.value)}
+          placeholder="Kursname"
+          className="min-w-0 flex-1 rounded-lg border border-stone-200 px-2.5 py-1.5 text-sm font-medium text-stone-800 outline-none focus:border-brand-400"
+        />
+      </div>
+
+      <div className="space-y-2">
+        {course.slots.length === 0 && (
+          <p className="pl-5 text-xs text-stone-400">Noch keine Zeiten — füg unten eine hinzu.</p>
+        )}
+        {course.slots.map((s) => (
+          <div key={s.id} className="space-y-1.5 rounded-xl bg-stone-50 p-2">
+            <div className="flex flex-wrap items-center gap-1">
+              {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+                <button
+                  key={d}
+                  onClick={() => onSlot(s.id, { weekday: d })}
+                  aria-pressed={s.weekday === d}
+                  className={cn('rounded-full px-2 py-0.5 text-xs font-medium', s.weekday === d ? 'bg-brand-400 text-stone-900' : 'bg-white text-stone-500 ring-1 ring-stone-200')}
+                >
+                  {WEEKDAY_SHORT[d]}
+                </button>
+              ))}
+              <button onClick={() => onRemoveSlot(s.id)} aria-label="Zeit entfernen" className="ml-auto rounded-md p-1 text-stone-300 hover:text-stone-500">
+                <X size={13} />
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="time" value={s.start} aria-label="Beginn" onChange={(e) => onSlot(s.id, { start: e.target.value })} className="rounded-lg border border-stone-200 px-2 py-1 text-xs outline-none focus:border-brand-400" />
+              <span className="text-stone-400">–</span>
+              <input type="time" value={s.end} aria-label="Ende" onChange={(e) => onSlot(s.id, { end: e.target.value })} className="rounded-lg border border-stone-200 px-2 py-1 text-xs outline-none focus:border-brand-400" />
+              <input value={s.room ?? ''} placeholder="Raum" aria-label="Raum" onChange={(e) => onSlot(s.id, { room: e.target.value || undefined })} className="min-w-0 flex-1 rounded-lg border border-stone-200 px-2 py-1 text-xs outline-none focus:border-brand-400" />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between">
+        <button onClick={onAddSlot} className="rounded-full bg-stone-100 px-3 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-200">+ Zeit</button>
+        <button onClick={onDone} className="rounded-full bg-brand-400 px-4 py-1.5 text-xs font-semibold text-stone-900 hover:bg-brand-500">Fertig</button>
+      </div>
+    </div>
+  )
+}
+
+function AttachmentCard({ name, kind, preview }: { name: string; kind: 'image' | 'pdf'; preview?: string }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      {kind === 'image' && preview ? (
+        <img src={preview} alt={name} className="max-h-44 w-auto rounded-lg object-cover ring-1 ring-black/5" />
+      ) : (
+        <div className="flex items-center gap-2 rounded-lg bg-white/40 px-3 py-2.5">
+          <FileText size={18} className="shrink-0" />
+          <span className="text-xs font-semibold">{kind === 'pdf' ? 'PDF-Datei' : 'Bilddatei'}</span>
+        </div>
+      )}
+      <span className="flex items-center gap-1 text-xs font-medium opacity-80">
+        <Paperclip size={11} className="shrink-0" />
+        <span className="truncate">{name}</span>
+      </span>
     </div>
   )
 }
