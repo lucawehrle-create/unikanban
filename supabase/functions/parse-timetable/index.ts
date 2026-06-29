@@ -42,6 +42,16 @@ const TOOL = {
   input_schema: {
     type: 'object',
     properties: {
+      semester: {
+        type: 'string',
+        description: 'Falls im Kopf/Titel des Plans erkennbar: das Semester, z.B. "WS 2025/26" oder "SoSe 2026". Sonst weglassen.',
+      },
+      fachsemester: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 14,
+        description: 'Falls eindeutig EINE Fachsemester-Zahl erkennbar ist. Bei mehrdeutigen Angaben wie "5. + 7. Semester" weglassen.',
+      },
       courses: {
         type: 'array',
         description: 'Alle erkannten Lehrveranstaltungen.',
@@ -91,6 +101,10 @@ Felder pro Termin:
 - start / end: HH:MM im 24-Stunden-Format.
 - room: das Raumkürzel unten rechts in der Zelle, ZEICHENGENAU übernehmen – Buchstaben, Groß-/Kleinschreibung, Ziffern und Schrägstriche exakt so wie abgebildet (z.B. "He22/142", "He22/E03", "N24/226", "H20", "N24/131"). Verwechsle keine Ziffern und vereinfache/rate NICHT. Wenn der Raum nicht eindeutig lesbar ist, lass das Feld lieber leer.
 - kind: Art der Veranstaltung. Erkenne sie an Beschriftungen in der Zelle oder im Kursnamen ("Vorlesung"/"VL" → vorlesung, "Übung"/"Ü" → uebung, "Tutorium"/"Tut" → tutorium, "Seminar" → seminar, "Praktikum" → praktikum, "Repetitorium"/"Rep" → repetitorium, "Kolloquium" → kolloquium). Wenn keine Art erkennbar ist, nimm vorlesung.
+
+Aus dem Kopf/Titel des Plans (falls vorhanden):
+- semester: das Semester wie "WS 2025/26" oder "SoSe 2026". Nur wenn klar lesbar.
+- fachsemester: nur, wenn EINDEUTIG eine einzelne Zahl genannt ist. Bei Angaben wie "5. + 7. Semester" weglassen.
 
 Weitere Regeln:
 - Dieselbe Veranstaltung an mehreren Terminen = EIN Kurs mit mehreren "slots".
@@ -191,9 +205,15 @@ Deno.serve(async (req: Request) => {
     }
     const data = await res.json()
     const tool = (data.content ?? []).find((c: { type: string }) => c.type === 'tool_use') as
-      | { input?: { courses?: unknown } }
+      | { input?: { courses?: unknown; semester?: unknown; fachsemester?: unknown } }
       | undefined
-    return json({ courses: cleanCourses(tool?.input?.courses) })
+    const input = tool?.input ?? {}
+    const semester = typeof input.semester === 'string' && input.semester.trim()
+      ? input.semester.trim().slice(0, 40)
+      : undefined
+    const fsNum = parseInt(String(input.fachsemester), 10)
+    const fachsemester = Number.isInteger(fsNum) && fsNum >= 1 && fsNum <= 14 ? fsNum : undefined
+    return json({ courses: cleanCourses(input.courses), semester, fachsemester })
   } catch (err) {
     console.error('parse-timetable failed', err)
     return json({ error: 'Interner Fehler.' }, 500)

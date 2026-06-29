@@ -190,6 +190,9 @@ function mergeCourses(cur: CourseDraft[], parsed: ParsedCourse[]): { next: Cours
     seen.add(name.toLowerCase())
     const d = toDraft(name, next.length)
     d.slots = p.slots
+    // Übung/Tutorium erkannt → wöchentliche Blätter sind sehr wahrscheinlich:
+    // vorauswählen, damit daraus automatisch Abgaben entstehen.
+    d.weekly = p.slots.some((s) => s.kind === 'uebung' || s.kind === 'tutorium')
     if (p.slots.length) withTimes++
     next.push(d)
   }
@@ -571,6 +574,10 @@ export function OnboardingChat() {
         }))
         .filter((c) => c.name)
       if (!parsed.length) { void say(['Hmm, da konnte ich keine Kurse erkennen. Tipp sie gern manuell ein. 🙏'], 'courses'); return }
+      // Semester & Fachsemester aus dem Plan-Kopf mitnehmen (spart spätere Fragen).
+      const meta = data as { semester?: string; fachsemester?: number }
+      if (typeof meta.semester === 'string' && meta.semester.trim()) draft.current.semName = meta.semester.trim()
+      if (typeof meta.fachsemester === 'number' && meta.fachsemester >= 1 && meta.fachsemester <= 14) draft.current.fs = meta.fachsemester
       applyParsed(parsed)
     } catch {
       void say(['Das Auslesen hat leider nicht geklappt. Tipp die Kurse gern manuell ein – geht genauso schnell. 🙏'], 'courses')
@@ -654,14 +661,18 @@ export function OnboardingChat() {
     }
     checkpoint('courses')
     setPhase('boot')
-    // Zeiten schon vorhanden (z.B. aus dem Upload)? Dann nicht nochmal anbieten.
+    // Was kam schon aus dem Upload? Copy entsprechend anpassen (nichts doppelt).
     const hasTimes = courses.some((c) => c.slots.length > 0)
+    const hasWeekly = courses.some((c) => c.weekly)
+    const optionLine = hasWeekly
+      ? 'Stundenplan & wöchentliche Übungen erkannt ✅ Optional noch Klausurtermine ergänzen — daraus baue ich dir automatisch den Lernplan.'
+      : hasTimes
+        ? 'Stundenplan steht ✅ Optional kannst du noch wöchentliche Übungsblätter & Klausurtermine eintragen — daraus baue ich dir automatisch deinen Lernplan.'
+        : 'Du kannst optional noch Vorlesungszeiten, wöchentliche Übungsblätter & Klausurtermine eintragen — dann erstelle ich dir automatisch Stundenplan & Lernplan.'
     void say(
       [
         'Fast fertig! 🎉 Das reicht schon, um loszulegen.',
-        hasTimes
-          ? 'Stundenplan steht ✅ Optional kannst du noch wöchentliche Übungsblätter & Klausurtermine eintragen — daraus baue ich dir automatisch deinen Lernplan.'
-          : 'Du kannst optional noch Vorlesungszeiten, wöchentliche Übungsblätter & Klausurtermine eintragen — dann erstelle ich dir automatisch Stundenplan & Lernplan.',
+        optionLine,
         'Alles kannst du aber auch jederzeit später in der App ergänzen.',
       ],
       'finishOrMore',
@@ -676,13 +687,7 @@ export function OnboardingChat() {
     // Stehen schon Zeiten (z.B. aus dem Stundenplan-Upload), den Vorlesungszeiten-
     // Schritt überspringen – sonst wäre er doppelt. Direkt zu den Übungsblättern.
     if (courses.some((c) => c.slots.length > 0)) {
-      void say(
-        [
-          '⭐ Jetzt die Superkraft: Bei welchen Kursen gibt es wöchentliche Übungsblätter?',
-          'Ich lege dir daraus automatisch das ganze Semester an Abgaben an. (Tipp die Kurse an)',
-        ],
-        'weeklyWhich',
-      )
+      void say(weeklyIntro(), 'weeklyWhich')
       return
     }
     void say(
@@ -715,16 +720,25 @@ export function OnboardingChat() {
     setCourses((cur) => cur.map((c, j) => (j === course ? { ...c, exam: date || undefined } : c)))
   }
 
+  // Einstieg in den Übungsblätter-Schritt – passt sich an, wenn aus dem Upload
+  // schon Übungen/Tutorien erkannt (und vorausgewählt) wurden.
+  function weeklyIntro(): string[] {
+    if (courses.some((c) => c.weekly)) {
+      return [
+        '⭐ Bei diesen Kursen habe ich Übungen erkannt – daraus lege ich dir automatisch das ganze Semester an Abgaben an.',
+        'Passt die Auswahl? Tipp zum An- oder Abwählen.',
+      ]
+    }
+    return [
+      '⭐ Jetzt die Superkraft: Bei welchen Kursen gibt es wöchentliche Übungsblätter?',
+      'Ich lege dir daraus automatisch das ganze Semester an Abgaben an. (Tipp die Kurse an)',
+    ]
+  }
+
   function timesDone() {
     checkpoint('times')
     setPhase('boot')
-    void say(
-      [
-        '⭐ Jetzt die Superkraft: Bei welchen Kursen gibt es wöchentliche Übungsblätter?',
-        'Ich lege dir daraus automatisch das ganze Semester an Abgaben an. (Tipp die Kurse an)',
-      ],
-      'weeklyWhich',
-    )
+    void say(weeklyIntro(), 'weeklyWhich')
   }
 
   function toggleWeekly(i: number) {
