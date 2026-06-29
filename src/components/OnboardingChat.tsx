@@ -254,6 +254,7 @@ export function OnboardingChat() {
   const [slotEdit, setSlotEdit] = useState<{ course: number; weekday: number; start: string; end: string; room: string } | null>(null)
   // Stundenplan-Upload (Foto/PDF → KI-Extraktion). Nur mit Cloud-Konto möglich.
   const [uploading, setUploading] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const uploadAvailable = Boolean(supabase)
 
@@ -560,6 +561,30 @@ export function OnboardingChat() {
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
+
+  // Upload möglich? (Cloud-Konto, im Kurs-Schritt, kein laufender Upload)
+  const canUpload = uploadAvailable && phase === 'courses' && !uploading
+  // Refs für den window-Paste-Listener (frischer Stand ohne Re-Subscribe).
+  const canUploadRef = useRef(false)
+  canUploadRef.current = canUpload
+  const handleFileRef = useRef(handleFile)
+  handleFileRef.current = handleFile
+
+  // Bild/PDF per ⌘V / Strg+V einfügen.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      if (!canUploadRef.current) return
+      for (const item of e.clipboardData?.items ?? []) {
+        if (item.kind === 'file' && (item.type.startsWith('image/') || item.type === 'application/pdf')) {
+          const f = item.getAsFile()
+          if (f) { e.preventDefault(); void handleFileRef.current(f) }
+          return
+        }
+      }
+    }
+    window.addEventListener('paste', onPaste)
+    return () => window.removeEventListener('paste', onPaste)
+  }, [])
 
   function removeCourse(i: number) {
     setCourses((cur) => cur.filter((_, j) => j !== i).map((c, j) => ({ ...c, color: PALETTE[j % PALETTE.length] })))
@@ -881,7 +906,19 @@ export function OnboardingChat() {
       style={fieldFocused && vpHeight ? { height: `${vpHeight}px` } : undefined}
     >
       {/* Abgegrenzte Chat-Karte: Vollbild auf Mobil, zentrierte Karte auf Desktop. */}
-      <div className="flex h-full w-full max-w-xl flex-col overflow-hidden bg-cream-50 sm:h-[min(90vh,860px)] sm:rounded-3xl sm:shadow-xl sm:ring-1 sm:ring-stone-200/80">
+      <div
+        className="relative flex h-full w-full max-w-xl flex-col overflow-hidden bg-cream-50 sm:h-[min(90vh,860px)] sm:rounded-3xl sm:shadow-xl sm:ring-1 sm:ring-stone-200/80"
+        onDragEnter={(e) => { if (canUpload) { e.preventDefault(); setDragOver(true) } }}
+        onDragOver={(e) => { if (canUpload) { e.preventDefault(); setDragOver(true) } }}
+        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragOver(false) }}
+        onDrop={(e) => {
+          if (!canUpload) return
+          e.preventDefault()
+          setDragOver(false)
+          const f = e.dataTransfer.files?.[0]
+          if (f) void handleFile(f)
+        }}
+      >
       {/* Kopf */}
       <header className="flex items-center gap-3 border-b border-stone-200/70 bg-white/70 px-4 py-3 backdrop-blur">
         {histLen > 0 && phase !== 'boot' && phase !== 'done' && (
@@ -1278,6 +1315,12 @@ export function OnboardingChat() {
             </div>
           )}
 
+          {phase === 'courses' && uploadAvailable && (
+            <div className="mt-1.5 flex items-center justify-center gap-1.5 text-[11px] text-stone-400">
+              <Paperclip size={11} /> Stundenplan als Foto/PDF anhängen, einfügen (⌘V) oder hierher ziehen
+            </div>
+          )}
+
           {!showText && (
             <div className="flex items-center justify-center gap-1.5 py-1 text-[11px] text-stone-400">
               <Sparkles size={12} /> Sicher in deinem Konto · auf allen Geräten synchron
@@ -1285,6 +1328,17 @@ export function OnboardingChat() {
           )}
         </div>
       </div>
+
+      {/* Ablege-Fläche beim Drag&Drop eines Stundenplans */}
+      {dragOver && (
+        <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-cream-50/90 p-6 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3 rounded-3xl border-2 border-dashed border-brand-400 px-8 py-10 text-center">
+            <FileText size={34} className="text-brand-500" />
+            <div className="text-sm font-semibold text-stone-700">Stundenplan hier ablegen</div>
+            <div className="text-xs text-stone-400">Foto (PNG/JPG) oder PDF — ich lese die Kurse automatisch aus.</div>
+          </div>
+        </div>
+      )}
       </div>
     </div>
   )
