@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useReducer, useRef, useState } from 'react'
 import { startOfWeek, format } from 'date-fns'
 import { ArrowLeft, ChevronDown, Clock, FileText, Loader2, MapPin, Paperclip, Pencil, Send, Sparkles, X } from 'lucide-react'
 import { Logo } from './Logo'
@@ -36,6 +36,26 @@ function suggestSemester(d = new Date()): string {
   if (m >= 4 && m <= 9) return `SoSe ${y}`
   if (m >= 10) return `WiSe ${y}/${String(y + 1).slice(2)}`
   return `WiSe ${y - 1}/${String(y).slice(2)}`
+}
+
+/**
+ * Sinnvolle Vorbelegung für das LAUFENDE Semester inkl. realistischem
+ * Vorlesungsbeginn (statt „diese Woche"). WiSe ~ Mitte Oktober, SoSe ~ Mitte
+ * April – im Review per Datums-Picker korrigierbar. Wichtig, weil die
+ * automatischen Wochen-Aufgaben ab diesem Datum gezählt werden.
+ */
+function defaultSemester(d = new Date()): { name: string; start: string; weeks: number } {
+  const y = d.getFullYear()
+  const m = d.getMonth() // 0=Jan
+  const isWinter = m >= 9 || m <= 2 // Okt–Mär
+  if (isWinter) {
+    const startYear = m >= 9 ? y : y - 1 // Jan–Mär gehört zum WiSe des Vorjahres
+    const name = `WiSe ${startYear}/${String((startYear + 1) % 100).padStart(2, '0')}`
+    const start = startOfWeek(new Date(startYear, 9, 14), { weekStartsOn: 1 }) // ~Mitte Okt
+    return { name, start: format(start, 'yyyy-MM-dd'), weeks: 14 }
+  }
+  const start = startOfWeek(new Date(y, 3, 14), { weekStartsOn: 1 }) // ~Mitte Apr
+  return { name: `SoSe ${y}`, start: format(start, 'yyyy-MM-dd'), weeks: 14 }
 }
 
 /** Aus „Informatik Bachelor, 3. Semester" Art + sauberen Namen ziehen. */
@@ -253,11 +273,11 @@ type Phase =
 // Fortschritt orientiert sich am kurzen Pflicht-Pfad (Studiengang → Abschluss →
 // Kurse → fast fertig); optionale Schritte verlängern die Leiste bewusst nicht.
 const STEP_OF: Record<Phase, number> = {
-  boot: 0, subject: 0, type: 1, fachsemester: 3, semester: 1, semesterCustom: 1,
-  courses: 2, finishOrMore: 3, times: 3, weeklyWhich: 3, weeklyDay: 3, exams: 3,
-  prior: 3, priorInput: 3, review: 3, done: 3,
+  boot: 0, subject: 0, type: 1, fachsemester: 2, semester: 2, semesterCustom: 2,
+  courses: 3, finishOrMore: 4, times: 4, weeklyWhich: 4, weeklyDay: 4, exams: 4,
+  prior: 4, priorInput: 4, review: 4, done: 4,
 }
-const TOTAL_STEPS = 4
+const TOTAL_STEPS = 5
 
 type DraftShape = {
   name: string; type: ProgramType; target: number; fs: number
@@ -281,15 +301,21 @@ export function OnboardingChat() {
   const [text, setText] = useState('')
   const [busy, setBusy] = useState(false)
 
-  // Entwurfsdaten
+  // Entwurfsdaten – Semester mit realistischem Vorlesungsbeginn vorbelegen.
+  const sem0 = defaultSemester()
   const draft = useRef<DraftShape>({
     name: '', type: 'bachelor', target: 180, fs: 0,
-    semName: suggestSemester(),
-    semStart: format(startOfWeek(new Date(), { weekStartsOn: 1 }), 'yyyy-MM-dd'),
-    semWeeks: 14,
+    semName: sem0.name,
+    semStart: sem0.start,
+    semWeeks: sem0.weeks,
     courses: [],
     priorEcts: 0, priorAvg: 0,
   })
+  // Erzwingt ein Re-Render, wenn Review-Felder direkt im draft geändert werden.
+  const [, forceRender] = useReducer((x: number) => x + 1, 0)
+  // Wöchentliche Abgaben nur erzeugen, wenn der Abgabetag bestätigt wurde –
+  // nie blind auf „Direkt loslegen" (sonst falsch datierte Aufgaben).
+  const weeklyConfirmed = useRef(false)
   const [courses, setCourses] = useState<CourseDraft[]>([])
   const [weeklyDay, setWeeklyDay] = useState(5) // Fr
   const [priorEcts, setPriorEcts] = useState('')
@@ -415,6 +441,7 @@ export function OnboardingChat() {
         if (typeof s.weeklyDay === 'number') setWeeklyDay(s.weeklyDay)
         if (typeof s.priorEcts === 'string') setPriorEcts(s.priorEcts)
         if (typeof s.priorAvg === 'string') setPriorAvg(s.priorAvg)
+        if (typeof s.weeklyConfirmed === 'boolean') weeklyConfirmed.current = s.weeklyConfirmed
         if (typeof s.text === 'string') setText(s.text)
         setPhase(s.phase as Phase)
         return
@@ -432,7 +459,7 @@ export function OnboardingChat() {
       else
         localStorage.setItem(
           STORE_KEY,
-          JSON.stringify({ msgs, phase, draft: draft.current, courses, weeklyDay, priorEcts, priorAvg, text }),
+          JSON.stringify({ msgs, phase, draft: draft.current, courses, weeklyDay, priorEcts, priorAvg, weeklyConfirmed: weeklyConfirmed.current, text }),
         )
     } catch { /* z.B. Speicher voll → ignorieren */ }
   }, [msgs, phase, courses, weeklyDay, priorEcts, priorAvg, text])
@@ -472,7 +499,7 @@ export function OnboardingChat() {
     if (fs) draft.current.fs = fs
     setPhase('boot')
     if (!type) { void say(['Bachelor oder Master?'], 'type'); return }
-    goCourses()
+    afterType()
   }
 
   function submitSubject() {
@@ -491,9 +518,13 @@ export function OnboardingChat() {
     setSubject(name)
   }
 
-  // Nach Bachelor/Master direkt zu den Kursen (Pflicht-Pfad kurz halten).
+  // Nach Bachelor/Master: kurz das Fachsemester (One-Tap) – es speist den
+  // ECTS-/Noten-Fortschritt im „Studium". Schon bekannt (aus Freitext)? Dann
+  // direkt weiter zu den Kursen.
   function afterType() {
-    goCourses()
+    if (draft.current.fs) { goCourses(); return }
+    setPhase('boot')
+    void say(['In welchem Fachsemester bist du gerade?'], 'fachsemester')
   }
   function chooseType(t: ProgramType) {
     checkpoint('type')
@@ -517,7 +548,7 @@ export function OnboardingChat() {
     checkpoint('fachsemester')
     draft.current.fs = n
     pushUser(`${n}. Semester`)
-    goPrior()
+    goCourses()
   }
   function submitFsText() {
     const v = text.trim()
@@ -527,7 +558,7 @@ export function OnboardingChat() {
     draft.current.fs = Number.isFinite(n) ? n : 0
     pushUser(v)
     setText('')
-    goPrior()
+    goCourses()
   }
 
   function chooseSemester(name: string) {
@@ -612,7 +643,8 @@ export function OnboardingChat() {
       // Semester & Fachsemester aus dem Plan-Kopf mitnehmen (spart spätere Fragen).
       const meta = data as { semester?: string; fachsemester?: number }
       if (typeof meta.semester === 'string' && meta.semester.trim()) draft.current.semName = meta.semester.trim()
-      if (typeof meta.fachsemester === 'number' && meta.fachsemester >= 1 && meta.fachsemester <= 14) draft.current.fs = meta.fachsemester
+      // Fachsemester wurde im Pflichtpfad schon erfragt – nur füllen, falls leer.
+      if (!draft.current.fs && typeof meta.fachsemester === 'number' && meta.fachsemester >= 1 && meta.fachsemester <= 14) draft.current.fs = meta.fachsemester
       applyParsed(parsed)
     } catch {
       void say(['Das Auslesen hat leider nicht geklappt. Tipp die Kurse gern manuell ein – geht genauso schnell. 🙏'], 'courses')
@@ -700,7 +732,7 @@ export function OnboardingChat() {
     const hasTimes = courses.some((c) => c.slots.length > 0)
     const hasWeekly = courses.some((c) => c.weekly)
     const optionLine = hasWeekly
-      ? 'Stundenplan & wöchentliche Übungen erkannt ✅ Optional noch Klausurtermine ergänzen — daraus baue ich dir automatisch den Lernplan.'
+      ? 'Stundenplan & wöchentliche Übungen erkannt ✅ Mit „Ja, ergänzen" lege ich dir daraus automatisch alle Abgaben an (und aus Klausuren deinen Lernplan).'
       : hasTimes
         ? 'Stundenplan steht ✅ Optional kannst du noch wöchentliche Übungsblätter & Klausurtermine eintragen — daraus baue ich dir automatisch deinen Lernplan.'
         : 'Du kannst optional noch Vorlesungszeiten, wöchentliche Übungsblätter & Klausurtermine eintragen — dann erstelle ich dir automatisch Stundenplan & Lernplan.'
@@ -809,6 +841,7 @@ export function OnboardingChat() {
   function chooseWeeklyDay(day: number) {
     checkpoint('weeklyDay')
     setWeeklyDay(day)
+    weeklyConfirmed.current = true // Abgabetag bestätigt → Serien dürfen entstehen
     pushUser(WEEKDAY_SHORT[day])
     draft.current.courses = courses
     goExams([])
@@ -817,11 +850,7 @@ export function OnboardingChat() {
   function examsDone() {
     checkpoint('exams')
     draft.current.courses = courses
-    if (!draft.current.fs) {
-      setPhase('boot')
-      void say(['Fast fertig — in welchem Fachsemester bist du?'], 'fachsemester')
-      return
-    }
+    // Fachsemester wird jetzt im Pflichtpfad erfragt → direkt zur Vorerfahrung.
     goPrior()
   }
 
@@ -887,7 +916,7 @@ export function OnboardingChat() {
     setBusy(true)
     const d = draft.current
     const list = courses.filter((c) => c.name.trim())
-    const weeklyN = list.filter((c) => c.weekly).length
+    const weeklyN = weeklyConfirmed.current ? list.filter((c) => c.weekly).length : 0
     const examN = list.filter((c) => c.exam).length
     const taskApprox = weeklyN * d.semWeeks
     const parts = [`${list.length} Kurs${list.length === 1 ? '' : 'e'}`]
@@ -917,7 +946,7 @@ export function OnboardingChat() {
       const records: Course[] = list
         .map((c) => {
           const recurring: RecurringConfig[] | undefined =
-            c.weekly && sem
+            c.weekly && weeklyConfirmed.current && sem
               ? [{
                   id: uid(),
                   type: 'uebung',
@@ -1229,11 +1258,37 @@ export function OnboardingChat() {
           {phase === 'review' && (
             <div className="mt-1 rounded-2xl bg-white p-4 text-sm shadow-sm ring-1 ring-stone-200">
               <div className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-stone-400">Dein Überblick</div>
-              <SumRow label="Studiengang" value={`${draft.current.name} · ${TYPE_LABEL[draft.current.type]}`} />
-              <SumRow
-                label="Semester"
-                value={`${draft.current.semName} · ab ${format(new Date(draft.current.semStart), 'dd.MM.yyyy')} · ${draft.current.semWeeks} Wochen`}
-              />
+              <SumRow label="Studiengang" value={`${draft.current.name} · ${TYPE_LABEL[draft.current.type]}${draft.current.fs ? ` · ${draft.current.fs}. Sem.` : ''}`} />
+              {/* Semester editierbar – v. a. der Start ist wichtig (Wochen-Zählung). */}
+              <div className="flex items-start justify-between gap-3 border-b border-stone-100 py-2 last:border-0">
+                <span className="shrink-0 pt-1.5 text-xs font-medium text-stone-400">Semester</span>
+                <div className="flex flex-1 flex-wrap items-center justify-end gap-1.5">
+                  <input
+                    value={draft.current.semName}
+                    aria-label="Semestername"
+                    onChange={(e) => { draft.current.semName = e.target.value; forceRender() }}
+                    className="w-28 rounded-lg border border-stone-200 px-2 py-1 text-xs font-medium text-stone-700 outline-none focus:border-brand-400"
+                  />
+                  <span className="text-[11px] text-stone-400">ab</span>
+                  <input
+                    type="date"
+                    value={draft.current.semStart}
+                    aria-label="Vorlesungsbeginn"
+                    onChange={(e) => { if (e.target.value) { draft.current.semStart = e.target.value; forceRender() } }}
+                    className="rounded-lg border border-stone-200 px-2 py-1 text-xs text-stone-700 outline-none focus:border-brand-400"
+                  />
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={draft.current.semWeeks}
+                    aria-label="Vorlesungswochen"
+                    onChange={(e) => { draft.current.semWeeks = Math.min(30, Math.max(1, Number(e.target.value) || 14)); forceRender() }}
+                    className="w-14 rounded-lg border border-stone-200 px-2 py-1 text-xs text-stone-700 outline-none focus:border-brand-400"
+                  />
+                  <span className="text-[11px] text-stone-400">Wo.</span>
+                </div>
+              </div>
               <SumRow
                 label="Vorerfahrung"
                 value={draft.current.priorEcts ? `${draft.current.priorEcts} ECTS · Ø ${draft.current.priorAvg || '—'}` : 'Erstsemester'}
