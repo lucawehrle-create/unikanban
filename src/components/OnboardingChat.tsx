@@ -611,7 +611,18 @@ export function OnboardingChat() {
 
   // --- Erkannte Kurse direkt im Kurs-Schritt bearbeiten ---------------------
   function renameCourse(i: number, name: string) {
-    setCourses((cur) => cur.map((c, j) => (j === i ? { ...c, name, short: makeShort(name) } : c)))
+    setCourses((cur) =>
+      cur.map((c, j) => {
+        if (j !== i) return c
+        // Kürzel nur automatisch nachführen, solange es noch dem auto-generierten
+        // entspricht – ein selbst gesetztes Kürzel bleibt erhalten.
+        const short = c.short === makeShort(c.name) ? makeShort(name) : c.short
+        return { ...c, name, short }
+      }),
+    )
+  }
+  function setCourseShort(i: number, short: string) {
+    setCourses((cur) => cur.map((c, j) => (j === i ? { ...c, short } : c)))
   }
   function patchSlot(i: number, slotId: string, patch: Partial<CourseSlot>) {
     setCourses((cur) =>
@@ -1013,6 +1024,7 @@ export function OnboardingChat() {
             <CourseEditor
               course={courses[editIdx]}
               onName={(name) => renameCourse(editIdx, name)}
+              onShort={(short) => setCourseShort(editIdx, short)}
               onSlot={(slotId, patch) => patchSlot(editIdx, slotId, patch)}
               onAddSlot={() => addEmptySlot(editIdx)}
               onRemoveSlot={(slotId) => removeSlot(editIdx, slotId)}
@@ -1437,10 +1449,11 @@ function TimeSelect({ value, label, onChange }: { value: string; label: string; 
 }
 
 function CourseEditor({
-  course, onName, onSlot, onAddSlot, onRemoveSlot, onDone,
+  course, onName, onShort, onSlot, onAddSlot, onRemoveSlot, onDone,
 }: {
   course: CourseDraft
   onName: (name: string) => void
+  onShort: (short: string) => void
   onSlot: (slotId: string, patch: Partial<CourseSlot>) => void
   onAddSlot: () => void
   onRemoveSlot: (slotId: string) => void
@@ -1456,6 +1469,15 @@ function CourseEditor({
           onChange={(e) => onName(e.target.value)}
           placeholder="Kursname"
           className="min-w-0 flex-1 rounded-lg border border-stone-200 px-2.5 py-1.5 text-sm font-medium text-stone-800 outline-none focus:border-brand-400"
+        />
+        <input
+          value={course.short}
+          aria-label="Kürzel"
+          maxLength={6}
+          onChange={(e) => onShort(e.target.value.toUpperCase())}
+          placeholder="Kürzel"
+          title="Kürzel (im Stundenplan & Board)"
+          className="w-16 shrink-0 rounded-lg border border-stone-200 px-2 py-1.5 text-center text-sm font-semibold uppercase text-stone-700 outline-none focus:border-brand-400"
         />
       </div>
 
