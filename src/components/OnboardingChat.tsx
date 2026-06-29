@@ -926,11 +926,6 @@ export function OnboardingChat() {
     void say(['Klar — pass deine Kurse an und tipp dann auf „Fertig".'], 'courses')
   }
 
-  function editShort(i: number, val: string) {
-    const v = val.toUpperCase().replace(/[^A-ZÄÖÜ0-9]/g, '').slice(0, 6)
-    setCourses((cur) => cur.map((c, j) => (j === i ? { ...c, short: v } : c)))
-  }
-
   async function finish() {
     if (busy) return
     setBusy(true)
@@ -1151,7 +1146,7 @@ export function OnboardingChat() {
           )}
 
           {/* Kurs-Vorschau: pro Kurs eine Zeile, Zeit & Raum klar getrennt */}
-          {((phase === 'courses' && editIdx === null) || phase === 'prior' || phase === 'priorInput') && courses.length > 0 && (
+          {phase === 'courses' && editIdx === null && courses.length > 0 && (
             <div className="mt-1 overflow-hidden rounded-2xl bg-white text-sm shadow-sm ring-1 ring-stone-200">
               {courses.map((c, i) => (
                 <div key={i} className="flex items-start gap-2.5 border-b border-stone-100 px-3 py-2.5 last:border-0">
@@ -1318,7 +1313,7 @@ export function OnboardingChat() {
                 value={draft.current.priorEcts ? `${draft.current.priorEcts} ECTS · Ø ${draft.current.priorAvg || '—'}` : 'Erstsemester'}
               />
               <div className="mb-1.5 mt-3 text-[11px] font-medium text-stone-500">
-                Kurse ({courses.length}) · Kürzel & Blätter (📄) hier anpassbar
+                Kurse ({courses.length})
               </div>
               <div className="space-y-1.5">
                 {courses.map((c, i) => (
@@ -1332,31 +1327,11 @@ export function OnboardingChat() {
                         {c.exam ? ` · Klausur ${format(new Date(c.exam), 'dd.MM.')}` : ''}
                       </div>
                     </div>
-                    <input
-                      value={c.short}
-                      onChange={(e) => editShort(i, e.target.value)}
-                      aria-label={`Kürzel für ${c.name}`}
-                      className="w-16 rounded-md border border-stone-200 px-2 py-1 text-center text-xs font-semibold uppercase outline-none focus:border-brand-400"
-                    />
-                    <button
-                      onClick={() => toggleWeekly(i)}
-                      title="Wöchentliche Übungsblätter"
-                      aria-label={`Wöchentliche Übungsblätter für ${c.name} ${c.weekly ? 'aus' : 'ein'}schalten`}
-                      aria-pressed={c.weekly}
-                      className={cn('shrink-0 rounded-md p-1.5 transition', c.weekly ? 'bg-brand-400 text-stone-900' : 'text-stone-300 hover:bg-stone-100 hover:text-stone-500')}
-                    >
-                      <FileText size={14} />
-                    </button>
-                    <button
-                      onClick={() => removeCourse(i)}
-                      title="Entfernen"
-                      className="shrink-0 rounded-md p-1.5 text-stone-300 transition hover:bg-red-50 hover:text-red-500"
-                    >
-                      <X size={14} />
-                    </button>
+                    <span className="shrink-0 rounded-md bg-stone-100 px-2 py-0.5 text-[11px] font-semibold text-stone-500">{c.short}</span>
                   </div>
                 ))}
               </div>
+              <p className="mt-2 text-[11px] text-stone-400">Kürzel, Zeiten & Blätter änderst du über „Kurse bearbeiten".</p>
             </div>
           )}
 
