@@ -179,24 +179,59 @@ function toDraft(name: string, idx: number): CourseDraft {
   return { name, short: makeShort(name), color: PALETTE[idx % PALETTE.length], slots: [], weekly: false }
 }
 
-/** Geparste Kurse (Text-Paste ODER Foto/PDF) dedupliziert anhängen. */
+/**
+ * Robuster Identitäts-Schlüssel eines Kurses: bedeutungstragende Wörter, ohne
+ * Füllwörter/Abkürzungen/Fußnoten. So gilt „Spezialfragen d. Abschlusserstellung"
+ * = „Spezialfragen der Abschlusserstellung" (→ kein Doppel-Kurs), aber
+ * „Analysis I" ≠ „Analysis II" (Ziffern/Römische bleiben erhalten).
+ */
+function courseKey(name: string): string {
+  return name
+    .toLowerCase()
+    .split(/\s+/)
+    .map((t) => t.replace(/[^a-z0-9äöüß]/g, '')) // Satzzeichen & Hochzahlen weg
+    .filter((t) => t && !SHORT_STOP.has(t) && (t.length >= 2 || /^[0-9]$/.test(t) || /^[ivx]$/.test(t)))
+    .join(' ')
+}
+const slotSig = (s: CourseSlot) => `${s.weekday}-${s.start}-${s.end}`
+const isWeeklyKind = (slots: CourseSlot[]) => slots.some((s) => s.kind === 'uebung' || s.kind === 'tutorium')
+
+/**
+ * Geparste Kurse anhängen UND denselben Kurs zusammenführen: gleicher Schlüssel
+ * → ein Kurs mit allen (eindeutigen) Terminen, statt doppelter Einträge.
+ */
 function mergeCourses(cur: CourseDraft[], parsed: ParsedCourse[]): { next: CourseDraft[]; added: number; withTimes: number } {
-  const seen = new Set(cur.map((c) => c.name.toLowerCase()))
   const next = [...cur]
+  const idxByKey = new Map<string, number>()
+  next.forEach((c, i) => idxByKey.set(courseKey(c.name) || c.name.toLowerCase(), i))
+  let added = 0
   let withTimes = 0
   for (const p of parsed) {
     const name = p.name.trim()
-    if (!name || seen.has(name.toLowerCase())) continue
-    seen.add(name.toLowerCase())
+    if (!name) continue
+    const key = courseKey(name) || name.toLowerCase()
+    const at = idxByKey.get(key)
+    if (at != null) {
+      // Gleicher Kurs → nur neue, noch nicht vorhandene Termine ergänzen.
+      const c = next[at]
+      const have = new Set(c.slots.map(slotSig))
+      const fresh = p.slots.filter((s) => !have.has(slotSig(s)))
+      if (fresh.length) {
+        const slots = [...c.slots, ...fresh]
+        next[at] = { ...c, slots, weekly: c.weekly || isWeeklyKind(slots) }
+      }
+      continue
+    }
     const d = toDraft(name, next.length)
     d.slots = p.slots
-    // Übung/Tutorium erkannt → wöchentliche Blätter sind sehr wahrscheinlich:
-    // vorauswählen, damit daraus automatisch Abgaben entstehen.
-    d.weekly = p.slots.some((s) => s.kind === 'uebung' || s.kind === 'tutorium')
+    // Übung/Tutorium erkannt → wöchentliche Blätter sehr wahrscheinlich: vorauswählen.
+    d.weekly = isWeeklyKind(p.slots)
     if (p.slots.length) withTimes++
+    idxByKey.set(key, next.length)
     next.push(d)
+    added++
   }
-  return { next, added: next.length - cur.length, withTimes }
+  return { next, added, withTimes }
 }
 
 /** Datei als data-URL lesen (Vorschau + base64 fürs Hochladen). */

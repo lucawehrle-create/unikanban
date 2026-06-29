@@ -107,7 +107,7 @@ Aus dem Kopf/Titel des Plans (falls vorhanden):
 - fachsemester: nur, wenn EINDEUTIG eine einzelne Zahl genannt ist. Bei Angaben wie "5. + 7. Semester" weglassen.
 
 Weitere Regeln:
-- Dieselbe Veranstaltung an mehreren Terminen = EIN Kurs mit mehreren "slots".
+- Dieselbe Veranstaltung an mehreren Terminen = EIN Kurs mit mehreren "slots". Das gilt AUCH, wenn der Name leicht abweichend oder abgekürzt geschrieben ist (z.B. "Spezialfragen d. Abschlusserstellung" und "Spezialfragen der Abschlusserstellung") oder dieselbe Fußnotenziffer trägt – fasse ihn zu EINEM Kurs mit EINEM einheitlichen Namen zusammen, niemals doppelt.
 - Ignoriere die Legende/Schattierung (z.B. "5. Semester / 7. Semester"), die Kopfzeile, Pausen und leere Zellen.
 - Erfinde nichts. Gib nur zurück, was wirklich im Plan steht.
 - Wenn nichts Verwertbares erkennbar ist, gib eine leere "courses"-Liste zurück.
