@@ -15,7 +15,11 @@
 //   TIMETABLE_MODEL überschreibbar.
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? ''
-const MODEL = Deno.env.get('TIMETABLE_MODEL') ?? 'claude-haiku-4-5-20251001'
+// Sonnet als Standard: Stundenpläne sind dichte Raster mit kleinen Raumkürzeln
+// und verbundenen Zellen – Haiku liest die zu unzuverlässig. Per Secret
+// TIMETABLE_MODEL überschreibbar (z.B. claude-opus-4-8 für max. Genauigkeit,
+// oder claude-haiku-4-5-20251001 für minimale Kosten).
+const MODEL = Deno.env.get('TIMETABLE_MODEL') ?? 'claude-sonnet-4-6'
 const MAX_BYTES = 8 * 1024 * 1024 // 8 MB Rohgröße
 
 const corsHeaders = {
@@ -68,15 +72,26 @@ const TOOL = {
   },
 }
 
-const SYSTEM = `Du liest Stundenpläne deutscher Hochschulen aus Bildern oder PDFs und gibst sie strukturiert zurück.
-Regeln:
-- Erfasse jede Lehrveranstaltung mit ihrem vollen Namen.
-- Mehrere Sitzungen derselben Veranstaltung (z.B. Vorlesung Mo und Mi) gehören als mehrere "slots" zu EINEM Kurs.
-- Uhrzeiten immer als HH:MM im 24-Stunden-Format.
-- weekday: 1=Montag, 2=Dienstag, … 7=Sonntag.
-- WICHTIG: Erfasse zu JEDEM Termin den Raum/Hörsaal, wenn er im Plan steht – auch in Klammern, Fußzeilen oder Nebenspalten (z.B. "HS 1", "SR 204", "H 0.16", "Geb. 30.41", "Online", "B302"). Schreibe ihn in das Feld "room". Nur weglassen, wenn wirklich kein Raum dabeisteht.
-- Ignoriere Kopf-/Zeitspalten, Pausen, Legenden, leere Zellen und einmalige Termine.
+const SYSTEM = `Du extrahierst einen Wochen-Stundenplan (deutsche Hochschule) aus einem Bild oder PDF. Arbeite extrem sorgfältig – jede Veranstaltung, jeder Tag, jede Uhrzeit und jeder Raum muss exakt stimmen.
+
+So liest du die Tabelle:
+- Die SPALTEN sind Wochentage: Montag=1, Dienstag=2, Mittwoch=3, Donnerstag=4, Freitag=5, Samstag=6, Sonntag=7. Ordne jede Zelle GENAU der Spalte zu, in der sie steht. Verwechsle Tage niemals – gehe die Tabelle Spalte für Spalte (Tag für Tag) durch.
+- Die LINKE Spalte ist die Zeitachse. Beginn und Ende eines Termins ergeben sich aus den Zeilen, die der Block überdeckt. Ein Block, der zwei Stundenzeilen ausfüllt (z.B. 08:00–09:00 UND 09:00–10:00), dauert 08:00–10:00. Ein Block über zwei Zeilen ist also 2 Stunden lang, nicht 1.
+- Stehen in EINER Tag/Zeit-Zelle zwei Kästchen NEBENEINANDER, sind das zwei verschiedene, parallele Veranstaltungen zur selben Zeit – gib beide als getrennte Einträge zurück (gleicher Tag, gleiche Uhrzeit, je eigener Raum).
+- Innerhalb einer Zelle steht oben der KURSNAME, darunter der Dozentenname (links) und der RAUM (rechts).
+
+Felder pro Termin:
+- name: der Kursname OHNE hochgestellte Fußnotenziffern (z.B. "Spezialfragen der Abschlusserstellung²" → "Spezialfragen der Abschlusserstellung"). Nimm KEINE Dozentennamen in den Namen auf.
+- weekday: 1–7 wie oben.
+- start / end: HH:MM im 24-Stunden-Format.
+- room: das Raumkürzel unten rechts in der Zelle, ZEICHENGENAU übernehmen – Buchstaben, Groß-/Kleinschreibung, Ziffern und Schrägstriche exakt so wie abgebildet (z.B. "He22/142", "He22/E03", "N24/226", "H20", "N24/131"). Verwechsle keine Ziffern und vereinfache/rate NICHT. Wenn der Raum nicht eindeutig lesbar ist, lass das Feld lieber leer.
+
+Weitere Regeln:
+- Dieselbe Veranstaltung an mehreren Terminen = EIN Kurs mit mehreren "slots".
+- Ignoriere die Legende/Schattierung (z.B. "5. Semester / 7. Semester"), die Kopfzeile, Pausen und leere Zellen.
+- Erfinde nichts. Gib nur zurück, was wirklich im Plan steht.
 - Wenn nichts Verwertbares erkennbar ist, gib eine leere "courses"-Liste zurück.
+
 Rufe ausschließlich das Tool report_timetable auf.`
 
 function normTime(v: unknown): string {
@@ -144,7 +159,8 @@ Deno.serve(async (req: Request) => {
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: 2048,
+        max_tokens: 4096,
+        temperature: 0,
         system: SYSTEM,
         tools: [TOOL],
         tool_choice: { type: 'tool', name: 'report_timetable' },
@@ -153,7 +169,7 @@ Deno.serve(async (req: Request) => {
             role: 'user',
             content: [
               fileBlock,
-              { type: 'text', text: 'Lies diesen Stundenplan aus und melde die Kurse über das Tool. Achte besonders auf die Räume/Hörsäle zu jedem Termin.' },
+              { type: 'text', text: 'Lies diesen Stundenplan aus und melde die Kurse über das Tool. Gehe Spalte für Spalte (Tag für Tag) vor, damit kein Termin in den falschen Tag rutscht, und übernimm die Raumkürzel zeichengenau.' },
             ],
           },
         ],

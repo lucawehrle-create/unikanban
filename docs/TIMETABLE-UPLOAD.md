@@ -27,13 +27,22 @@ den kostenpflichtigen Key – aufrufen können.
 
 ## Modell & Kosten
 
-- Standardmodell: **`claude-haiku-4-5-20251001`** – das günstigste Claude-Modell
-  mit Bild-/PDF-Fähigkeit. Pro Upload fallen nur wenige Cent an.
-- Überschreibbar per Secret `TIMETABLE_MODEL`, z. B. für höhere Genauigkeit:
+- Standardmodell: **`claude-sonnet-4-6`** – guter Kompromiss aus Genauigkeit
+  und Kosten. Dichte Stundenplan-Raster (kleine Raumkürzel, verbundene Zellen)
+  liest Sonnet deutlich zuverlässiger als Haiku.
+- Überschreibbar per Secret `TIMETABLE_MODEL`:
 
   ```bash
-  supabase secrets set TIMETABLE_MODEL=claude-sonnet-4-6
+  # Maximale Genauigkeit (teurer):
+  supabase secrets set TIMETABLE_MODEL=claude-opus-4-8
+
+  # Minimale Kosten (ungenauer bei dichten Plänen):
+  supabase secrets set TIMETABLE_MODEL=claude-haiku-4-5-20251001
   ```
+
+- Zusätzlich läuft die Extraktion mit `temperature: 0` (deterministisch) und
+  einem Spalte-für-Spalte-Prompt, damit Tage nicht vertauscht und Räume
+  zeichengenau übernommen werden.
 
 ## Grenzen
 
