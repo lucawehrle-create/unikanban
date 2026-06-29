@@ -193,10 +193,17 @@ interface CourseDraft {
   color: string
   slots: CourseSlot[]
   weekly: boolean
+  weeklyDay?: number // Abgabetag der Blätter (1=Mo … 7=So), pro Kurs
   exam?: string // yyyy-MM-dd
 }
 function toDraft(name: string, idx: number): CourseDraft {
   return { name, short: makeShort(name), color: PALETTE[idx % PALETTE.length], slots: [], weekly: false }
+}
+
+/** Sinnvoller Default-Abgabetag eines Kurses: Tag der Übung/des Tutoriums, sonst Fr. */
+function defaultAbgabeDay(slots: CourseSlot[]): number {
+  const ex = slots.find((s) => s.kind === 'uebung' || s.kind === 'tutorium')
+  return ex?.weekday ?? 5
 }
 
 /**
@@ -238,7 +245,8 @@ function mergeCourses(cur: CourseDraft[], parsed: ParsedCourse[]): { next: Cours
       const fresh = p.slots.filter((s) => !have.has(slotSig(s)))
       if (fresh.length) {
         const slots = [...c.slots, ...fresh]
-        next[at] = { ...c, slots, weekly: c.weekly || isWeeklyKind(slots) }
+        const weekly = c.weekly || isWeeklyKind(slots)
+        next[at] = { ...c, slots, weekly, weeklyDay: c.weeklyDay ?? (weekly ? defaultAbgabeDay(slots) : undefined) }
       }
       continue
     }
@@ -246,6 +254,7 @@ function mergeCourses(cur: CourseDraft[], parsed: ParsedCourse[]): { next: Cours
     d.slots = p.slots
     // Übung/Tutorium erkannt → wöchentliche Blätter sehr wahrscheinlich: vorauswählen.
     d.weekly = isWeeklyKind(p.slots)
+    if (d.weekly) d.weeklyDay = defaultAbgabeDay(p.slots)
     if (p.slots.length) withTimes++
     idxByKey.set(key, next.length)
     next.push(d)
@@ -809,7 +818,16 @@ export function OnboardingChat() {
   }
 
   function toggleWeekly(i: number) {
-    setCourses((cur) => cur.map((c, j) => (j === i ? { ...c, weekly: !c.weekly } : c)))
+    setCourses((cur) =>
+      cur.map((c, j) => {
+        if (j !== i) return c
+        const weekly = !c.weekly
+        return { ...c, weekly, weeklyDay: weekly ? (c.weeklyDay ?? defaultAbgabeDay(c.slots)) : c.weeklyDay }
+      }),
+    )
+  }
+  function setWeeklyDayFor(i: number, day: number) {
+    setCourses((cur) => cur.map((c, j) => (j === i ? { ...c, weeklyDay: day } : c)))
   }
 
   // Übergang zum (optionalen) Klausur-Schritt — schaltet später den Lernplan frei.
@@ -835,15 +853,16 @@ export function OnboardingChat() {
     }
     pushUser(courses.filter((c) => c.weekly).map((c) => c.short).join(', '))
     setPhase('boot')
-    void say(['An welchem Tag ist meist die Abgabe?'], 'weeklyDay')
+    void say(['An welchem Tag gibst du die Blätter ab? (pro Kurs einstellbar)'], 'weeklyDay')
   }
 
-  function chooseWeeklyDay(day: number) {
+  function weeklyDayDone() {
     checkpoint('weeklyDay')
-    setWeeklyDay(day)
-    weeklyConfirmed.current = true // Abgabetag bestätigt → Serien dürfen entstehen
-    pushUser(WEEKDAY_SHORT[day])
+    weeklyConfirmed.current = true // Abgabetage bestätigt → Serien dürfen entstehen
     draft.current.courses = courses
+    pushUser(
+      courses.filter((c) => c.weekly).map((c) => `${c.short} ${WEEKDAY_SHORT[c.weeklyDay ?? 5]}`).join(', '),
+    )
     goExams([])
   }
 
@@ -951,7 +970,7 @@ export function OnboardingChat() {
                   id: uid(),
                   type: 'uebung',
                   labelPrefix: 'Übungsblatt',
-                  weekday: weeklyDay,
+                  weekday: c.weeklyDay ?? weeklyDay,
                   time: '12:00',
                   count: sem.weeks,
                   startWeek: 1,
@@ -1426,11 +1445,38 @@ export function OnboardingChat() {
           )}
 
           {phase === 'weeklyDay' && (
-            <ChipRow>
-              {[1, 2, 3, 4, 5].map((d) => (
-                <Chip key={d} primary={d === 5} onClick={() => chooseWeeklyDay(d)}>{WEEKDAY_SHORT[d]}</Chip>
-              ))}
-            </ChipRow>
+            <div className="space-y-2">
+              {courses.map((c, i) =>
+                c.weekly ? (
+                  <div key={i} className="rounded-xl bg-white p-2.5 ring-1 ring-stone-200">
+                    <div className="mb-1.5 flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: c.color }} />
+                      <span className="text-sm font-semibold text-stone-700">{c.short}</span>
+                      <span className="min-w-0 truncate text-xs text-stone-400">{c.name}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {[1, 2, 3, 4, 5, 6, 7].map((d) => (
+                        <button
+                          key={d}
+                          onClick={() => setWeeklyDayFor(i, d)}
+                          aria-pressed={(c.weeklyDay ?? 5) === d}
+                          aria-label={`Abgabetag ${WEEKDAY_SHORT[d]} für ${c.short}`}
+                          className={cn(
+                            'rounded-full px-2.5 py-1 text-xs font-medium transition',
+                            (c.weeklyDay ?? 5) === d ? 'bg-brand-400 text-stone-900' : 'bg-white text-stone-500 ring-1 ring-stone-200 hover:bg-stone-50',
+                          )}
+                        >
+                          {WEEKDAY_SHORT[d]}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null,
+              )}
+              <ChipRow>
+                <Chip primary onClick={weeklyDayDone}>Weiter</Chip>
+              </ChipRow>
+            </div>
           )}
 
           {phase === 'prior' && (
