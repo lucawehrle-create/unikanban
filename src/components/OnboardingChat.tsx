@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { startOfWeek, format } from 'date-fns'
-import { ArrowLeft, FileText, Loader2, Paperclip, Pencil, Send, Sparkles, X } from 'lucide-react'
+import { ArrowLeft, ChevronDown, Clock, FileText, Loader2, MapPin, Paperclip, Pencil, Send, Sparkles, X } from 'lucide-react'
 import { Logo } from './Logo'
 import type { Course, CourseSlot, ProgramType, RecurringConfig, Task } from '@/db/types'
 import { db, uid } from '@/db/db'
@@ -57,6 +57,14 @@ function parseSubject(raw: string): { name: string; type?: ProgramType; fs?: num
 
 // 1 = Montag … 7 = Sonntag (Slot-/Recurring-Konvention).
 const WEEKDAY_SHORT = ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+
+// Uhrzeit-Auswahl in 15-Min-Schritten (deckt das akad. Viertel ab) – statt der
+// nativen Zeit-„Walze", die optisch aus dem App-Stil fällt.
+const TIME_OPTIONS: string[] = (() => {
+  const out: string[] = []
+  for (let h = 6; h <= 22; h++) for (const m of ['00', '15', '30', '45']) out.push(`${String(h).padStart(2, '0')}:${m}`)
+  return out
+})()
 
 // --- Smart-Paste: aus eingefügten Stundenplan-Zeilen Kurs + Zeit erkennen ----
 // Zeitspanne, z.B. „10-12", „10:00–12:00", „10 bis 12 Uhr".
@@ -1010,35 +1018,46 @@ export function OnboardingChat() {
             />
           )}
 
-          {/* Kurs-Chips (mit Termin-/Klausur-Hinweis in den Bestätigungs-Schritten) */}
+          {/* Kurs-Vorschau: pro Kurs eine Zeile, Zeit & Raum klar getrennt */}
           {((phase === 'courses' && editIdx === null) || phase === 'prior' || phase === 'priorInput') && courses.length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-1.5">
+            <div className="mt-1 overflow-hidden rounded-2xl bg-white text-sm shadow-sm ring-1 ring-stone-200">
               {courses.map((c, i) => (
-                <span
-                  key={i}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-white py-1 pl-2 pr-1 text-xs font-medium text-stone-700 ring-1 ring-stone-200"
-                >
-                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.color }} />
-                  {c.name}
-                  {c.slots.length > 0 && (
-                    <span className="text-[10px] font-normal text-stone-400">
-                      {c.slots.map((s) => `${WEEKDAY_SHORT[s.weekday]} ${s.start}–${s.end}${s.room ? ` (${s.room})` : ''}`).join(' · ')}
-                    </span>
-                  )}
-                  {c.exam && (
-                    <span className="text-[10px] font-normal text-amber-600">📝 {format(new Date(c.exam), 'dd.MM.')}</span>
-                  )}
+                <div key={i} className="flex items-start gap-2.5 border-b border-stone-100 px-3 py-2.5 last:border-0">
+                  <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: c.color }} />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium leading-snug text-stone-800">{c.name}</div>
+                    {c.slots.length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                        {c.slots.map((s) => (
+                          <span key={s.id} className="inline-flex items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1 rounded-md bg-stone-100 px-1.5 py-0.5 text-[11px] font-medium text-stone-600">
+                              <Clock size={10} className="text-stone-400" />
+                              {WEEKDAY_SHORT[s.weekday]} {s.start}–{s.end}
+                            </span>
+                            {s.room && (
+                              <span className="inline-flex items-center gap-0.5 text-[11px] text-stone-400">
+                                <MapPin size={10} /> {s.room}
+                              </span>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {c.exam && (
+                      <div className="mt-1 text-[11px] font-medium text-amber-600">📝 Klausur {format(new Date(c.exam), 'dd.MM.')}</div>
+                    )}
+                  </div>
                   {phase === 'courses' && (
-                    <>
-                      <button onClick={() => setEditIdx(i)} aria-label={`${c.name} bearbeiten`} className="rounded-full p-0.5 text-stone-300 hover:bg-stone-100 hover:text-stone-600">
-                        <Pencil size={11} />
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <button onClick={() => setEditIdx(i)} aria-label={`${c.name} bearbeiten`} className="rounded-full p-1 text-stone-300 transition hover:bg-stone-100 hover:text-stone-600">
+                        <Pencil size={13} />
                       </button>
-                      <button onClick={() => removeCourse(i)} aria-label={`${c.name} entfernen`} className="rounded-full p-0.5 text-stone-300 hover:bg-stone-100 hover:text-stone-500">
-                        <X size={12} />
+                      <button onClick={() => removeCourse(i)} aria-label={`${c.name} entfernen`} className="rounded-full p-1 text-stone-300 transition hover:bg-stone-100 hover:text-stone-500">
+                        <X size={14} />
                       </button>
-                    </>
+                    </div>
                   )}
-                </span>
+                </div>
               ))}
             </div>
           )}
@@ -1060,8 +1079,9 @@ export function OnboardingChat() {
                   {c.slots.length > 0 && (
                     <div className="mt-1.5 flex flex-wrap gap-1.5 pl-5">
                       {c.slots.map((s) => (
-                        <span key={s.id} className="inline-flex items-center gap-1 rounded-full bg-stone-50 px-2 py-0.5 text-[11px] text-stone-600 ring-1 ring-stone-200">
-                          {WEEKDAY_SHORT[s.weekday]} {s.start}–{s.end}{s.room ? ` · ${s.room}` : ''}
+                        <span key={s.id} className="inline-flex items-center gap-1.5 rounded-full bg-stone-50 px-2 py-0.5 text-[11px] text-stone-600 ring-1 ring-stone-200">
+                          <span className="inline-flex items-center gap-1"><Clock size={10} className="text-stone-400" /> {WEEKDAY_SHORT[s.weekday]} {s.start}–{s.end}</span>
+                          {s.room && <span className="inline-flex items-center gap-0.5 text-stone-400"><MapPin size={10} /> {s.room}</span>}
                           <button onClick={() => removeSlot(i, s.id)} aria-label="Termin entfernen" className="text-stone-300 hover:text-stone-500">
                             <X size={11} />
                           </button>
@@ -1083,11 +1103,13 @@ export function OnboardingChat() {
                           </button>
                         ))}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <input type="time" value={slotEdit.start} aria-label="Beginn" onChange={(e) => setSlotEdit((s) => (s ? { ...s, start: e.target.value } : s))} className="rounded-lg border border-stone-200 px-2 py-1 text-xs outline-none focus:border-brand-400" />
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Clock size={13} className="shrink-0 text-stone-400" />
+                        <TimeSelect value={slotEdit.start} label="Beginn" onChange={(v) => setSlotEdit((s) => (s ? { ...s, start: v } : s))} />
                         <span className="text-stone-400">–</span>
-                        <input type="time" value={slotEdit.end} aria-label="Ende" onChange={(e) => setSlotEdit((s) => (s ? { ...s, end: e.target.value } : s))} className="rounded-lg border border-stone-200 px-2 py-1 text-xs outline-none focus:border-brand-400" />
-                        <input value={slotEdit.room} placeholder="Raum (optional)" aria-label="Raum" onChange={(e) => setSlotEdit((s) => (s ? { ...s, room: e.target.value } : s))} className="min-w-0 flex-1 rounded-lg border border-stone-200 px-2 py-1 text-xs outline-none focus:border-brand-400" />
+                        <TimeSelect value={slotEdit.end} label="Ende" onChange={(v) => setSlotEdit((s) => (s ? { ...s, end: v } : s))} />
+                        <span className="mx-0.5 inline-flex items-center text-stone-400"><MapPin size={13} /></span>
+                        <input value={slotEdit.room} placeholder="Raum (optional)" aria-label="Raum" onChange={(e) => setSlotEdit((s) => (s ? { ...s, room: e.target.value } : s))} className="min-w-0 flex-1 rounded-lg border border-stone-200 px-2.5 py-1.5 text-xs outline-none focus:border-brand-400" />
                       </div>
                       <div className="flex gap-2">
                         <button onClick={addSlot} disabled={!slotEdit.weekday} className="rounded-full bg-brand-400 px-3 py-1 text-xs font-semibold text-stone-900 disabled:opacity-40">Hinzufügen</button>
@@ -1392,6 +1414,25 @@ export function OnboardingChat() {
   )
 }
 
+function TimeSelect({ value, label, onChange }: { value: string; label: string; onChange: (v: string) => void }) {
+  const opts = !value || TIME_OPTIONS.includes(value) ? TIME_OPTIONS : [value, ...TIME_OPTIONS]
+  return (
+    <div className="relative">
+      <select
+        value={value}
+        aria-label={label}
+        onChange={(e) => onChange(e.target.value)}
+        className="appearance-none rounded-lg border border-stone-200 bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-stone-700 outline-none focus:border-brand-400"
+      >
+        {opts.map((t) => (
+          <option key={t} value={t}>{t}</option>
+        ))}
+      </select>
+      <ChevronDown size={13} className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-stone-400" />
+    </div>
+  )
+}
+
 function CourseEditor({
   course, onName, onSlot, onAddSlot, onRemoveSlot, onDone,
 }: {
@@ -1436,11 +1477,21 @@ function CourseEditor({
                 <X size={13} />
               </button>
             </div>
-            <div className="flex items-center gap-2">
-              <input type="time" value={s.start} aria-label="Beginn" onChange={(e) => onSlot(s.id, { start: e.target.value })} className="rounded-lg border border-stone-200 px-2 py-1 text-xs outline-none focus:border-brand-400" />
+            <div className="flex items-center gap-1.5">
+              <Clock size={13} className="shrink-0 text-stone-400" />
+              <TimeSelect value={s.start} label="Beginn" onChange={(v) => onSlot(s.id, { start: v })} />
               <span className="text-stone-400">–</span>
-              <input type="time" value={s.end} aria-label="Ende" onChange={(e) => onSlot(s.id, { end: e.target.value })} className="rounded-lg border border-stone-200 px-2 py-1 text-xs outline-none focus:border-brand-400" />
-              <input value={s.room ?? ''} placeholder="Raum" aria-label="Raum" onChange={(e) => onSlot(s.id, { room: e.target.value || undefined })} className="min-w-0 flex-1 rounded-lg border border-stone-200 px-2 py-1 text-xs outline-none focus:border-brand-400" />
+              <TimeSelect value={s.end} label="Ende" onChange={(v) => onSlot(s.id, { end: v })} />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <MapPin size={13} className="shrink-0 text-stone-400" />
+              <input
+                value={s.room ?? ''}
+                placeholder="Raum (z. B. H602)"
+                aria-label="Raum"
+                onChange={(e) => onSlot(s.id, { room: e.target.value || undefined })}
+                className="min-w-0 flex-1 rounded-lg border border-stone-200 px-2.5 py-1.5 text-xs outline-none focus:border-brand-400"
+              />
             </div>
           </div>
         ))}
