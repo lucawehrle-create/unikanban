@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { startOfWeek, format } from 'date-fns'
-import { ArrowLeft, FileText, Send, Sparkles, X } from 'lucide-react'
+import { ArrowLeft, FileText, Loader2, Paperclip, Send, Sparkles, X } from 'lucide-react'
 import { Logo } from './Logo'
 import type { Course, CourseSlot, ProgramType, RecurringConfig, Task } from '@/db/types'
 import { db, uid } from '@/db/db'
@@ -9,6 +9,7 @@ import { generateRecurringTasks } from '@/lib/recurring'
 import { makePhases } from '@/lib/taskTypes'
 import { seedIfEmpty } from '@/lib/seed'
 import { useUI } from '@/store/ui'
+import { supabase } from '@/lib/supabase'
 import { cn } from '@/lib/cn'
 
 const PALETTE = [
@@ -169,6 +170,33 @@ function toDraft(name: string, idx: number): CourseDraft {
   return { name, short: makeShort(name), color: PALETTE[idx % PALETTE.length], slots: [], weekly: false }
 }
 
+/** Geparste Kurse (Text-Paste ODER Foto/PDF) dedupliziert anhängen. */
+function mergeCourses(cur: CourseDraft[], parsed: ParsedCourse[]): { next: CourseDraft[]; added: number; withTimes: number } {
+  const seen = new Set(cur.map((c) => c.name.toLowerCase()))
+  const next = [...cur]
+  let withTimes = 0
+  for (const p of parsed) {
+    const name = p.name.trim()
+    if (!name || seen.has(name.toLowerCase())) continue
+    seen.add(name.toLowerCase())
+    const d = toDraft(name, next.length)
+    d.slots = p.slots
+    if (p.slots.length) withTimes++
+    next.push(d)
+  }
+  return { next, added: next.length - cur.length, withTimes }
+}
+
+/** Datei als base64 (ohne data:-Präfix) lesen – für den Stundenplan-Upload. */
+function fileToBase64(f: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(String(r.result).split(',')[1] ?? '')
+    r.onerror = () => reject(r.error)
+    r.readAsDataURL(f)
+  })
+}
+
 type Msg = { id: string; role: 'bot' | 'user'; text: string }
 type Phase =
   | 'boot' | 'subject' | 'type' | 'fachsemester' | 'semester' | 'semesterCustom'
@@ -224,6 +252,10 @@ export function OnboardingChat() {
   const [fieldFocused, setFieldFocused] = useState(false)
   // Offener Mini-Editor für einen neuen Stundenplan-Slot (welcher Kurs + Felder).
   const [slotEdit, setSlotEdit] = useState<{ course: number; weekday: number; start: string; end: string; room: string } | null>(null)
+  // Stundenplan-Upload (Foto/PDF → KI-Extraktion). Nur mit Cloud-Konto möglich.
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const uploadAvailable = Boolean(supabase)
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const started = useRef(false)
@@ -368,10 +400,17 @@ export function OnboardingChat() {
   const pushUser = (t: string) => setMsgs((m) => [...m, { id: uid(), role: 'user', text: t }])
 
   // ---- Schritt-Handler ----------------------------------------------------
+  // Hinweistext zur Kurs-Eingabe – mit Foto/PDF-Upload, falls Cloud verfügbar.
+  function coursesHint() {
+    return uploadAvailable
+      ? 'Tipp sie untereinander, füg deinen Stundenplan ein – oder lad einfach ein Foto/PDF hoch (📎). Zeiten erkenne ich automatisch. 🗓️'
+      : 'Tipp sie untereinander – oder füg deinen Stundenplan ein. Zeiten wie „Mo 10–12" erkenne ich automatisch. 🗓️'
+  }
+
   // Kursfrage — Pflicht-Pfad endet hier (alles Weitere ist optional).
   function goCourses() {
     setPhase('boot')
-    void say(['Welche Kurse hast du gerade? 📚', 'Tipp sie untereinander – oder füg deinen Stundenplan ein. Zeiten wie „Mo 10–12" erkenne ich automatisch. 🗓️'], 'courses')
+    void say(['Welche Kurse hast du gerade? 📚', coursesHint()], 'courses')
   }
 
   // Studiengang gesetzt (per Kachel oder Freitext) → direkt zu Abschluss/Kursen.
@@ -449,7 +488,7 @@ export function OnboardingChat() {
         `${name} — notiert.`,
         'Start setze ich auf diese Woche, 14 Wochen Vorlesungszeit (später unter „Studium" änderbar).',
         `Welche Kurse belegst du in ${name}? 📚`,
-        'Tipp sie untereinander – oder füg deinen Stundenplan ein. Zeiten wie „Mo 10–12" erkenne ich automatisch. 🗓️',
+        coursesHint(),
       ],
       'courses',
     )
@@ -462,29 +501,64 @@ export function OnboardingChat() {
     chooseSemester(v)
   }
 
+  // Geparste Kurse anhängen + passende Rückmeldung (für Text-Paste & Upload).
+  function applyParsed(parsed: ParsedCourse[]) {
+    setCourses((cur) => {
+      const { next, added, withTimes } = mergeCourses(cur, parsed)
+      const base = added === 1 ? '1 Kurs übernommen ✅' : `${added} Kurse übernommen ✅`
+      const line = added === 0 ? 'Die hatte ich schon ✅' : withTimes ? `${base} — Zeiten gleich miterkannt 🗓️` : base
+      setPhase('boot')
+      void say([line], 'courses')
+      return next
+    })
+  }
+
   function addCourses() {
     const parsed = parseCourses(text)
     if (!parsed.length) return
     pushUser(text.trim())
     setText('')
-    setCourses((cur) => {
-      const seen = new Set(cur.map((c) => c.name.toLowerCase()))
-      const merged = [...cur]
-      let withTimes = 0
-      for (const p of parsed) {
-        if (seen.has(p.name.toLowerCase())) continue
-        seen.add(p.name.toLowerCase())
-        const d = toDraft(p.name, merged.length)
-        d.slots = p.slots
-        if (p.slots.length) withTimes++
-        merged.push(d)
-      }
-      const added = merged.length - cur.length
-      const base = added === 1 ? '1 Kurs übernommen ✅' : `${added} Kurse übernommen ✅`
-      setPhase('boot')
-      void say([withTimes ? `${base} — Zeiten gleich miterkannt 🗓️` : base], 'courses')
-      return merged
-    })
+    applyParsed(parsed)
+  }
+
+  // Stundenplan als Foto/PDF hochladen → serverseitig (Claude) auslesen.
+  async function handleFile(f: File) {
+    if (!supabase || uploading) return
+    const okType = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'application/pdf'].includes(f.type)
+    if (!okType) { void say(['Bitte ein Foto (PNG/JPG) oder ein PDF deines Stundenplans. 📎'], 'courses'); return }
+    if (f.size > 8 * 1024 * 1024) { void say(['Die Datei ist zu groß (max. 8 MB) – versuch ein kleineres Foto. 📎'], 'courses'); return }
+    setUploading(true)
+    pushUser(`📎 ${f.name}`)
+    try {
+      const file = await fileToBase64(f)
+      const { data, error } = await supabase.functions.invoke('parse-timetable', {
+        body: { file, mediaType: f.type },
+      })
+      const errMsg = (error as { message?: string } | null)?.message ?? (data as { error?: string } | null)?.error
+      if (errMsg) throw new Error(errMsg)
+      const raw = ((data as { courses?: unknown })?.courses ?? []) as {
+        name?: string; slots?: { weekday?: number; start?: string; end?: string; room?: string }[]
+      }[]
+      const parsed: ParsedCourse[] = raw
+        .map((c) => ({
+          name: String(c.name ?? '').trim(),
+          slots: (Array.isArray(c.slots) ? c.slots : [])
+            .filter((s) => s.weekday && s.start)
+            .map((s) => ({
+              id: uid(), kind: 'vorlesung' as const,
+              weekday: s.weekday as number, start: s.start as string, end: s.end || (s.start as string),
+              room: s.room || undefined,
+            })),
+        }))
+        .filter((c) => c.name)
+      if (!parsed.length) { void say(['Hmm, da konnte ich keine Kurse erkennen. Tipp sie gern manuell ein. 🙏'], 'courses'); return }
+      applyParsed(parsed)
+    } catch {
+      void say(['Das Auslesen hat leider nicht geklappt. Tipp die Kurse gern manuell ein – geht genauso schnell. 🙏'], 'courses')
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
   }
 
   function removeCourse(i: number) {
@@ -1161,6 +1235,27 @@ export function OnboardingChat() {
         <div className="mx-auto max-w-xl">
           {showText && (
             <div className="flex items-end gap-2">
+              {phase === 'courses' && uploadAvailable && (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,application/pdf"
+                    className="hidden"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) void handleFile(f) }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    aria-label="Stundenplan als Foto oder PDF hochladen"
+                    title="Stundenplan als Foto/PDF hochladen"
+                    className="shrink-0 rounded-full border border-stone-200 bg-white p-2.5 text-stone-500 transition hover:bg-stone-50 disabled:opacity-40"
+                  >
+                    {uploading ? <Loader2 size={16} className="animate-spin" /> : <Paperclip size={16} />}
+                  </button>
+                </>
+              )}
               <textarea
                 rows={multiline ? 2 : 1} value={text}
                 aria-label="Deine Antwort"
