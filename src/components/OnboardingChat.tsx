@@ -7,6 +7,7 @@ import { db, uid } from '@/db/db'
 import { createProgram, createSemester } from '@/lib/actions'
 import { generateRecurringTasks } from '@/lib/recurring'
 import { makePhases } from '@/lib/taskTypes'
+import { SLOT_KINDS, slotKindShort } from '@/lib/slotKinds'
 import { seedIfEmpty } from '@/lib/seed'
 import { useUI } from '@/store/ui'
 import { supabase } from '@/lib/supabase'
@@ -554,7 +555,7 @@ export function OnboardingChat() {
       const errMsg = (error as { message?: string } | null)?.message ?? (data as { error?: string } | null)?.error
       if (errMsg) throw new Error(errMsg)
       const raw = ((data as { courses?: unknown })?.courses ?? []) as {
-        name?: string; slots?: { weekday?: number; start?: string; end?: string; room?: string }[]
+        name?: string; slots?: { weekday?: number; start?: string; end?: string; room?: string; kind?: string }[]
       }[]
       const parsed: ParsedCourse[] = raw
         .map((c) => ({
@@ -562,7 +563,8 @@ export function OnboardingChat() {
           slots: (Array.isArray(c.slots) ? c.slots : [])
             .filter((s) => s.weekday && s.start)
             .map((s) => ({
-              id: uid(), kind: 'vorlesung' as const,
+              id: uid(),
+              kind: (SLOT_KINDS.some((k) => k.id === s.kind) ? s.kind : 'vorlesung') as CourseSlot['kind'],
               weekday: s.weekday as number, start: s.start as string, end: s.end || (s.start as string),
               room: s.room || undefined,
             })),
@@ -1033,6 +1035,7 @@ export function OnboardingChat() {
                             <span className="inline-flex items-center gap-1 rounded-md bg-stone-100 px-1.5 py-0.5 text-[11px] font-medium text-stone-600">
                               <Clock size={10} className="text-stone-400" />
                               {WEEKDAY_SHORT[s.weekday]} {s.start}–{s.end}
+                              <span className="text-stone-400">· {slotKindShort(s.kind)}</span>
                             </span>
                             {s.room && (
                               <span className="inline-flex items-center gap-0.5 text-[11px] text-stone-400">
@@ -1477,11 +1480,24 @@ function CourseEditor({
                 <X size={13} />
               </button>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex flex-wrap items-center gap-1.5">
               <Clock size={13} className="shrink-0 text-stone-400" />
               <TimeSelect value={s.start} label="Beginn" onChange={(v) => onSlot(s.id, { start: v })} />
               <span className="text-stone-400">–</span>
               <TimeSelect value={s.end} label="Ende" onChange={(v) => onSlot(s.id, { end: v })} />
+              <div className="relative">
+                <select
+                  value={s.kind}
+                  aria-label="Art"
+                  onChange={(e) => onSlot(s.id, { kind: e.target.value as CourseSlot['kind'] })}
+                  className="appearance-none rounded-lg border border-stone-200 bg-white py-1.5 pl-2.5 pr-7 text-xs font-medium text-stone-700 outline-none focus:border-brand-400"
+                >
+                  {SLOT_KINDS.filter((k) => k.id !== 'klausur').map((k) => (
+                    <option key={k.id} value={k.id}>{k.label}</option>
+                  ))}
+                </select>
+                <ChevronDown size={13} className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 text-stone-400" />
+              </div>
             </div>
             <div className="flex items-center gap-1.5">
               <MapPin size={13} className="shrink-0 text-stone-400" />

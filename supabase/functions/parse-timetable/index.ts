@@ -59,6 +59,11 @@ const TOOL = {
                   start: { type: 'string', description: 'Beginn als HH:MM im 24h-Format.' },
                   end: { type: 'string', description: 'Ende als HH:MM im 24h-Format.' },
                   room: { type: 'string', description: 'Raum/Hörsaal, falls erkennbar.' },
+                  kind: {
+                    type: 'string',
+                    enum: ['vorlesung', 'uebung', 'tutorium', 'seminar', 'praktikum', 'repetitorium', 'kolloquium'],
+                    description: 'Art der Veranstaltung (Standard: vorlesung).',
+                  },
                 },
                 required: ['weekday', 'start', 'end'],
               },
@@ -85,6 +90,7 @@ Felder pro Termin:
 - weekday: 1–7 wie oben.
 - start / end: HH:MM im 24-Stunden-Format.
 - room: das Raumkürzel unten rechts in der Zelle, ZEICHENGENAU übernehmen – Buchstaben, Groß-/Kleinschreibung, Ziffern und Schrägstriche exakt so wie abgebildet (z.B. "He22/142", "He22/E03", "N24/226", "H20", "N24/131"). Verwechsle keine Ziffern und vereinfache/rate NICHT. Wenn der Raum nicht eindeutig lesbar ist, lass das Feld lieber leer.
+- kind: Art der Veranstaltung. Erkenne sie an Beschriftungen in der Zelle oder im Kursnamen ("Vorlesung"/"VL" → vorlesung, "Übung"/"Ü" → uebung, "Tutorium"/"Tut" → tutorium, "Seminar" → seminar, "Praktikum" → praktikum, "Repetitorium"/"Rep" → repetitorium, "Kolloquium" → kolloquium). Wenn keine Art erkennbar ist, nimm vorlesung.
 
 Weitere Regeln:
 - Dieselbe Veranstaltung an mehreren Terminen = EIN Kurs mit mehreren "slots".
@@ -101,8 +107,10 @@ function normTime(v: unknown): string {
   return `${String(h).padStart(2, '0')}:${(m[2] ?? '00').padStart(2, '0')}`
 }
 
-interface RawSlot { weekday?: unknown; start?: unknown; end?: unknown; room?: unknown }
+interface RawSlot { weekday?: unknown; start?: unknown; end?: unknown; room?: unknown; kind?: unknown }
 interface RawCourse { name?: unknown; slots?: unknown }
+
+const KINDS = new Set(['vorlesung', 'uebung', 'tutorium', 'seminar', 'praktikum', 'repetitorium', 'kolloquium'])
 
 function cleanCourses(courses: unknown) {
   if (!Array.isArray(courses)) return []
@@ -117,6 +125,7 @@ function cleanCourses(courses: unknown) {
             start,
             end: normTime(s?.end) || start,
             room: s?.room ? String(s.room).trim().slice(0, 40) || undefined : undefined,
+            kind: KINDS.has(String(s?.kind)) ? String(s?.kind) : 'vorlesung',
           }
         })
         .filter((s) => Number.isInteger(s.weekday) && s.weekday >= 1 && s.weekday <= 7 && s.start)

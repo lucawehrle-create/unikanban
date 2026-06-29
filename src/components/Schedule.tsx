@@ -42,6 +42,40 @@ function toMin(time: string): number {
   return h * 60 + (m || 0)
 }
 
+/**
+ * Überlappende Termine eines Tages in Spalten aufteilen, damit parallele Kurse
+ * NEBENEINANDER (statt übereinander) liegen. Pro Termin: Spaltenindex + Anzahl
+ * Spalten seines Überlappungs-Clusters (gleiche Breite innerhalb des Clusters).
+ */
+function layoutDay(daySlots: SlotView[]): Map<string, { col: number; cols: number }> {
+  const res = new Map<string, { col: number; cols: number }>()
+  const sorted = [...daySlots].sort((a, b) => a.start - b.start || a.end - b.end)
+  let cluster: SlotView[] = []
+  let clusterEnd = -1
+  const flush = () => {
+    if (!cluster.length) return
+    const colEnds: number[] = [] // Endzeit je Spalte
+    const colOf = new Map<string, number>()
+    for (const s of cluster) {
+      let placed = colEnds.findIndex((end) => end <= s.start)
+      if (placed === -1) { placed = colEnds.length; colEnds.push(s.end) }
+      else colEnds[placed] = s.end
+      colOf.set(s.id, placed)
+    }
+    const cols = colEnds.length
+    for (const s of cluster) res.set(s.id, { col: colOf.get(s.id)!, cols })
+    cluster = []
+    clusterEnd = -1
+  }
+  for (const s of sorted) {
+    if (cluster.length && s.start >= clusterEnd) flush()
+    cluster.push(s)
+    clusterEnd = Math.max(clusterEnd, s.end)
+  }
+  flush()
+  return res
+}
+
 interface SlotView {
   id: string
   courseId: string
@@ -179,6 +213,7 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
     const date = addDays(weekStart, wd - 1)
     const dateStr = format(date, 'yyyy-MM-dd')
     const daySlots = slots.filter((s) => s.weekday === wd)
+    const layout = layoutDay(daySlots)
     return (
       <div
         key={wd}
@@ -206,17 +241,22 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
               ? ATT_META.nicht_besucht.color
               : s.color
           const notAttended = markers.includes('nicht_besucht')
+          const lay = layout.get(s.id) ?? { col: 0, cols: 1 }
+          const widthPct = 100 / lay.cols
+          const leftPct = lay.col * widthPct
           return (
             <button
               key={s.id}
               onClick={(e) => setMenu({ slotId: s.id, date: dateStr, x: e.clientX, y: e.clientY })}
               className={cn(
-                'absolute inset-x-1 overflow-hidden rounded-lg px-2 py-1 text-left text-[11px] leading-tight shadow-sm transition hover:shadow-md',
+                'absolute overflow-hidden rounded-lg px-2 py-1 text-left text-[11px] leading-tight shadow-sm transition hover:shadow-md',
                 notAttended && 'opacity-70',
               )}
               style={{
                 top,
                 height: Math.max(height - 2, 18),
+                left: `calc(${leftPct}% + 2px)`,
+                width: `calc(${widthPct}% - 4px)`,
                 backgroundColor: tint + '22',
                 borderLeft: `3px solid ${tint}`,
               }}
