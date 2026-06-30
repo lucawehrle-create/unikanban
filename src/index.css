@@ -60,6 +60,9 @@
 .slider-grade::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
+  /* border-box: der 3px-Rahmen zählt zur Höhe → echte 24px, sonst sitzt der
+     Griff durch den Rahmen ~3px aus der Mitte. margin-top zentriert auf 8px-Spur. */
+  box-sizing: border-box;
   height: 24px;
   width: 24px;
   border-radius: 9999px;
@@ -69,6 +72,7 @@
   margin-top: -8px;
 }
 .slider-grade::-moz-range-thumb {
+  box-sizing: border-box;
   height: 24px;
   width: 24px;
   border: 3px solid #f0b429;
