@@ -1127,15 +1127,15 @@ export function OnboardingChat() {
       {/* Verlauf */}
       <div className="flex-1 overflow-y-auto px-4 py-5">
         <div className="mx-auto flex max-w-xl flex-col gap-2.5" role="log" aria-live="polite" aria-label="Gespräch mit dem SemBan-Assistenten">
-          {msgs.map((m) => (
-            <Bubble key={m.id} role={m.role}>
+          {msgs.map((m, idx) => (
+            <Bubble key={m.id} role={m.role} showAvatar={msgs[idx - 1]?.role !== 'bot'}>
               {m.attachment
                 ? <AttachmentCard name={m.attachment.name} kind={m.attachment.kind} preview={previews[m.id]} />
                 : m.text}
             </Bubble>
           ))}
           {typing && (
-            <Bubble role="bot">
+            <Bubble role="bot" showAvatar={msgs[msgs.length - 1]?.role !== 'bot'}>
               <span className="inline-flex gap-1 py-0.5" aria-label="SemBan schreibt">
                 <Dot /> <Dot d="0.15s" /> <Dot d="0.3s" />
               </span>
@@ -1756,13 +1756,22 @@ function AttachmentCard({ name, kind, preview }: { name: string; kind: 'image' |
   )
 }
 
-function Bubble({ role, children }: { role: 'bot' | 'user'; children: React.ReactNode }) {
+function Bubble({ role, showAvatar = true, children }: { role: 'bot' | 'user'; showAvatar?: boolean; children: React.ReactNode }) {
   const bot = role === 'bot'
   return (
-    <div className={cn('flex', bot ? 'justify-start' : 'justify-end')}>
+    <div className={cn('sb-msg-in flex items-end gap-2', bot ? 'justify-start' : 'justify-end')}>
+      {bot && (
+        <div className="h-7 w-7 shrink-0 self-end">
+          {showAvatar && (
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-stone-200/80">
+              <Logo size={18} />
+            </div>
+          )}
+        </div>
+      )}
       <div
         className={cn(
-          'max-w-[85%] rounded-2xl px-3.5 py-2 text-sm leading-snug shadow-sm',
+          'max-w-[80%] rounded-2xl px-3.5 py-2 text-sm leading-snug shadow-sm',
           bot ? 'rounded-bl-md bg-white text-stone-700 ring-1 ring-stone-200' : 'rounded-br-md bg-brand-400 text-stone-900',
         )}
       >
