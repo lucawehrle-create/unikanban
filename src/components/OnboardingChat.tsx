@@ -1029,6 +1029,9 @@ export function OnboardingChat() {
       const recurringTasks = sem ? records.flatMap((c) => generateRecurringTasks(c, sem)) : []
       const allTasks = [...recurringTasks, ...examTasks]
       if (allTasks.length) await db.tasks.bulkAdd(allTasks)
+      // Direkt auf den fertigen Stundenplan landen (sichtbarer Lohn) – sonst aufs
+      // Board. Die Start-Tour eröffnet (falls sie läuft) ebenfalls am Stundenplan.
+      useUI.getState().setView(records.some((c) => c.slots.length) ? 'schedule' : 'board')
       // App rendert nach Anlegen automatisch um (programCount > 0).
     } catch {
       setBusy(false)

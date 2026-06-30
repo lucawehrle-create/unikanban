@@ -12,6 +12,12 @@ interface TourStep {
 
 const STEPS: TourStep[] = [
   {
+    target: 'schedule',
+    view: 'schedule',
+    title: 'Dein Stundenplan steht 🎉',
+    body: 'Automatisch aus deinem Semester – deine Woche mit allen Veranstaltungen auf einen Blick. Parallele Kurse liegen nebeneinander.',
+  },
+  {
     target: 'nav',
     view: 'board',
     title: 'Vier Ansichten',

@@ -388,7 +388,7 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
             )}
 
             <div className="flex-1 overflow-auto px-4 pb-6">
-              <div className="flex">
+              <div className="flex" data-tour="schedule">
                 {timeAxis}
                 {renderDayColumn(activeDay)}
               </div>
@@ -424,7 +424,7 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
               </div>
 
               {/* Raster */}
-              <div className="flex">
+              <div className="flex" data-tour="schedule">
                 {timeAxis}
                 {days.map(renderDayColumn)}
               </div>
