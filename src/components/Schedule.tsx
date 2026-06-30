@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   addDays,
   addWeeks,
+  differenceInCalendarDays,
   format,
   getISOWeek,
   isSameDay,
@@ -10,7 +11,20 @@ import {
   startOfWeek,
 } from 'date-fns'
 import { de } from 'date-fns/locale'
-import { Check, CheckCheck, ChevronLeft, ChevronRight, Clock, Pencil, X } from 'lucide-react'
+import {
+  CalendarPlus,
+  Check,
+  CheckCheck,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  GraduationCap,
+  ListTodo,
+  MapPin,
+  Pencil,
+  SlidersHorizontal,
+  X,
+} from 'lucide-react'
 import type { AttendanceMarker, Course, SlotKind, Task } from '@/db/types'
 import { courseMap } from '@/lib/filter'
 import { slotKindLabel, slotKindShort } from '@/lib/slotKinds'
@@ -54,6 +68,27 @@ function timeRange(s: { start: number; end: number }): string {
 function relStart(min: number): string {
   if (min < 60) return `in ${min} min`
   return `in ${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')} min`
+}
+
+/** "1 h 30 min" / "45 min" für Lücken-Labels. */
+function fmtDur(min: number): string {
+  const h = Math.floor(min / 60)
+  const m = min % 60
+  if (h && m) return `${h} h ${m} min`
+  if (h) return `${h} h`
+  return `${m} min`
+}
+
+/** Freie Lücken (≥45 min) im belegten Tagesverlauf – Start/Ende in Minuten. */
+function dayGaps(daySlots: SlotView[]): Array<{ start: number; end: number }> {
+  const sorted = [...daySlots].sort((a, b) => a.start - b.start)
+  const gaps: Array<{ start: number; end: number }> = []
+  let cursor = -1
+  for (const s of sorted) {
+    if (cursor >= 0 && s.start - cursor >= 45) gaps.push({ start: cursor, end: s.start })
+    cursor = Math.max(cursor, s.end)
+  }
+  return gaps
 }
 
 /**
@@ -104,6 +139,12 @@ interface SlotView {
 
 export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
   const editTask = useUI((s) => s.editTask)
+  const setView = useUI((s) => s.setView)
+  const openPlans = useUI((s) => s.openPlans)
+  const setShowCourseManager = useUI((s) => s.setShowCourseManager)
+  const setShowCalendar = useUI((s) => s.setShowCalendar)
+  const clearFilters = useUI((s) => s.clearFilters)
+  const toggleCourseFilter = useUI((s) => s.toggleCourseFilter)
   const byId = useMemo(() => courseMap(courses), [courses])
   const attendance = useAttendance(semesterId)
 
@@ -163,7 +204,49 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
     return map
   }, [tasks, weekStart])
 
-  const maxWeekday = Math.max(5, ...slots.map((s) => s.weekday), ...[...tasksByDay.keys()])
+  // Klausurtermine (aus den Lernplänen der Kurse) – fürs Raster & für „nächste
+  // Klausur". examDate ist ein Kalendertag ohne feste Uhrzeit → als Tageskopf-
+  // Marker, nicht im Zeitraster platziert.
+  const exams = useMemo(
+    () =>
+      courses
+        .filter((c) => c.studyPlan?.examDate)
+        .map((c) => ({
+          courseId: c.id,
+          short: c.short,
+          color: c.color,
+          date: c.studyPlan!.examDate,
+        })),
+    [courses],
+  )
+  const examsByDay = useMemo(() => {
+    const map = new Map<number, typeof exams>()
+    for (const e of exams) {
+      const d = parseISO(e.date)
+      for (let wd = 1; wd <= 7; wd++) {
+        if (isSameDay(d, addDays(weekStart, wd - 1))) {
+          if (!map.has(wd)) map.set(wd, [])
+          map.get(wd)!.push(e)
+        }
+      }
+    }
+    return map
+  }, [exams, weekStart])
+  const nextExam = useMemo(() => {
+    const today = new Date(now)
+    today.setHours(0, 0, 0, 0)
+    return exams
+      .map((e) => ({ ...e, days: differenceInCalendarDays(parseISO(e.date), today) }))
+      .filter((e) => e.days >= 0)
+      .sort((a, b) => a.days - b.days)[0]
+  }, [exams, now])
+
+  const maxWeekday = Math.max(
+    5,
+    ...slots.map((s) => s.weekday),
+    ...[...tasksByDay.keys()],
+    ...[...examsByDay.keys()],
+  )
   const days = Array.from({ length: maxWeekday }, (_, i) => i + 1)
 
   // Zeitfenster: morgens spätestens ab 8 Uhr, abends mindestens bis 20 Uhr –
@@ -188,13 +271,23 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
   const nextUp = useMemo(() => {
     const today = slots.filter((s) => s.weekday === todayWd).sort((a, b) => a.start - b.start)
     const running = today.find((s) => nowMin >= s.start && nowMin < s.end)
-    if (running) return { slot: running, mode: 'running' as const }
+    if (running) return { slot: running, mode: 'running' as const, dayLabel: '' }
     const next = today.find((s) => s.start > nowMin)
-    if (next) return { slot: next, mode: 'next' as const }
+    if (next) return { slot: next, mode: 'next' as const, dayLabel: '' }
+    // Heute nichts mehr → nächsten Termin der kommenden Tage zeigen.
+    for (let d = 1; d <= 7; d++) {
+      const wd = ((todayWd - 1 + d) % 7) + 1
+      const slot = slots.filter((s) => s.weekday === wd).sort((a, b) => a.start - b.start)[0]
+      if (slot) {
+        const label = d === 1 ? 'Morgen' : format(addDays(now, d), 'EEEE', { locale: de })
+        return { slot, mode: 'future' as const, dayLabel: label }
+      }
+    }
     return null
-  }, [slots, todayWd, nowMin])
+  }, [slots, todayWd, nowMin, now])
 
   const menuMarkers = menu ? (attendance[attendanceKey(menu.slotId, menu.date)] ?? []) : []
+  const menuSlot = menu ? slots.find((s) => s.id === menu.slotId) : undefined
   function toggle(marker: AttendanceMarker) {
     if (menu) void toggleAttendanceMarker(semesterId, menu.slotId, menu.date, marker)
   }
@@ -244,6 +337,19 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
     )
   }
 
+  // Klausur-Chip (Tageskopf) – rot/prominent, führt zum Lernplan des Kurses.
+  const renderExamChip = (e: { courseId: string; short: string; date: string }) => (
+    <button
+      key={`exam-${e.courseId}-${e.date}`}
+      onClick={() => openPlans(e.courseId)}
+      title={`Klausur ${e.short}`}
+      className="flex max-w-full items-center gap-1 rounded-full bg-rose-50 px-1.5 py-0.5 text-[11px] font-semibold text-rose-700 ring-1 ring-rose-200 hover:bg-rose-100"
+    >
+      <GraduationCap size={11} className="shrink-0" />
+      <span className="truncate">Klausur {e.short}</span>
+    </button>
+  )
+
   const timeAxis = (
     <div className="w-10 shrink-0 sm:w-12" style={{ height: gridHeight }}>
       {hours.map((h) => (
@@ -278,6 +384,20 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
             className="absolute inset-x-0 border-t border-stone-200/50"
             style={{ top: i * PX_PER_HOUR }}
           />
+        ))}
+
+        {/* Freie Lücken (≥45 min) als leiser Negativraum-Text – ohne Fläche. */}
+        {dayGaps(daySlots).map((g) => (
+          <div
+            key={`gap-${g.start}`}
+            className="pointer-events-none absolute inset-x-0 flex items-center justify-center text-[11px] tabular-nums text-stone-400"
+            style={{
+              top: ((g.start - startHour * 60) / 60) * PX_PER_HOUR,
+              height: ((g.end - g.start) / 60) * PX_PER_HOUR,
+            }}
+          >
+            ~{fmtDur(g.end - g.start)} frei
+          </div>
         ))}
 
         {daySlots.map((s) => {
@@ -400,16 +520,40 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
           )}
         </div>
 
-        <div className="ml-auto hidden items-center gap-3 text-[11px] text-stone-500 sm:flex">
-          {ATT_ORDER.map((s) => {
-            const m = ATT_META[s]
-            return (
-              <span key={s} className="flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: m.color }} />
-                {m.label}
-              </span>
-            )
-          })}
+        {/* Nächste Klausur – Countdown, führt zum Lernplan des Kurses */}
+        {nextExam && (
+          <button
+            onClick={() => openPlans(nextExam.courseId)}
+            title={`Klausur ${nextExam.short} am ${format(parseISO(nextExam.date), 'EEEE, d. MMM', { locale: de })}`}
+            className="flex items-center gap-1.5 rounded-full bg-rose-50 px-2.5 py-1 text-xs font-medium text-rose-700 ring-1 ring-rose-200 transition hover:bg-rose-100"
+          >
+            <GraduationCap size={13} />
+            {nextExam.days === 0
+              ? `Klausur ${nextExam.short} heute`
+              : `Klausur ${nextExam.short} in ${nextExam.days} ${nextExam.days === 1 ? 'Tag' : 'Tagen'}`}
+          </button>
+        )}
+
+        <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          <button
+            onClick={() => setShowCalendar(true)}
+            title="In deinen Kalender exportieren / abonnieren"
+            className="flex items-center gap-1.5 rounded-full bg-white/70 px-2.5 py-1 text-xs font-medium text-stone-600 ring-1 ring-stone-200/70 transition hover:bg-white"
+          >
+            <CalendarPlus size={14} />
+            <span className="hidden sm:inline">Kalender</span>
+          </button>
+          <div className="hidden items-center gap-3 text-[11px] text-stone-500 sm:flex">
+            {ATT_ORDER.map((s) => {
+              const m = ATT_META[s]
+              return (
+                <span key={s} className="flex items-center gap-1">
+                  <span className="h-2 w-2 rounded-full" style={{ backgroundColor: m.color }} />
+                  {m.label}
+                </span>
+              )
+            })}
+          </div>
         </div>
       </div>
 
@@ -453,10 +597,16 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
                 >
                   {nextUp.mode === 'running'
                     ? `läuft · bis ${fmtTime(nextUp.slot.end)}`
-                    : relStart(nextUp.slot.start - nowMin)}
+                    : nextUp.mode === 'next'
+                      ? relStart(nextUp.slot.start - nowMin)
+                      : `${nextUp.dayLabel} · ${fmtTime(nextUp.slot.start)}`}
                 </div>
                 <div className="text-[10px] uppercase tracking-wide text-stone-400">
-                  {nextUp.mode === 'running' ? 'gerade' : 'als Nächstes'}
+                  {nextUp.mode === 'running'
+                    ? 'gerade'
+                    : nextUp.mode === 'next'
+                      ? 'als Nächstes'
+                      : 'heute fertig'}
                 </div>
               </div>
             </div>
@@ -490,8 +640,10 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
               })}
             </div>
 
-            {(tasksByDay.get(activeDay) ?? []).length > 0 && (
+            {((tasksByDay.get(activeDay) ?? []).length > 0 ||
+              (examsByDay.get(activeDay) ?? []).length > 0) && (
               <div className="flex flex-wrap gap-1 px-4 pb-2">
+                {(examsByDay.get(activeDay) ?? []).map(renderExamChip)}
                 {(tasksByDay.get(activeDay) ?? []).map(renderTaskChip)}
               </div>
             )}
@@ -533,7 +685,10 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
                           {format(date, 'd.M.')}
                         </span>
                       </div>
-                      <div className="flex flex-wrap gap-1">{dayTasks.map(renderTaskChip)}</div>
+                      <div className="flex flex-wrap gap-1">
+                        {(examsByDay.get(wd) ?? []).map(renderExamChip)}
+                        {dayTasks.map(renderTaskChip)}
+                      </div>
                     </div>
                   )
                 })}
@@ -554,14 +709,37 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
         <>
           <div className="fixed inset-0 z-40" onClick={() => setMenu(null)} />
           <div
-            className="fixed z-50 w-52 rounded-xl border border-stone-200 bg-white p-1 shadow-xl"
+            className="fixed z-50 w-60 rounded-xl border border-stone-200 bg-white p-1 shadow-xl"
             style={{
-              top: Math.max(8, Math.min(menu.y, window.innerHeight - 230)),
-              left: Math.max(8, Math.min(menu.x, window.innerWidth - 220)),
+              top: Math.max(8, Math.min(menu.y, window.innerHeight - 380)),
+              left: Math.max(8, Math.min(menu.x, window.innerWidth - 248)),
             }}
           >
+            {menuSlot && (
+              <div className="border-b border-stone-100 px-2.5 pb-2 pt-1.5">
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: menuSlot.color }}
+                  />
+                  <span className="truncate text-sm font-semibold text-stone-800">
+                    {byId.get(menuSlot.courseId)?.name ?? menuSlot.short}
+                  </span>
+                </div>
+                <div className="mt-0.5 flex items-center gap-1 text-[11px] tabular-nums text-stone-500">
+                  {slotKindLabel(menuSlot.kind)} · {timeRange(menuSlot)}
+                  {menuSlot.room && (
+                    <>
+                      {' · '}
+                      <MapPin size={10} className="shrink-0" />
+                      {menuSlot.room}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
             <div className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium text-stone-400">
-              Mehrfachauswahl möglich
+              Anwesenheit · Mehrfachauswahl
             </div>
             {ATT_ORDER.map((m) => {
               const meta = ATT_META[m]
@@ -595,6 +773,43 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
             >
               Zurücksetzen
             </button>
+
+            {menuSlot && (
+              <div className="mt-0.5 border-t border-stone-100 pt-0.5">
+                <button
+                  onClick={() => {
+                    clearFilters()
+                    toggleCourseFilter(menuSlot.courseId)
+                    setView('board')
+                    setMenu(null)
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-stone-600 transition hover:bg-stone-100"
+                >
+                  <ListTodo size={15} className="text-stone-400" />
+                  Aufgaben des Kurses
+                </button>
+                <button
+                  onClick={() => {
+                    openPlans(menuSlot.courseId)
+                    setMenu(null)
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-stone-600 transition hover:bg-stone-100"
+                >
+                  <GraduationCap size={15} className="text-stone-400" />
+                  Zum Lernplan
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCourseManager(true)
+                    setMenu(null)
+                  }}
+                  className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-stone-600 transition hover:bg-stone-100"
+                >
+                  <SlidersHorizontal size={15} className="text-stone-400" />
+                  Kurs bearbeiten
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}
