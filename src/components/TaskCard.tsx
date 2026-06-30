@@ -78,6 +78,14 @@ export function TaskCard({ task, course, onClick, dragging }: TaskCardProps) {
               </span>
             )}
 
+            {/* Aufgaben-Art dezent als neutrales Tag – das Emoji allein ist nicht
+                eindeutig. Bei „Sonstiges“ weglassen (generisch = nur Rauschen). */}
+            {task.type !== 'sonstiges' && (
+              <span className="rounded bg-stone-100 px-1.5 py-0.5 font-medium text-stone-500">
+                {type.label}
+              </span>
+            )}
+
             {due !== 'none' && (
               <span className={cn('inline-flex items-center gap-1 font-medium', dueMeta.text)}>
                 <span className={cn('inline-block h-1.5 w-1.5 rounded-full', dueMeta.dot)} />
