@@ -141,3 +141,33 @@ export function feasibility(needed: number, current?: number): Feasibility {
   if (diff <= 0.5) return 'doable'
   return 'ambitious'
 }
+
+// --- Tempo / „im Plan" -----------------------------------------------------
+
+export interface Pace {
+  /** Ist-Tempo (ECTS/Semester) ≥ Soll-Tempo (Regelstudienzeit). */
+  onTrack: boolean
+  /** Zusätzlich zur Regelstudienzeit voraussichtlich nötige Semester (≥ 0). */
+  extraSemesters: number
+}
+
+/**
+ * Studientempo gegen die Regelstudienzeit. Sanft gedacht: nur wenn die Daten
+ * tragen (Bachelor/Master, ≥ 1 Semester, schon ECTS), sonst null (weglassen).
+ */
+export function computePace(
+  program: Program,
+  stats: ProgramStats,
+  semesterCount: number,
+): Pace | null {
+  const reg = program.type === 'bachelor' ? 6 : program.type === 'master' ? 4 : null
+  if (reg == null) return null // „other": keine Regelstudienzeit → weglassen
+  if (semesterCount < 1 || stats.doneEcts <= 0 || stats.targetEcts <= 0) return null
+  const sollTempo = stats.targetEcts / reg
+  const istTempo = stats.doneEcts / semesterCount
+  if (istTempo <= 0) return null
+  const remaining = Math.max(0, stats.targetEcts - stats.doneEcts)
+  const semestersLeft = Math.ceil(remaining / Math.max(istTempo, sollTempo))
+  const extraSemesters = Math.max(0, semesterCount + semestersLeft - reg)
+  return { onTrack: istTempo >= sollTempo, extraSemesters }
+}

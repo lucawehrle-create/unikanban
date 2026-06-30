@@ -1,5 +1,14 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { Pencil, Plus, Minus, GraduationCap, Trash2, X, TrendingUp } from 'lucide-react'
+import {
+  Pencil,
+  Plus,
+  Minus,
+  GraduationCap,
+  Trash2,
+  X,
+  TrendingUp,
+  ChevronDown,
+} from 'lucide-react'
 import type { Course, CourseStatus, ExamPhase, Program, ProgramType, Semester } from '@/db/types'
 import { db, uid } from '@/db/db'
 import {
@@ -14,6 +23,7 @@ import {
 import { usePrograms, useProgramCourses, useSemesters } from '@/hooks/data'
 import { isSyncConfigured } from '@/lib/supabase'
 import {
+  computePace,
   computeProgramStats,
   feasibility,
   fmtGrade,
@@ -21,7 +31,6 @@ import {
   getForecast,
   neededForTarget,
   projectedFinal,
-  PROGRAM_TYPE_LABEL,
   type ProgramStats,
 } from '@/lib/study'
 import { Modal } from './Modal'
@@ -59,11 +68,20 @@ export function StudyView({ activeProgram }: { activeProgram: Program }) {
     return m
   }, [courses])
 
-  const sortedSems = [...semesters].sort((a, b) => a.startDate.localeCompare(b.startDate))
+  // Transcript: aktives Semester zuerst, dann chronologisch.
+  const sortedSems = [...semesters].sort((a, b) =>
+    a.active === b.active ? a.startDate.localeCompare(b.startDate) : a.active ? -1 : 1,
+  )
+  // Noten-Trend: IMMER chronologisch (sonst verfälscht die aktiv-zuerst-Sortierung).
+  const semAverages = [...semesters]
+    .sort((a, b) => a.startDate.localeCompare(b.startDate))
+    .map((s) => semesterStats(coursesBySem.get(s.id) ?? []).avg)
+    .filter((a): a is number => a != null)
+  const pace = computePace(sel, stats, semesters.length)
 
   return (
     <div className="h-full overflow-y-auto px-5 pb-8">
-      <div className="mx-auto max-w-4xl space-y-5">
+      <div className="mx-auto max-w-4xl space-y-6">
         {/* Studiengang-Auswahl */}
         <div className="flex flex-wrap items-center gap-2 pt-1">
           {programs.map((p) => (
@@ -94,45 +112,80 @@ export function StudyView({ activeProgram }: { activeProgram: Program }) {
           </button>
         </div>
 
-        {/* Statistik */}
+        {/* Snapshot: ECTS-Fortschritt (dominant) + Notenschnitt */}
         <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70 sm:col-span-2">
-            <div className="mb-1 flex items-baseline justify-between">
-              <span className="text-sm font-semibold text-stone-700">ECTS-Fortschritt</span>
-              <button
-                onClick={() => setEditProgram(structuredClone(sel))}
-                className="flex items-center gap-1 text-xs text-stone-400 hover:text-stone-600"
-              >
-                <Pencil size={12} /> {PROGRAM_TYPE_LABEL[sel.type]} bearbeiten
-              </button>
+          {/* ECTS-Fortschritt – der 1. Blick */}
+          <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-stone-200/70 sm:col-span-2">
+            <span className="text-sm font-semibold text-stone-700">ECTS-Fortschritt</span>
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="text-4xl font-bold leading-none tabular-nums text-stone-900">
+                {stats.doneEcts}
+              </span>
+              <span className="text-base font-medium tabular-nums text-stone-500">
+                / {stats.targetEcts} ECTS
+              </span>
             </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-stone-800">{stats.doneEcts}</span>
-              <span className="text-stone-400">/ {stats.targetEcts} ECTS</span>
-              {stats.runningEcts > 0 && (
-                <span className="ml-auto text-xs text-stone-400">
-                  +{stats.runningEcts} laufend
-                </span>
-              )}
-            </div>
-            <div className="mt-2 h-2.5 w-full overflow-hidden rounded-full bg-stone-100">
-              <div
-                className="h-full rounded-full bg-brand-400 transition-all"
-                style={{ width: `${stats.progress * 100}%` }}
-              />
-            </div>
-            <div className="mt-1 text-xs text-stone-400">
-              {Math.round(stats.progress * 100)} % geschafft
+            {/* Zweisegment-Balken: sicher (brand-500) + laufend (brand-200) */}
+            {(() => {
+              const denom = stats.targetEcts || 1
+              const doneW = Math.min(100, (stats.doneEcts / denom) * 100)
+              const runW = Math.min(100, ((stats.doneEcts + stats.runningEcts) / denom) * 100)
+              return (
+                <div className="relative mt-3 h-2.5 w-full overflow-hidden rounded-full bg-stone-100">
+                  {stats.runningEcts > 0 && (
+                    <div
+                      className="absolute inset-y-0 left-0 rounded-full bg-brand-200 transition-all"
+                      style={{ width: `${runW}%` }}
+                    />
+                  )}
+                  <div
+                    className="absolute inset-y-0 left-0 rounded-full bg-brand-500 transition-all"
+                    style={{ width: `${doneW}%` }}
+                  />
+                </div>
+              )
+            })()}
+            <div className="mt-2 text-xs tabular-nums text-stone-500">
+              {Math.round(stats.progress * 100)} % geschafft · noch{' '}
+              {Math.max(0, stats.targetEcts - stats.doneEcts)} ECTS
+              {stats.runningEcts > 0 && ` · ${stats.runningEcts} laufend`}
             </div>
           </div>
 
-          <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70">
+          {/* Notenschnitt – neutral, Verdikt als Badge, Trend als Sparkline */}
+          <div className="flex flex-col rounded-2xl bg-white p-5 shadow-sm ring-1 ring-stone-200/70">
             <span className="text-sm font-semibold text-stone-700">Notenschnitt</span>
-            <div className="mt-1 text-3xl font-bold text-stone-800">{fmtGrade(stats.gradeAvg)}</div>
-            <div className="mt-1 text-xs text-stone-400">
+            <div className="mt-1 flex items-center gap-2">
+              <span className="text-3xl font-bold leading-none tabular-nums text-stone-900">
+                {fmtGrade(stats.gradeAvg)}
+              </span>
+              {gradeVerdict(stats.gradeAvg) && (
+                <span
+                  className={cn(
+                    'rounded-full px-2 py-0.5 text-xs font-semibold',
+                    gradeVerdict(stats.gradeAvg)!.cls,
+                  )}
+                >
+                  {gradeVerdict(stats.gradeAvg)!.text}
+                </span>
+              )}
+            </div>
+            {semAverages.length >= 3 && <Sparkline values={semAverages} />}
+            <div className="mt-1 text-xs tabular-nums text-stone-500">
               {stats.gradedCourses} benotete Kurse
               {sel.priorGradedEcts ? ' (inkl. Startbilanz)' : ''}
             </div>
+            {pace && (
+              <div className="mt-1.5 text-xs font-medium">
+                {pace.onTrack ? (
+                  <span className="text-emerald-600">✓ im Plan</span>
+                ) : (
+                  <span className="text-stone-500">
+                    voraussichtl. fertig: +{pace.extraSemesters} Sem.
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -144,7 +197,7 @@ export function StudyView({ activeProgram }: { activeProgram: Program }) {
 
         {/* Semester / Transcript */}
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-stone-700">Semester</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-stone-500">Semester</h2>
           <button
             onClick={() =>
               setSemForm({
@@ -164,7 +217,7 @@ export function StudyView({ activeProgram }: { activeProgram: Program }) {
         </div>
 
         {sortedSems.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-stone-200 py-8 text-center text-sm text-stone-400">
+          <div className="rounded-2xl border border-dashed border-stone-200 py-8 text-center text-sm text-stone-500">
             Noch kein Semester in diesem Studiengang.
           </div>
         )}
@@ -174,7 +227,13 @@ export function StudyView({ activeProgram }: { activeProgram: Program }) {
             const cs = coursesBySem.get(s.id) ?? []
             const st = semesterStats(cs)
             return (
-              <section key={s.id} className="rounded-2xl bg-white p-3.5 shadow-sm ring-1 ring-stone-200/70">
+              <section
+                key={s.id}
+                className={cn(
+                  'rounded-2xl bg-white p-4 shadow-sm ring-1',
+                  s.active ? 'ring-brand-300/70' : 'ring-stone-200/70',
+                )}
+              >
                 <div className="mb-2 flex items-center gap-2 px-1">
                   <span className="text-sm font-semibold text-stone-800">{s.name}</span>
                   {s.active && (
@@ -184,15 +243,22 @@ export function StudyView({ activeProgram }: { activeProgram: Program }) {
                   )}
                   <button
                     onClick={() => void switchSemester(s.id)}
-                    className="text-xs text-stone-400 hover:text-brand-600"
+                    className="text-xs text-stone-500 hover:text-brand-600"
                   >
                     öffnen
                   </button>
-                  <span className="ml-auto text-[11px] font-medium text-stone-400">
+                  <span className="ml-auto flex items-center gap-1.5 text-[11px] font-medium tabular-nums text-stone-500">
                     {st.ects > 0 && (
                       <>
                         {st.ects} ECTS
-                        {st.avg != null && ` · Ø ${fmtGrade(st.avg)}`}
+                        {st.avg != null && (
+                          <>
+                            <span
+                              className={cn('inline-block h-2 w-2 rounded-full', gradeDotBg(st.avg))}
+                            />
+                            Ø {fmtGrade(st.avg)}
+                          </>
+                        )}
                       </>
                     )}
                   </span>
@@ -205,7 +271,7 @@ export function StudyView({ activeProgram }: { activeProgram: Program }) {
                 </div>
 
                 {cs.length === 0 ? (
-                  <div className="px-1 pb-1 text-xs text-stone-300">keine Kurse</div>
+                  <div className="px-1 pb-1 text-xs text-stone-500">keine Kurse</div>
                 ) : (
                   <div className="space-y-1">
                     {cs.map((c) => (
@@ -269,6 +335,20 @@ function gradeColor(g: number): string {
   return g <= 2 ? 'text-emerald-600' : g <= 3 ? 'text-amber-500' : 'text-red-500'
 }
 
+/** Ampel-Hintergrund für 8px-Punkte. */
+function gradeDotBg(g?: number): string {
+  if (g == null) return 'bg-stone-300'
+  return g <= 2 ? 'bg-emerald-500' : g <= 3 ? 'bg-amber-500' : 'bg-red-500'
+}
+
+/** Verdikt-Badge neben dem (neutralen) Notenschnitt – Ampel als Wort, nicht als Zahl. */
+function gradeVerdict(g?: number): { text: string; cls: string } | null {
+  if (g == null) return null
+  if (g <= 2) return { text: 'gut', cls: 'bg-emerald-100 text-emerald-700' }
+  if (g <= 3) return { text: 'befriedigend', cls: 'bg-amber-100 text-amber-700' }
+  return { text: 'ausreichend', cls: 'bg-red-100 text-red-700' }
+}
+
 /** Nummeriertes Schritt-Badge (1, 2 …) für klare Reihenfolge. */
 function StepNum({ n }: { n: number }) {
   return (
@@ -309,6 +389,38 @@ function GradeStepper({ value, onChange }: { value: number; onChange: (v: number
   )
 }
 
+/** Mini-Trend der Semester-Schnitte (chronologisch). 1,0 oben, 4,0 unten. */
+function Sparkline({ values }: { values: number[] }) {
+  const n = values.length
+  const pts = values
+    .map(
+      (g, i) =>
+        `${(n === 1 ? 0 : (i / (n - 1)) * 100).toFixed(1)},${(((g - 1) / 3) * 28).toFixed(1)}`,
+    )
+    .join(' ')
+  const lastPct = ((values[n - 1] - 1) / 3) * 100
+  return (
+    <div className="mt-3">
+      <div className="relative h-8 w-full">
+        <svg viewBox="0 0 100 28" preserveAspectRatio="none" className="h-full w-full">
+          <polyline
+            points={pts}
+            fill="none"
+            className="stroke-stone-400"
+            strokeWidth={1.5}
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+        <span
+          className="absolute h-1.5 w-1.5 -translate-x-full -translate-y-1/2 rounded-full bg-stone-600"
+          style={{ left: '100%', top: `${lastPct}%` }}
+        />
+      </div>
+      <div className="mt-1 text-[11px] text-stone-500">Schnitt je Semester</div>
+    </div>
+  )
+}
+
 /** Notenprognose: „Was brauche ich noch?" + Endschnitt-Szenario. */
 function Forecast({ stats }: { stats: ProgramStats }) {
   const f = getForecast(stats)
@@ -316,30 +428,25 @@ function Forecast({ stats }: { stats: ProgramStats }) {
     clampGrade(stats.gradeAvg ? Math.min(stats.gradeAvg, 2.0) : 2.0),
   )
   const [assumed, setAssumed] = useState(() => clampGrade(stats.gradeAvg ?? 2.0))
+  const [open, setOpen] = useState(false)
 
-  const head = (
-    <div className="mb-4">
-      <div className="flex items-center gap-2">
-        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-100 text-brand-600">
-          <TrendingUp size={15} />
-        </span>
-        <span className="text-sm font-semibold text-stone-800">Notenprognose</span>
-      </div>
-      <p className="mt-1.5 text-xs leading-relaxed text-stone-500">
-        Zum Ausprobieren: Stell dein Ziel ein und schätze, wie der Rest läuft – deine echten Noten
-        bleiben unverändert.
-      </p>
+  const title = (
+    <div className="flex items-center gap-2">
+      <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-100 text-brand-600">
+        <TrendingUp size={15} />
+      </span>
+      <span className="text-sm font-semibold text-stone-800">Notenprognose</span>
     </div>
   )
 
   // Nichts mehr offen → Schnitt steht fest.
   if (f.remainingEcts <= 0) {
     return (
-      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-stone-200/70">
-        {head}
-        <div className="flex items-center justify-between rounded-xl bg-stone-50 px-4 py-3">
+      <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70">
+        {title}
+        <div className="mt-3 flex items-center justify-between rounded-xl bg-stone-50 px-4 py-3">
           <span className="text-sm text-stone-500">Alle ECTS benotet – dein Schnitt steht</span>
-          <span className={cn('text-3xl font-bold', gradeColor(stats.gradeAvg ?? 4))}>
+          <span className={cn('text-3xl font-bold tabular-nums', gradeColor(stats.gradeAvg ?? 4))}>
             {fmtGrade(stats.gradeAvg)}
           </span>
         </div>
@@ -363,10 +470,33 @@ function Forecast({ stats }: { stats: ProgramStats }) {
   const pct = span > 0 ? Math.min(100, Math.max(0, ((projected - best) / span) * 100)) : 50
 
   return (
-    <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-stone-200/70">
-      {head}
+    <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70">
+      <div className="flex items-center justify-between gap-3">
+        {title}
+        <span className="text-sm tabular-nums text-stone-500">
+          Voraussichtlich{' '}
+          <strong className="font-semibold text-stone-700">
+            {fmtGrade(best)}–{fmtGrade(worst)}
+          </strong>
+        </span>
+      </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="mt-2 flex items-center gap-1 text-sm font-medium text-stone-600 transition hover:text-brand-600"
+      >
+        <ChevronDown size={15} className={cn('transition-transform', open && 'rotate-180')} />
+        {open ? 'Szenario ausblenden' : 'Szenario durchspielen'}
+      </button>
+
+      {open && (
+        <>
+          <p className="mt-3 text-xs leading-relaxed text-stone-500">
+            Zum Ausprobieren: Stell dein Ziel ein und schätze, wie der Rest läuft – deine echten
+            Noten bleiben unverändert.
+          </p>
+
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
         {/* Block 1: Ziel einstellen → benötigte Restnote */}
         <div className="rounded-xl bg-stone-50 p-4">
           <div className="flex items-center gap-2">
@@ -398,7 +528,7 @@ function Forecast({ stats }: { stats: ProgramStats }) {
                     {feasBadge.text}
                   </span>
                 </div>
-                <p className="mt-1.5 text-xs text-stone-400">über die restlichen {f.remainingEcts} ECTS</p>
+                <p className="mt-1.5 text-xs text-stone-500">über die restlichen {f.remainingEcts} ECTS</p>
               </>
             )}
             {status === 'secured' && (
@@ -445,7 +575,7 @@ function Forecast({ stats }: { stats: ProgramStats }) {
               className="slider-grade"
               aria-label="Angenommener Schnitt im Rest"
             />
-            <div className="mt-1 flex justify-between text-[10px] text-stone-400">
+            <div className="mt-1 flex justify-between text-[11px] text-stone-500">
               <span>1,0 · sehr gut</span>
               <span>4,0 · ausreichend</span>
             </div>
@@ -469,23 +599,31 @@ function Forecast({ stats }: { stats: ProgramStats }) {
                   style={{ left: `${pct}%` }}
                 />
               </div>
-              <div className="mt-1.5 flex justify-between text-[10px] text-stone-400">
+              <div className="mt-1.5 flex justify-between text-[11px] text-stone-500">
                 <span>
-                  läuft's top: <strong className="text-stone-500">{fmtGrade(best)}</strong>
+                  im Bestfall:{' '}
+                  <strong className="font-semibold tabular-nums text-stone-600">
+                    {fmtGrade(best)}
+                  </strong>
                 </span>
                 <span>
-                  läuft's mies: <strong className="text-stone-500">{fmtGrade(worst)}</strong>
+                  falls es schlechter läuft:{' '}
+                  <strong className="font-semibold tabular-nums text-stone-600">
+                    {fmtGrade(worst)}
+                  </strong>
                 </span>
               </div>
             </div>
           </div>
         </div>
-      </div>
+          </div>
 
-      <p className="mt-3 text-[11px] leading-relaxed text-stone-400">
-        Bezogen auf rund {f.finalEcts} benotete ECTS. Annahme: die restlichen ECTS werden benotet –
-        unbenotete Module (bestanden/nicht&nbsp;bestanden) zählen nicht in den Schnitt.
-      </p>
+          <p className="mt-3 text-[11px] leading-relaxed text-stone-500">
+            Bezogen auf rund {f.finalEcts} benotete ECTS. Annahme: die restlichen ECTS werden
+            benotet – unbenotete Module (bestanden/nicht&nbsp;bestanden) zählen nicht in den Schnitt.
+          </p>
+        </>
+      )}
     </div>
   )
 }
@@ -494,18 +632,24 @@ function Forecast({ stats }: { stats: ProgramStats }) {
 function CourseRow({ course }: { course: Course }) {
   const upd = (patch: Partial<Course>) => void db.courses.update(course.id, patch)
   const status = course.status ?? 'laufend'
+  const statusDot =
+    status === 'bestanden' ? 'bg-emerald-500' : status === 'nicht_bestanden' ? 'bg-red-500' : 'bg-stone-300'
   return (
-    <div className="flex items-center gap-2 rounded-lg px-1 py-1.5 hover:bg-stone-50">
+    <div className="flex flex-wrap items-center gap-2 rounded-lg px-1 py-1.5 hover:bg-stone-50">
       <span className="h-5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: course.color }} />
-      <span className="min-w-0 flex-1 truncate text-sm text-stone-700">
-        <span className="font-medium">{course.short}</span> · {course.name}
+      <span
+        className={cn('h-2 w-2 shrink-0 rounded-full', statusDot)}
+        title={STATUS_OPTS.find((o) => o.id === status)?.label}
+      />
+      <span className="min-w-0 flex-1 truncate text-sm leading-tight text-stone-500">
+        <span className="font-medium text-stone-700">{course.short}</span> · {course.name}
       </span>
       <input
         type="number"
         defaultValue={course.ects ?? ''}
         placeholder="ECTS"
         onBlur={(e) => upd({ ects: e.target.value ? Number(e.target.value) : undefined })}
-        className="w-14 rounded-md border border-stone-200 px-1.5 py-1 text-center text-xs"
+        className="w-16 rounded-md border border-stone-200 px-1.5 py-1 text-right text-sm tabular-nums"
       />
       <input
         type="number"
@@ -515,7 +659,7 @@ function CourseRow({ course }: { course: Course }) {
         defaultValue={course.grade ?? ''}
         placeholder="Note"
         onBlur={(e) => upd({ grade: e.target.value ? clampGrade(Number(e.target.value)) : undefined })}
-        className="w-14 rounded-md border border-stone-200 px-1.5 py-1 text-center text-xs"
+        className="w-16 rounded-md border border-stone-200 px-1.5 py-1 text-right text-sm tabular-nums"
       />
       <Select
         value={status}
