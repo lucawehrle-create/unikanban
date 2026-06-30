@@ -55,12 +55,59 @@ function tokenAt(value: string, caret: number): { token: string; start: number }
   return { token, start: caret - token.length }
 }
 
+/**
+ * Inline-Autovervollständigung: ergänzt das Trigger-Token am Cursor zum besten
+ * Treffer (Kurs/Art/Frist) und gibt zurück, welcher Teil markiert werden soll –
+ * so wird der ergänzte Rest beim Weitertippen ersetzt und per Backspace komplett
+ * gelöscht. Nur bei echtem Vorwärts-Tippen am Token-Ende.
+ */
+function bestInlineCompletion(
+  value: string,
+  caret: number,
+  courses: Course[],
+): { value: string; selStart: number; selEnd: number } | null {
+  const { token, start } = tokenAt(value, caret)
+  if (start + token.length !== caret) return null // Cursor nicht am Token-Ende
+  const low = token.toLowerCase()
+  const q = low.slice(1)
+  let insert: string | null = null
+  if (token.startsWith('#')) {
+    if (!q) return null
+    const c =
+      courses.find((c) => c.short.toLowerCase().startsWith(q)) ??
+      courses.find((c) => c.name.toLowerCase().startsWith(q))
+    if (c) insert = `#${c.short}`
+  } else if (token.startsWith('@')) {
+    if (!q) return null
+    const d = SELECTABLE_TASK_TYPES.find(
+      (d) => d.id.toLowerCase().startsWith(q) || d.label.toLowerCase().startsWith(q),
+    )
+    if (d) insert = `@${d.id}`
+  } else if (token.startsWith('!')) {
+    if (!q) return null
+    const o = DATE_OPTS.find((o) => o.t.startsWith(q) || o.label.toLowerCase().startsWith(q))
+    if (o) insert = `!${o.t}`
+  } else {
+    return null
+  }
+  if (!insert) return null
+  const insLow = insert.toLowerCase()
+  if (insLow === low || !insLow.startsWith(low)) return null // schon komplett / kein Präfix
+  return {
+    value: value.slice(0, start) + insert + value.slice(caret),
+    selStart: caret,
+    selEnd: start + insert.length,
+  }
+}
+
 export function QuickAdd({ semesterId, courses }: QuickAddProps) {
   const [value, setValue] = useState('')
   const [caret, setCaret] = useState(0)
   const [focused, setFocused] = useState(false)
   const [sel, setSel] = useState(0)
   const [dismissed, setDismissed] = useState(false)
+  // true, solange der zuletzt automatisch ergänzte Rest markiert ist.
+  const [inlineActive, setInlineActive] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const draft = useMemo(() => parseQuickAdd(value, courses), [value, courses])
@@ -102,7 +149,8 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
     return PRIO_OPTS.map((o) => ({ insert: o.t, primary: o.label, secondary: o.t, dot: o.color }))
   }, [trigger, token, courses])
 
-  const showSuggest = focused && !dismissed && trigger != null && suggestions.length > 0
+  // Popover nur, wenn keine Inline-Ergänzung aktiv ist (sonst doppelte UI).
+  const showSuggest = focused && !dismissed && trigger != null && suggestions.length > 0 && !inlineActive
   // Kürzel-Legende dauerhaft während der Eingabe sichtbar (nicht nur bei leerem
   // Feld) – damit man immer sieht, welches Zeichen wofür steht.
   const showLegend = focused && trigger == null
@@ -160,6 +208,34 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    const el = inputRef.current
+    const selActive = !!el && inlineActive && el.selectionStart !== el.selectionEnd
+    if (selActive && el) {
+      // Übernehmen: Leertaste (mit Leerzeichen), Tab (Cursor ans Ende), Enter (absenden).
+      if (e.key === ' ' || e.key === 'Tab') {
+        e.preventDefault()
+        const end = el.selectionEnd ?? el.value.length
+        const space = e.key === ' ' ? ' ' : ''
+        const nv = el.value.slice(0, end) + space + el.value.slice(end)
+        setValue(nv)
+        setInlineActive(false)
+        const pos = end + space.length
+        requestAnimationFrame(() => {
+          el.focus()
+          el.setSelectionRange(pos, pos)
+          setCaret(pos)
+        })
+        return
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        setInlineActive(false)
+        void submit()
+        return
+      }
+      // Backspace löscht die Markierung (Standard) → ergänzter Rest komplett weg.
+      // Pfeile/Weitertippen: Standardverhalten (Markierung ersetzen/aufheben).
+    }
     if (showSuggest) {
       if (e.key === 'ArrowDown') {
         e.preventDefault()
@@ -198,10 +274,23 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
             ref={inputRef}
             value={value}
             onChange={(e) => {
-              setValue(e.target.value)
-              setCaret(e.target.selectionStart ?? e.target.value.length)
+              const raw = e.target.value
+              const rawCaret = e.target.selectionStart ?? raw.length
               setDismissed(false)
               setSel(0)
+              // Inline-Autofill nur bei einzelnem Tastendruck (nicht Löschen/Paste/IME).
+              const itype = (e.nativeEvent as InputEvent).inputType
+              const comp = itype === 'insertText' ? bestInlineCompletion(raw, rawCaret, courses) : null
+              if (comp) {
+                setValue(comp.value)
+                setCaret(comp.selEnd)
+                setInlineActive(true)
+                requestAnimationFrame(() => inputRef.current?.setSelectionRange(comp.selStart, comp.selEnd))
+              } else {
+                setValue(raw)
+                setCaret(rawCaret)
+                setInlineActive(false)
+              }
             }}
             onKeyDown={onKeyDown}
             onKeyUp={syncCaret}
