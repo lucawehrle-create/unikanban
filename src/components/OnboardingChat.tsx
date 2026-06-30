@@ -1278,6 +1278,22 @@ export function OnboardingChat() {
             <div className="mt-1 rounded-2xl bg-white p-4 text-sm shadow-sm ring-1 ring-stone-200">
               <div className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-stone-400">Dein Überblick</div>
               <SumRow label="Studiengang" value={`${draft.current.name} · ${TYPE_LABEL[draft.current.type]}${draft.current.fs ? ` · ${draft.current.fs}. Sem.` : ''}`} />
+              {/* Ziel-ECTS editierbar – nicht jeder Abschluss hat 180/120 (z.B. 210/240-Bachelor, 60/90-Master, Staatsexamen). */}
+              <div className="flex items-center justify-between gap-3 border-b border-stone-100 py-2">
+                <span className="shrink-0 text-xs font-medium text-stone-400">Abschluss-Ziel</span>
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min={1}
+                    max={400}
+                    value={draft.current.target}
+                    aria-label="Ziel-ECTS gesamt"
+                    onChange={(e) => { draft.current.target = Math.max(1, Math.min(400, Number(e.target.value) || draft.current.target)); forceRender() }}
+                    className="w-16 rounded-lg border border-stone-200 px-2 py-1 text-xs text-stone-700 outline-none focus:border-brand-400"
+                  />
+                  <span className="text-[11px] text-stone-400">ECTS gesamt</span>
+                </div>
+              </div>
               {/* Semester editierbar – v. a. der Start ist wichtig (Wochen-Zählung). */}
               <div className="flex items-start justify-between gap-3 border-b border-stone-100 py-2 last:border-0">
                 <span className="shrink-0 pt-1.5 text-xs font-medium text-stone-400">Semester</span>
