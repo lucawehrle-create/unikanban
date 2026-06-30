@@ -155,6 +155,7 @@ function PlanEditor({
   const [busy, setBusy] = useState(false)
   const [flash, setFlash] = useState('')
   const dailyMaxMin = useUI((s) => s.studyDailyMaxMin)
+  const setStudyDailyMaxMin = useUI((s) => s.setStudyDailyMaxMin)
   const weeklyMaxMin = useUI((s) => s.studyWeeklyMaxMin)
   const studyDays = useUI((s) => s.studyDays)
   const maxCoursesPerDay = useUI((s) => s.studyMaxCoursesPerDay)
@@ -446,9 +447,27 @@ function PlanEditor({
           <Legend />
         </div>
         {active.unplaced > 0 && (
-          <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-700">
-            ⚠ {active.unplaced} Einheiten passen nicht ins Tagesbudget. Starte früher, erhöhe die
-            Lernzeit/Tag oder reduziere das Material.
+          <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            <div className="font-medium">
+              ⚠ {active.unplaced} Einheit{active.unplaced === 1 ? '' : 'en'} passen nicht ins Budget – so bekommst du sie unter:
+            </div>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {cfg.strategy !== 'now' && (
+                <button
+                  onClick={() => set('strategy', 'now')}
+                  className="rounded-full bg-white px-2.5 py-1 font-medium text-amber-800 ring-1 ring-amber-200 transition hover:bg-amber-100"
+                >
+                  Sofort starten
+                </button>
+              )}
+              <button
+                onClick={() => setStudyDailyMaxMin(Math.min(600, dailyMaxMin + 30))}
+                className="rounded-full bg-white px-2.5 py-1 font-medium text-amber-800 ring-1 ring-amber-200 transition hover:bg-amber-100"
+              >
+                +30 Min/Tag (jetzt {dailyMaxMin})
+              </button>
+            </div>
+            <div className="mt-1 text-[11px] text-amber-700">…oder oben das Material etwas reduzieren.</div>
           </div>
         )}
       </div>
