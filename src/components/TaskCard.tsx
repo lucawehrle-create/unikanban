@@ -1,9 +1,18 @@
 import { AlertTriangle, Clock, Flag, GraduationCap } from 'lucide-react'
-import type { Course, Task } from '@/db/types'
+import type { Course, Priority, Task } from '@/db/types'
 import { TASK_TYPES } from '@/lib/taskTypes'
 import { classifyDue, DUE_META, formatDue, formatUrgency } from '@/lib/deadline'
 import { difficultyMeta } from '@/lib/reflection'
 import { cn } from '@/lib/cn'
+
+// Prioritäts-Flagge als Form/Gewicht. Rot bleibt der Dringlichkeit vorbehalten,
+// daher trägt „hoch“ Schwarz (kräftigstes Gewicht), nicht Rot. Die Abstufung
+// kommt über die Farbintensität: schwarz > amber > grau.
+const PRIO_FLAG: Record<Priority, { color: string; label: string }> = {
+  hoch: { color: 'text-stone-900', label: 'Hohe Priorität' },
+  mittel: { color: 'text-amber-500', label: 'Mittlere Priorität' },
+  niedrig: { color: 'text-stone-300', label: 'Niedrige Priorität' },
+}
 
 interface TaskCardProps {
   task: Task
@@ -33,7 +42,7 @@ export function TaskCard({ task, course, onClick, dragging, suppressUrgency }: T
 
   const isUrgent = (due === 'overdue' || due === 'today') && !suppressUrgency
   const inProgress = task.status === 'dran'
-  const isHigh = task.priority === 'hoch'
+  const prioFlag = task.priority && !done ? PRIO_FLAG[task.priority] : undefined
 
   // Der linke Rand trägt entweder Kurs- ODER Dringlichkeitsidentität – nie beides.
   const barColor =
@@ -56,13 +65,13 @@ export function TaskCard({ task, course, onClick, dragging, suppressUrgency }: T
       {/* Akzent-Rand links: Kurs (Default) oder Dringlichkeit (overdue/today) */}
       <span className="absolute inset-y-0 left-0 w-[3px]" style={{ backgroundColor: barColor }} />
 
-      {/* Priorität nur bei „hoch“ – als Form/Gewicht, nicht als weiterer Rotton */}
-      {isHigh && !done && (
+      {/* Priorität als Form/Gewicht (alle Stufen) – nicht als weiterer Rotton */}
+      {prioFlag && (
         <Flag
           size={13}
-          className="absolute right-3 top-3 text-stone-900"
+          className={cn('absolute right-3 top-3', prioFlag.color)}
           fill="currentColor"
-          aria-label="Hohe Priorität"
+          aria-label={prioFlag.label}
         />
       )}
 
@@ -75,7 +84,7 @@ export function TaskCard({ task, course, onClick, dragging, suppressUrgency }: T
           <div
             className={cn(
               'text-sm font-medium leading-snug text-stone-800 [letter-spacing:-0.006em] line-clamp-2',
-              isHigh && !done && 'pr-5',
+              prioFlag && 'pr-5',
               done && 'line-through',
             )}
           >
@@ -117,6 +126,14 @@ export function TaskCard({ task, course, onClick, dragging, suppressUrgency }: T
                 }
               >
                 {course.short}
+              </span>
+            )}
+
+            {/* Aufgaben-Art dezent als Tag (Emoji allein ist nicht eindeutig);
+                bei „Sonstiges“ weglassen (generisch = nur Rauschen). */}
+            {task.type !== 'sonstiges' && (
+              <span className="rounded bg-stone-100 px-1.5 py-0.5 font-medium text-stone-500">
+                {type.label}
               </span>
             )}
 
