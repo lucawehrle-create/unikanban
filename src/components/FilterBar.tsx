@@ -1,15 +1,18 @@
+import { type ReactNode } from 'react'
 import {
+  BookOpen,
   CalendarCheck,
   Check,
   Filter,
   GraduationCap,
+  Group,
   Layers,
   Search,
-  SlidersHorizontal,
+  Tag,
   X,
 } from 'lucide-react'
 import type { Course } from '@/db/types'
-import { SELECTABLE_TASK_TYPES } from '@/lib/taskTypes'
+import { SELECTABLE_TASK_TYPES, TASK_TYPES } from '@/lib/taskTypes'
 import { useUI, type ExamPrepFilter, type GroupBy, type SortBy } from '@/store/ui'
 import { Popover } from './ui/Popover'
 import { cn } from '@/lib/cn'
@@ -58,6 +61,45 @@ function Option({
   )
 }
 
+/** Sektions-Überschrift im Menü (einheitlich, mit Icon). */
+function SectionHead({ icon: Icon, children }: { icon: typeof Tag; children: ReactNode }) {
+  return (
+    <div className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
+      <Icon size={12} /> {children}
+    </div>
+  )
+}
+
+/** Entfernbarer Chip für einen aktiven Filter – direkt in der Leiste sichtbar. */
+function FilterChip({
+  label,
+  color,
+  onRemove,
+}: {
+  label: string
+  color?: string
+  onRemove: () => void
+}) {
+  return (
+    <span
+      className={cn(
+        'flex items-center gap-1 rounded-full py-1 pl-2.5 pr-1 text-xs font-medium',
+        color ? '' : 'bg-white/70 text-stone-600 shadow-sm ring-1 ring-stone-200/70',
+      )}
+      style={color ? { backgroundColor: color + '22', color } : undefined}
+    >
+      {label}
+      <button
+        onClick={onRemove}
+        aria-label="Filter entfernen"
+        className="rounded-full p-0.5 transition hover:bg-black/10"
+      >
+        <X size={11} />
+      </button>
+    </span>
+  )
+}
+
 export function FilterBar({ courses }: { courses: Course[] }) {
   const ui = useUI()
   const activeFilters =
@@ -66,6 +108,15 @@ export function FilterBar({ courses }: { courses: Course[] }) {
     (ui.showDone ? 0 : 1) +
     (ui.examPrep !== 'all' ? 1 : 0) +
     (ui.dueToday ? 1 : 0)
+
+  const groupLabel = GROUP_OPTIONS.find((g) => g.id === ui.groupBy)?.label ?? 'Ansicht'
+  const examPrepLabel = EXAM_PREP_OPTIONS.find((o) => o.id === ui.examPrep)?.label
+
+  // „Alles zurücksetzen" inkl. Erledigte-Sichtbarkeit (clearFilters lässt die aus).
+  const resetAll = () => {
+    ui.clearFilters()
+    ui.setShowDone(true)
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-2 px-5 py-2">
@@ -103,14 +154,45 @@ export function FilterBar({ courses }: { courses: Course[] }) {
         </button>
       )}
 
+      {/* Aktive Filter als entfernbare Chips – sofort sichtbar */}
+      {ui.filterCourseIds.map((id) => {
+        const c = courses.find((x) => x.id === id)
+        if (!c) return null
+        return (
+          <FilterChip
+            key={`c-${id}`}
+            label={c.short}
+            color={c.color}
+            onRemove={() => ui.toggleCourseFilter(id)}
+          />
+        )
+      })}
+      {ui.filterTypes.map((t) => (
+        <FilterChip
+          key={`t-${t}`}
+          label={`${TASK_TYPES[t].emoji} ${TASK_TYPES[t].label}`}
+          onRemove={() => ui.toggleTypeFilter(t)}
+        />
+      ))}
+      {ui.examPrep !== 'all' && examPrepLabel && (
+        <FilterChip label={examPrepLabel} onRemove={() => ui.setExamPrep('all')} />
+      )}
+      {!ui.showDone && <FilterChip label="Erledigte aus" onRemove={() => ui.setShowDone(true)} />}
+      {activeFilters > 0 && (
+        <button
+          onClick={resetAll}
+          className="flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium text-stone-500 transition hover:bg-stone-100 hover:text-stone-700"
+        >
+          <X size={12} /> Alle löschen
+        </button>
+      )}
+
       <div className="ml-auto flex items-center gap-2">
         {/* Filter-Menü */}
         <Popover label="Filter" icon={<Filter size={13} />} badge={activeFilters} width={280}>
           <div className="space-y-3">
             <div>
-              <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
-                Kurse
-              </div>
+              <SectionHead icon={BookOpen}>Kurse</SectionHead>
               <div className="flex flex-wrap gap-1.5">
                 {courses.map((c) => {
                   const active = ui.filterCourseIds.includes(c.id)
@@ -133,9 +215,7 @@ export function FilterBar({ courses }: { courses: Course[] }) {
             </div>
 
             <div>
-              <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
-                Typen
-              </div>
+              <SectionHead icon={Tag}>Typen</SectionHead>
               <div className="flex flex-wrap gap-1.5">
                 {SELECTABLE_TASK_TYPES.filter((t) => t.id !== 'sonstiges').map((t) => {
                   const active = ui.filterTypes.includes(t.id)
@@ -144,9 +224,9 @@ export function FilterBar({ courses }: { courses: Course[] }) {
                       key={t.id}
                       onClick={() => ui.toggleTypeFilter(t.id)}
                       className={cn(
-                        'rounded-full px-2 py-1 text-xs transition',
+                        'rounded-full px-2 py-1 text-xs font-medium transition',
                         active
-                          ? 'bg-stone-900 text-white'
+                          ? 'bg-brand-300 text-stone-900'
                           : 'bg-stone-100 text-stone-500 hover:bg-stone-200',
                       )}
                     >
@@ -158,9 +238,7 @@ export function FilterBar({ courses }: { courses: Course[] }) {
             </div>
 
             <div className="border-t border-stone-100 pt-2.5">
-              <div className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
-                <GraduationCap size={12} /> Klausurvorbereitung
-              </div>
+              <SectionHead icon={GraduationCap}>Klausurvorbereitung</SectionHead>
               <div className="flex rounded-lg bg-stone-100 p-0.5">
                 {EXAM_PREP_OPTIONS.map((o) => (
                   <button
@@ -194,7 +272,7 @@ export function FilterBar({ courses }: { courses: Course[] }) {
 
             {activeFilters > 0 && (
               <button
-                onClick={ui.clearFilters}
+                onClick={resetAll}
                 className="flex w-full items-center justify-center gap-1 rounded-lg bg-stone-100 py-1.5 text-xs font-medium text-stone-500 hover:bg-stone-200"
               >
                 <X size={12} /> Filter zurücksetzen
@@ -203,9 +281,9 @@ export function FilterBar({ courses }: { courses: Course[] }) {
           </div>
         </Popover>
 
-        {/* Ansicht-Menü (nur Board) */}
+        {/* Ansicht-Menü (nur Board) – Trigger zeigt die aktuelle Gruppierung */}
         {ui.view === 'board' && (
-          <Popover label="Ansicht" icon={<SlidersHorizontal size={13} />} width={220}>
+          <Popover label={groupLabel} icon={<Group size={13} />} width={220}>
             <div className="space-y-3">
               <div>
                 <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-stone-400">
