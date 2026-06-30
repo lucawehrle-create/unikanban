@@ -159,8 +159,13 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
     return PRIO_OPTS.map((o) => ({ insert: o.t, primary: o.label, secondary: o.t, dot: o.color }))
   }, [trigger, token, courses])
 
+  // Ist die Priorität schon vollständig getippt (p1/p2/p3), ist nichts mehr zu
+  // wählen – Popover schließen, damit Enter/Tab nicht fälschlich den ersten
+  // Vorschlag (p1) übernimmt, statt mit der getippten Priorität abzusenden.
+  const completePrio = trigger === 'p' && /^p[1-3]$/i.test(token)
   // Popover nur, wenn keine Inline-Ergänzung aktiv ist (sonst doppelte UI).
-  const showSuggest = focused && !dismissed && trigger != null && suggestions.length > 0 && !inlineActive
+  const showSuggest =
+    focused && !dismissed && trigger != null && suggestions.length > 0 && !inlineActive && !completePrio
   // Kürzel-Legende dauerhaft während der Eingabe sichtbar (nicht nur bei leerem
   // Feld) – damit man immer sieht, welches Zeichen wofür steht.
   const showLegend = focused && trigger == null
