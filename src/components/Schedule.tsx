@@ -166,13 +166,15 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
   const maxWeekday = Math.max(5, ...slots.map((s) => s.weekday), ...[...tasksByDay.keys()])
   const days = Array.from({ length: maxWeekday }, (_, i) => i + 1)
 
-  // Zeitfenster aus den echten Terminen ableiten (damit nichts negativ/abgeschnitten ist)
+  // Zeitfenster: morgens spätestens ab 8 Uhr, abends mindestens bis 20 Uhr –
+  // damit der Tag „vollständig" wirkt; bei früheren/späteren Terminen erweitert
+  // es sich automatisch.
   const startHour = slots.length
-    ? Math.max(0, Math.floor(Math.min(...slots.map((s) => s.start)) / 60))
+    ? Math.min(8, Math.max(0, Math.floor(Math.min(...slots.map((s) => s.start)) / 60)))
     : 8
   const endHour = slots.length
-    ? Math.min(24, Math.ceil(Math.max(...slots.map((s) => s.end)) / 60))
-    : 18
+    ? Math.min(24, Math.max(20, Math.ceil(Math.max(...slots.map((s) => s.end)) / 60)))
+    : 20
   const hours = Array.from({ length: endHour - startHour }, (_, i) => startHour + i)
   const gridHeight = (endHour - startHour) * PX_PER_HOUR
 
