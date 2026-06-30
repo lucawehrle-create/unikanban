@@ -114,10 +114,15 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
   const course = draft.courseId ? courses.find((c) => c.id === draft.courseId) : undefined
   const prio = priorityMeta(draft.priority)
 
-  // Beispiele für den Leerzustand – nutzen ein echtes Kürzel, falls vorhanden,
-  // und führen zugleich die Auto-Erkennung (Art/Frist ohne @/!) vor.
+  // Beispiele für den Leerzustand: eines mit ausdrücklichen Kürzeln, eines in
+  // reiner Umgangssprache – führt die Auto-Erkennung (Kurs/Art/Frist/Priorität
+  // ganz ohne #@!p) direkt vor.
   const sampleShort = courses[0]?.short ?? 'kurs'
-  const examples = [`Blatt 3 #${sampleShort} @übung !fr`, `Hausarbeit #${sampleShort} bis 15.7.`]
+  const sampleWord = courses[0]?.name.split(/\s+/)[0] ?? 'Mathe'
+  const examples = [
+    `Blatt 3 #${sampleShort} @übung !fr`,
+    `${sampleWord} Übung wichtig bis Freitag`,
+  ]
 
   // Aktiver Trigger + Vorschläge
   const { token } = useMemo(() => tokenAt(value, caret), [value, caret])
@@ -461,6 +466,11 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
               style={{ backgroundColor: course.color + '22', color: course.color }}
             >
               {course.short}
+              {draft.courseAuto && (
+                <span className="ml-1" title="automatisch erkannt">
+                  ✨
+                </span>
+              )}
             </span>
           )}
           <span className="rounded-full bg-stone-100 px-2 py-0.5">
@@ -487,6 +497,11 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
               style={{ backgroundColor: prio.color + '22', color: prio.color }}
             >
               ⚑ {prio.label}
+              {draft.priorityAuto && (
+                <span className="ml-1" title="automatisch erkannt">
+                  ✨
+                </span>
+              )}
             </span>
           )}
         </div>

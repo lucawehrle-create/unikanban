@@ -5,6 +5,8 @@ import { matchTaskType } from './taskTypes'
 export interface QuickAddDraft {
   title: string
   courseId?: string
+  /** Kurs wurde aus dem Fließtext erkannt (nicht per # gesetzt). */
+  courseAuto?: boolean
   type?: TaskTypeId
   /** Art wurde aus Titelwörtern erkannt (nicht per @ gesetzt). */
   typeAuto?: boolean
@@ -12,6 +14,8 @@ export interface QuickAddDraft {
   /** Frist wurde aus dem Fließtext erkannt (nicht per ! gesetzt). */
   dueAuto?: boolean
   priority?: Priority
+  /** Priorität wurde aus dem Fließtext erkannt (nicht per p1/p2/p3 gesetzt). */
+  priorityAuto?: boolean
 }
 
 const WEEKDAYS: Record<string, number> = {
@@ -75,6 +79,58 @@ const NUMERIC_DATE = /^\d{1,2}\.\d{1,2}\.?(\d{2,4})?$/
 
 function stripWord(w: string): string {
   return w.toLowerCase().replace(/[^a-zäöüß]/g, '')
+}
+
+/** Normalisiert ein Wort für Vergleiche (Kürzel/Namen): klein, ohne Satzzeichen. */
+function normTok(w: string): string {
+  return w.toLowerCase().replace(/[^a-z0-9äöüß]/g, '')
+}
+
+// Umgangssprachliche Prioritäts-Wörter (Präfix-Match, also auch „wichtige“ etc.).
+const PRIO_WORDS: Array<{ prefix: string; prio: Priority }> = [
+  { prefix: 'dringend', prio: 'hoch' },
+  { prefix: 'wichtig', prio: 'hoch' },
+  { prefix: 'eilig', prio: 'hoch' },
+  { prefix: 'asap', prio: 'hoch' },
+  { prefix: 'urgent', prio: 'hoch' },
+  { prefix: 'unwichtig', prio: 'niedrig' },
+  { prefix: 'optional', prio: 'niedrig' },
+  { prefix: 'irgendwann', prio: 'niedrig' },
+]
+
+/**
+ * Erkennt den Kurs aus dem Fließtext – ohne `#`. Zwei Stufen, beide
+ * fehlerkennungs-arm: (1) ein Wort entspricht exakt einem Kürzel; (2) ein Wort
+ * (≥ 4 Zeichen) kommt als Namenswort genau EINES Kurses vor (mehrdeutige
+ * Treffer werden verworfen → dann hilft `#`).
+ */
+function detectCourse(words: string[], courses: Course[]): string | undefined {
+  for (const w of words) {
+    const s = normTok(w)
+    if (!s) continue
+    const c = courses.find((c) => normTok(c.short) === s)
+    if (c) return c.id
+  }
+  const hits = new Set<string>()
+  for (const w of words) {
+    const s = normTok(w)
+    if (s.length < 4) continue
+    for (const c of courses) {
+      if (c.name.toLowerCase().split(/\s+/).map(normTok).includes(s)) hits.add(c.id)
+    }
+  }
+  return hits.size === 1 ? [...hits][0] : undefined
+}
+
+/** Erkennt eine umgangssprachliche Priorität aus dem Fließtext (ohne p1/p2/p3). */
+function detectPriority(words: string[]): Priority | undefined {
+  for (const w of words) {
+    const s = normTok(w)
+    for (const { prefix, prio } of PRIO_WORDS) {
+      if (s.startsWith(prefix)) return prio
+    }
+  }
+  return undefined
 }
 
 /**
@@ -157,6 +213,22 @@ export function parseQuickAdd(raw: string, courses: Course[]): QuickAddDraft {
       draft.dueDate = dueDate
       draft.dueAuto = true
       words = rest
+    }
+  }
+  // Kurs aus dem Fließtext – nur, wenn kein ausdrücklicher #kurs gesetzt ist.
+  if (!draft.courseId) {
+    const id = detectCourse(words, courses)
+    if (id) {
+      draft.courseId = id
+      draft.courseAuto = true
+    }
+  }
+  // Priorität aus dem Fließtext – nur, wenn kein ausdrückliches p1/p2/p3.
+  if (!draft.priority) {
+    const p = detectPriority(words)
+    if (p) {
+      draft.priority = p
+      draft.priorityAuto = true
     }
   }
   // Aufgaben-Art aus Titelwörtern – nur, wenn kein ausdrückliches @typ gesetzt
