@@ -74,6 +74,8 @@ function parseDateToken(tokenRaw: string): string | undefined {
 
 // Wörter, die im Fließtext eine darauffolgende Frist einleiten („… bis Freitag“).
 const DATE_PREPOSITIONS = new Set(['bis', 'am', 'zum', 'fällig', 'faellig', 'deadline'])
+// Eindeutige Relativ-Tage, die auch allein im Text als Frist gelten dürfen.
+const RELATIVE_DAYS = new Set(['heute', 'morgen', 'übermorgen', 'uebermorgen'])
 // Eigenständiges numerisches Datum („3.7.“, „12.07.2026“).
 const NUMERIC_DATE = /^\d{1,2}\.\d{1,2}\.?(\d{2,4})?$/
 
@@ -102,32 +104,37 @@ const PRIO_WORDS: Array<{ prefix: string; prio: Priority }> = [
  * Erkennt den Kurs aus dem Fließtext – ohne `#`. Zwei Stufen, beide
  * fehlerkennungs-arm: (1) ein Wort entspricht exakt einem Kürzel; (2) ein Wort
  * (≥ 4 Zeichen) kommt als Namenswort genau EINES Kurses vor (mehrdeutige
- * Treffer werden verworfen → dann hilft `#`).
+ * Treffer werden verworfen → dann hilft `#`). Gibt zusätzlich den Wort-Index
+ * zurück, damit das erkannte Wort aus dem Titel entfernt werden kann.
  */
-function detectCourse(words: string[], courses: Course[]): string | undefined {
-  for (const w of words) {
-    const s = normTok(w)
+function detectCourse(words: string[], courses: Course[]): { courseId: string; idx: number } | undefined {
+  for (let i = 0; i < words.length; i++) {
+    const s = normTok(words[i])
     if (!s) continue
     const c = courses.find((c) => normTok(c.short) === s)
-    if (c) return c.id
+    if (c) return { courseId: c.id, idx: i }
   }
-  const hits = new Set<string>()
-  for (const w of words) {
-    const s = normTok(w)
+  const hits = new Map<string, number>()
+  for (let i = 0; i < words.length; i++) {
+    const s = normTok(words[i])
     if (s.length < 4) continue
     for (const c of courses) {
-      if (c.name.toLowerCase().split(/\s+/).map(normTok).includes(s)) hits.add(c.id)
+      if (c.name.toLowerCase().split(/\s+/).map(normTok).includes(s) && !hits.has(c.id)) {
+        hits.set(c.id, i)
+      }
     }
   }
-  return hits.size === 1 ? [...hits][0] : undefined
+  if (hits.size !== 1) return undefined
+  const [courseId, idx] = [...hits][0]
+  return { courseId, idx }
 }
 
 /** Erkennt eine umgangssprachliche Priorität aus dem Fließtext (ohne p1/p2/p3). */
-function detectPriority(words: string[]): Priority | undefined {
-  for (const w of words) {
-    const s = normTok(w)
+function detectPriority(words: string[]): { prio: Priority; idx: number } | undefined {
+  for (let i = 0; i < words.length; i++) {
+    const s = normTok(words[i])
     for (const { prefix, prio } of PRIO_WORDS) {
-      if (s.startsWith(prefix)) return prio
+      if (s.startsWith(prefix)) return { prio, idx: i }
     }
   }
   return undefined
@@ -148,8 +155,8 @@ function extractTitleDate(words: string[]): { dueDate?: string; rest: string[] }
       const due = parseDateToken(nextRaw)
       if (due) return { dueDate: due, rest: words.slice(0, i).concat(words.slice(i + 2)) }
     }
-    if (NUMERIC_DATE.test(words[i])) {
-      const due = parseDateToken(words[i])
+    if (NUMERIC_DATE.test(words[i]) || RELATIVE_DAYS.has(curLow)) {
+      const due = parseDateToken(NUMERIC_DATE.test(words[i]) ? words[i] : curLow)
       if (due) return { dueDate: due, rest: words.slice(0, i).concat(words.slice(i + 1)) }
     }
   }
@@ -215,38 +222,49 @@ export function parseQuickAdd(raw: string, courses: Course[]): QuickAddDraft {
       words = rest
     }
   }
+  // Auto-erkannte Wörter werden – wie ein ausdrückliches #/@/!/p – aus dem Titel
+  // entfernt und nur als Tag gezeigt. Ihre Indizes sammeln wir hier ein.
+  const remove = new Set<number>()
+
   // Kurs aus dem Fließtext – nur, wenn kein ausdrücklicher #kurs gesetzt ist.
   if (!draft.courseId) {
-    const id = detectCourse(words, courses)
-    if (id) {
-      draft.courseId = id
+    const hit = detectCourse(words, courses)
+    if (hit) {
+      draft.courseId = hit.courseId
       draft.courseAuto = true
+      remove.add(hit.idx)
     }
   }
   // Priorität aus dem Fließtext – nur, wenn kein ausdrückliches p1/p2/p3.
   if (!draft.priority) {
-    const p = detectPriority(words)
-    if (p) {
-      draft.priority = p
+    const hit = detectPriority(words)
+    if (hit) {
+      draft.priority = hit.prio
       draft.priorityAuto = true
+      remove.add(hit.idx)
     }
   }
   // Aufgaben-Art aus Titelwörtern – nur, wenn kein ausdrückliches @typ gesetzt
   // ist. Kurze Stichwörter (< 3 Zeichen) ignorieren, um Fehlerkennung zu
-  // vermeiden. Die Wörter bleiben im Titel stehen (z. B. „Übungsblatt 3“).
+  // vermeiden.
   if (!draft.type) {
-    for (const w of words) {
-      const s = stripWord(w)
+    for (let i = 0; i < words.length; i++) {
+      const s = stripWord(words[i])
       if (s.length < 3) continue
       const t = matchTaskType(s)
       if (t) {
         draft.type = t
         draft.typeAuto = true
+        remove.add(i)
         break
       }
     }
   }
 
-  draft.title = words.join(' ').trim()
+  // Erkannte Metadaten-Wörter aus dem Titel streichen. Bleibt dadurch nichts
+  // übrig (reine Metadaten-Eingabe), den vollen Text als Titel behalten, damit
+  // immer ein Titel da ist.
+  const titleWords = words.filter((_, i) => !remove.has(i))
+  draft.title = (titleWords.length ? titleWords : words).join(' ').trim()
   return draft
 }

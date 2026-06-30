@@ -121,7 +121,7 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
   const sampleWord = courses[0]?.name.split(/\s+/)[0] ?? 'Mathe'
   const examples = [
     `Blatt 3 #${sampleShort} @übung !fr`,
-    `${sampleWord} Übung wichtig bis Freitag`,
+    `${sampleWord} Übung abgeben morgen dringend`,
   ]
 
   // Aktiver Trigger + Vorschläge
