@@ -108,6 +108,44 @@ function Legend() {
 
 const inputCls = 'w-full rounded-lg border border-stone-200 px-2 py-1.5 text-sm'
 
+/**
+ * Zahlen-Eingabe mit lokalem Text-Puffer: erlaubt Leeren & Zwischenstände beim
+ * Tippen und klemmt erst beim Verlassen (Blur/Enter) auf [min, max]. Verhindert,
+ * dass z.B. eine „30"-Mindestgrenze sich nicht überschreiben lässt.
+ */
+function NumField({
+  value, min, max, fallback, onCommit, className,
+}: {
+  value: number
+  min: number
+  max?: number
+  fallback: number
+  onCommit: (v: number) => void
+  className?: string
+}) {
+  const [text, setText] = useState(String(value))
+  useEffect(() => { setText(String(value)) }, [value])
+  const commit = () => {
+    const raw = text.trim() === '' ? fallback : Number(text)
+    const n = Number.isFinite(raw) ? raw : fallback
+    const clamped = Math.min(max ?? Infinity, Math.max(min, n))
+    setText(String(clamped))
+    if (clamped !== value) onCommit(clamped)
+  }
+  return (
+    <input
+      type="number"
+      min={min}
+      max={max}
+      value={text}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
+      className={className}
+    />
+  )
+}
+
 function PlanEditor({
   course,
   courses,
@@ -274,12 +312,12 @@ function PlanEditor({
         </label>
         <label className="block">
           <span className="mb-1 block text-xs font-medium text-stone-500">Klausurdauer (Min)</span>
-          <input
-            type="number"
+          <NumField
             min={30}
             max={360}
+            fallback={120}
             value={cfg.examDurationMin}
-            onChange={(e) => set('examDurationMin', Math.max(30, Number(e.target.value) || 120))}
+            onCommit={(v) => set('examDurationMin', v)}
             className={inputCls}
           />
           <span className="mt-1 block text-[11px] text-stone-400">
