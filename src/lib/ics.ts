@@ -237,11 +237,31 @@ function classifyTaskType(summary: string): TaskTypeId {
 }
 
 /** Parst "20260413T100000" / "...Z" / mit TZID in ein lokales Date. */
+// Für UTC-Zeiten (Z-Suffix) die Wandzeit in Europe/Berlin bestimmen – sonst
+// landet ein importierter Termin auf der MASCHINEN-Zeitzone (falsche Uhrzeit
+// außerhalb DE). Floating-Zeiten (ohne Z) bleiben unverändert literal.
+const BERLIN_PARTS = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Europe/Berlin',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+  hour12: false,
+})
+
 function parseDt(value: string): Date | null {
   const m = value.match(/(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?)?(Z)?/)
   if (!m) return null
   const [, y, mo, d, h = '0', mi = '0', s = '0', z] = m
-  if (z) return new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, +s))
+  if (z) {
+    const inst = new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, +s))
+    const p = Object.fromEntries(BERLIN_PARTS.formatToParts(inst).map((x) => [x.type, x.value]))
+    // Maschinen-lokale Date mit den Berlin-Wandzeit-Komponenten – getHours()/
+    // getDay() liefern dann die Berlin-Werte (wie die App sie erwartet).
+    return new Date(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second)
+  }
   return new Date(+y, +mo - 1, +d, +h, +mi, +s)
 }
 

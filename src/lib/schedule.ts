@@ -60,8 +60,12 @@ export function pickSessionTime(
   preferredMin: number,
   duration = 60,
 ): number {
+  // Start nie über den Tagesrand: Session muss bis DAY_END passen (sonst rutscht
+  // sie beim setHours in den Folgetag / über Mitternacht).
+  const cap = Math.max(DAY_START, DAY_END - duration)
+  const clamp = (s: number) => Math.min(Math.max(s, DAY_START), cap)
   const blocks = freeBlocks(courses, date, duration)
-  if (blocks.length === 0) return preferredMin
+  if (blocks.length === 0) return clamp(preferredMin)
   for (const b of blocks) {
     const s = Math.max(b.start, preferredMin)
     if (s + duration <= b.end) return s
@@ -69,5 +73,5 @@ export function pickSessionTime(
   // Kein passender Block: Wunschzeit respektieren (≥ frühester Block), damit
   // beim sequentiellen Platzieren mehrere Sessions nicht auf derselben Minute
   // landen, sondern hintereinander.
-  return Math.max(blocks[0].start, preferredMin)
+  return clamp(Math.max(blocks[0].start, preferredMin))
 }

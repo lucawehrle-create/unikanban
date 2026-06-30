@@ -211,8 +211,11 @@ Deno.serve(async (req: Request) => {
   if (!ALLOWED.has(mediaType)) return json({ error: 'Nicht unterstütztes Format. Bitte PNG, JPG oder PDF.' }, 415)
   if (file.length * 0.75 > MAX_BYTES) return json({ error: 'Datei zu groß (max. 8 MB).' }, 413)
 
+  // Ohne extrahierbare User-id ablehnen, statt das Rate-Limit zu überspringen
+  // (sonst umgingen Tokens ohne `sub` das Limit komplett → teure KI-Calls offen).
   const userId = userIdFromJwt(req)
-  if (userId && (await rateLimited(userId))) {
+  if (!userId) return json({ error: 'Nicht autorisiert.' }, 401)
+  if (await rateLimited(userId)) {
     return json({ error: 'Zu viele Uploads in kurzer Zeit – bitte einen Moment warten.' }, 429)
   }
 

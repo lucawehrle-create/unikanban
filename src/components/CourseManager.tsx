@@ -131,10 +131,11 @@ export function CourseManager({
     )
     await saveCourse(draft)
     let msg = 'Kurs gespeichert.'
-    if (draft.recurring?.length) {
-      const n = await regenerateRecurring(draft, semester)
-      if (n > 0) msg = `Kurs gespeichert · ${n} wöchentliche Aufgaben erstellt.`
-    }
+    // IMMER neu generieren – auch bei leerer Serienliste: regenerateRecurring
+    // räumt dann die zuvor erzeugten offenen Auto-Aufgaben auf (sonst bleiben sie
+    // als Karteileichen, wenn man die letzte Serie entfernt).
+    const n = await regenerateRecurring(draft, semester)
+    if (n > 0) msg = `Kurs gespeichert · ${n} wöchentliche Aufgaben erstellt.`
 
     // Klausur-Termin als Aufgabe pflegen (erscheint in Stundenplan/Kalender,
     // Basis für den Lernplan).
@@ -430,9 +431,14 @@ export function CourseManager({
                   >
                     <X size={14} />
                   </button>
-                  {s.start && s.end && s.end <= s.start && (
+                  {s.start && s.end && s.end < s.start && (
                     <span className="w-full text-[11px] font-medium text-red-500">
                       Ende liegt vor dem Beginn – wird beim Speichern getauscht.
+                    </span>
+                  )}
+                  {s.start && s.end && s.end === s.start && (
+                    <span className="w-full text-[11px] font-medium text-amber-600">
+                      Ende muss nach dem Beginn liegen.
                     </span>
                   )}
                 </div>

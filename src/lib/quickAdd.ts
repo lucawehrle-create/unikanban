@@ -54,9 +54,14 @@ function parseDateToken(tokenRaw: string): string | undefined {
     return endOfDay(nextWeekday(WEEKDAYS[token])).toISOString()
   }
 
+  // Zweistelliges Jahr ("3.7.26") → 4-stellig (20xx). Sonst liest date-fns das
+  // 'yyyy'-Muster die zwei Ziffern als Jahr 26 n.Chr. (Datum ~2000 J. falsch).
+  const yy = token.match(/^(\d{1,2}\.\d{1,2}\.)(\d{2})$/)
+  const norm = yy ? `${yy[1]}20${yy[2]}` : token
+
   // Datumsformate – date-fns validiert streng (kein stilles Überrollen wie 29.2.)
   for (const fmt of ['d.M.yyyy', 'd.M.', 'd.M']) {
-    const d = parseDate(token, fmt, today)
+    const d = parseDate(norm, fmt, today)
     if (!isValid(d)) continue
     // Ohne Jahresangabe: liegt das Datum (Kalendertag) vor heute, ist das
     // nächste Jahr gemeint (z. B. „1.1." im Dezember → kommender Januar).
@@ -76,8 +81,10 @@ function parseDateToken(tokenRaw: string): string | undefined {
 const DATE_PREPOSITIONS = new Set(['bis', 'am', 'zum', 'fällig', 'faellig', 'deadline'])
 // Eindeutige Relativ-Tage, die auch allein im Text als Frist gelten dürfen.
 const RELATIVE_DAYS = new Set(['heute', 'morgen', 'übermorgen', 'uebermorgen'])
-// Eigenständiges numerisches Datum („3.7.“, „12.07.2026“).
-const NUMERIC_DATE = /^\d{1,2}\.\d{1,2}\.?(\d{2,4})?$/
+// Eigenständiges numerisches Datum („3.7.“, „12.07.2026“). Der Trennpunkt nach
+// dem Monat ist Pflicht, damit Aufgaben-/Kapitelnummern wie „3.2“ NICHT als
+// Datum (3. Februar) erkannt werden und so Titel + Frist verfälschen.
+const NUMERIC_DATE = /^\d{1,2}\.\d{1,2}\.(\d{2,4})?$/
 
 function stripWord(w: string): string {
   return w.toLowerCase().replace(/[^a-zäöüß]/g, '')

@@ -184,7 +184,13 @@ export default function App() {
   const boardTasks = visible.filter((t) => {
     if (t.type === 'klausur') return false
     if (t.examId && t.dueDate && new Date(t.dueDate).getTime() >= boardHorizon.getTime()) return false
-    if (ui.dueToday && (!t.dueDate || new Date(t.dueDate).getTime() > endOfToday.getTime())) return false
+    // Tagesfokus „Heute": nur offene/in-Arbeit, heute fällige & überfällige –
+    // Erledigte gehören nicht in den Fokus (konsistent zu filter.ts).
+    if (
+      ui.dueToday &&
+      (t.status === 'erledigt' || !t.dueDate || new Date(t.dueDate).getTime() > endOfToday.getTime())
+    )
+      return false
     return true
   })
 

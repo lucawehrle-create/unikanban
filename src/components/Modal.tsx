@@ -11,7 +11,10 @@ interface ModalProps {
 export function Modal({ title, onClose, children, footer }: ModalProps) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      // Hat ein offenes Popover (Select/DatePicker/TimeField) das Escape schon
+      // verarbeitet (preventDefault), schließt das Modal NICHT mit – sonst gingen
+      // Formulareingaben verloren, statt nur das Popover zu schließen.
+      if (e.key === 'Escape' && !e.defaultPrevented) onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)

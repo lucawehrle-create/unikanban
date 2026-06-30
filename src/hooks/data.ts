@@ -36,7 +36,14 @@ export function useSemesters(programId?: string): Semester[] {
 export function useActiveSemester(): Semester | undefined {
   return useLiveQuery(async () => {
     const active = await db.semesters.filter((s) => s.active).first()
-    return active ?? (await db.semesters.toCollection().first())
+    if (active) return active
+    // Fallback: NUR ein Semester des aktiven Studiengangs wählen, damit das
+    // aktive Semester nie einem anderen Studiengang gehört (Kontext-Konsistenz).
+    const prog =
+      (await db.programs.filter((p) => p.active).first()) ??
+      (await db.programs.orderBy('order').first())
+    if (!prog) return undefined
+    return db.semesters.where('programId').equals(prog.id).first()
   }, [])
 }
 

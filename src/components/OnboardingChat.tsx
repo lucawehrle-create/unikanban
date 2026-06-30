@@ -623,10 +623,12 @@ export function OnboardingChat() {
     setUploading(true)
     const isPdf = f.type === 'application/pdf'
     const msgId = uid()
-    const dataUrl = await fileToDataUrl(f)
-    setMsgs((m) => [...m, { id: msgId, role: 'user', text: f.name, attachment: { name: f.name, kind: isPdf ? 'pdf' : 'image' } }])
-    if (!isPdf) setPreviews((p) => ({ ...p, [msgId]: dataUrl }))
     try {
+      // fileToDataUrl im try, damit ein Lesefehler (z. B. HEIC/entzogene Datei)
+      // nicht den Upload-Spinner dauerhaft hängen lässt (finally setzt zurück).
+      const dataUrl = await fileToDataUrl(f)
+      setMsgs((m) => [...m, { id: msgId, role: 'user', text: f.name, attachment: { name: f.name, kind: isPdf ? 'pdf' : 'image' } }])
+      if (!isPdf) setPreviews((p) => ({ ...p, [msgId]: dataUrl }))
       const file = dataUrl.split(',')[1] ?? ''
       const { data, error } = await supabase.functions.invoke('parse-timetable', {
         body: { file, mediaType: f.type },

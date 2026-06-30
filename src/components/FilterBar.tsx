@@ -119,7 +119,7 @@ export function FilterBar({ courses }: { courses: Course[] }) {
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2 px-5 py-2">
+    <div data-tour="filter" className="flex flex-wrap items-center gap-2 px-5 py-2">
       {/* Suche */}
       <div className="flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 shadow-sm ring-1 ring-stone-200/70 backdrop-blur focus-within:ring-2 focus-within:ring-brand-400">
         <Search size={14} className="text-stone-400" />

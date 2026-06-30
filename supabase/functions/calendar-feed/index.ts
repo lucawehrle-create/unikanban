@@ -237,7 +237,9 @@ function buildICS(semester: Semester, courses: Course[], tasks: Task[]): string 
     const emoji = TASK_EMOJI[t.type] ?? '•'
     const summary = `${emoji} ${t.title}${course ? ` (${course.short})` : ''}`
     const { ymd, hour, min } = berlinYmdHm(t.dueDate)
-    const endOfDay = (hour === 23 && min >= 58) || (hour === 0 && min === 0)
+    // „Ende des Tages" = 23:58/23:59 (App-Konvention 23:59). Echte 00:00-Fristen
+    // bleiben terminiert, statt fälschlich als Ganztags-Banner zu erscheinen.
+    const endOfDay = hour === 23 && min >= 58
     const common = [
       `SUMMARY:${esc(summary)}`,
       ...(t.notes ? [`DESCRIPTION:${esc(t.notes)}`] : []),

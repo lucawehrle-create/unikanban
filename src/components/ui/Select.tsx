@@ -37,7 +37,14 @@ export function Select({
     const onDown = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setOpen(false)
+    // Escape schließt nur dieses Popover; preventDefault verhindert, dass ein
+    // umgebendes Modal dadurch ebenfalls schließt (Datenverlust).
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setOpen(false)
+      }
+    }
     window.addEventListener('mousedown', onDown)
     window.addEventListener('keydown', onKey)
     return () => {

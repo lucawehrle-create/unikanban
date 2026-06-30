@@ -10,7 +10,7 @@ import {
   Scale,
   Sparkles,
 } from 'lucide-react'
-import { parseISO, format, differenceInCalendarDays } from 'date-fns'
+import { addDays, parseISO, format, differenceInCalendarDays } from 'date-fns'
 import { de } from 'date-fns/locale'
 import type { Course, StudyPlanConfig, StudyStrategy, Task } from '@/db/types'
 import { useActiveSemester, useCourses, useTasks } from '@/hooks/data'
@@ -178,8 +178,10 @@ function PlanEditor({
   )
   const initialDate =
     course.studyPlan?.examDate ??
-    examTask?.dueDate?.slice(0, 10) ??
-    new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)
+    // Lokales Datum (parseISO+format) statt UTC-slice – sonst in westlichen
+    // Zeitzonen einen Tag zu spät (23:59-Frist rollt in der UTC-ISO auf morgen).
+    (examTask?.dueDate ? format(parseISO(examTask.dueDate), 'yyyy-MM-dd') : undefined) ??
+    format(addDays(new Date(), 30), 'yyyy-MM-dd')
 
   const [cfg, setCfg] = useState<StudyPlanConfig>(() => {
     if (course.studyPlan) return course.studyPlan

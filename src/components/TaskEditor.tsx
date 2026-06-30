@@ -30,6 +30,13 @@ function parseNum(v: string): number | undefined {
   return Number.isFinite(n) ? n : undefined
 }
 
+/** Wie parseNum, klemmt aber auf ein Minimum (verhindert negative/0-Eingaben,
+ *  die das HTML-min-Attribut bei getippten Werten nicht abfängt). */
+function parseNumMin(v: string, min: number): number | undefined {
+  const n = parseNum(v)
+  return n == null ? undefined : Math.max(min, n)
+}
+
 export function TaskEditor({ courses }: { courses: Course[] }) {
   const id = useUI((s) => s.editingTaskId)
   // Schließen: vorher das aktive Feld blurren, damit ungespeicherte (onBlur-)
@@ -171,7 +178,7 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
               min={5}
               step={5}
               defaultValue={task.duration ?? ''}
-              onBlur={(e) => patch({ duration: parseNum(e.target.value) })}
+              onBlur={(e) => patch({ duration: parseNumMin(e.target.value, 5) })}
               className="w-20 rounded-lg border border-stone-200 px-2 py-1 text-sm"
             />
             <span className="text-xs text-stone-400">Min</span>
@@ -187,7 +194,7 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
               defaultValue={task.points?.earned ?? ''}
               placeholder="erreicht"
               onBlur={(e) =>
-                patch({ points: { ...task.points, earned: parseNum(e.target.value) } })
+                patch({ points: { ...task.points, earned: parseNumMin(e.target.value, 0) } })
               }
               className="w-20 rounded-lg border border-stone-200 px-2 py-1 text-sm"
             />
@@ -196,7 +203,7 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
               type="number"
               defaultValue={task.points?.max ?? ''}
               placeholder="max"
-              onBlur={(e) => patch({ points: { ...task.points, max: parseNum(e.target.value) } })}
+              onBlur={(e) => patch({ points: { ...task.points, max: parseNumMin(e.target.value, 0) } })}
               className="w-20 rounded-lg border border-stone-200 px-2 py-1 text-sm"
             />
           </div>
