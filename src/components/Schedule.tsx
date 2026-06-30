@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   addDays,
   addWeeks,
@@ -13,7 +13,7 @@ import { de } from 'date-fns/locale'
 import { Check, CheckCheck, ChevronLeft, ChevronRight, Clock, Pencil, X } from 'lucide-react'
 import type { AttendanceMarker, Course, SlotKind, Task } from '@/db/types'
 import { courseMap } from '@/lib/filter'
-import { slotKindShort } from '@/lib/slotKinds'
+import { slotKindLabel, slotKindShort } from '@/lib/slotKinds'
 import { TASK_TYPES } from '@/lib/taskTypes'
 import { attendanceKey, clearAttendance, toggleAttendanceMarker } from '@/lib/actions'
 import { useAttendance } from '@/hooks/data'
@@ -40,6 +40,20 @@ const ATT_ORDER: AttendanceMarker[] = ['vorbereitet', 'besucht', 'nicht_besucht'
 function toMin(time: string): number {
   const [h, m] = time.split(':').map(Number)
   return h * 60 + (m || 0)
+}
+
+/** Minuten → "10:15". */
+function fmtTime(min: number): string {
+  return `${Math.floor(min / 60)}:${String(min % 60).padStart(2, '0')}`
+}
+/** "10:15–11:45". */
+function timeRange(s: { start: number; end: number }): string {
+  return `${fmtTime(s.start)}–${fmtTime(s.end)}`
+}
+/** Relative Zeit bis zum Start ("in 23 min" / "in 1 h 05 min"). */
+function relStart(min: number): string {
+  if (min < 60) return `in ${min} min`
+  return `in ${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')} min`
 }
 
 /**
@@ -96,6 +110,8 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
   const [weekOffset, setWeekOffset] = useState(0)
   // Ausgewählter Wochentag (1=Mo) für die mobile Einzeltag-Ansicht.
   const [selectedDay, setSelectedDay] = useState(() => ((new Date().getDay() + 6) % 7) + 1)
+  // Mobiler Scroll-Container – beim Öffnen auf „jetzt"/ersten Termin springen.
+  const mobileScrollRef = useRef<HTMLDivElement>(null)
 
   // Live mitlaufende Uhrzeit für die "Jetzt"-Linie (minütlich)
   const [now, setNow] = useState(() => new Date())
@@ -165,6 +181,17 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
   const nowVisible = nowMin >= startHour * 60 && nowMin <= endHour * 60
   const nowTop = ((nowMin - startHour * 60) / 60) * PX_PER_HOUR
 
+  // „Was kommt jetzt/als Nächstes?" – heute-bezogener Anker über dem Raster.
+  const todayWd = ((now.getDay() + 6) % 7) + 1
+  const nextUp = useMemo(() => {
+    const today = slots.filter((s) => s.weekday === todayWd).sort((a, b) => a.start - b.start)
+    const running = today.find((s) => nowMin >= s.start && nowMin < s.end)
+    if (running) return { slot: running, mode: 'running' as const }
+    const next = today.find((s) => s.start > nowMin)
+    if (next) return { slot: next, mode: 'next' as const }
+    return null
+  }, [slots, todayWd, nowMin])
+
   const menuMarkers = menu ? (attendance[attendanceKey(menu.slotId, menu.date)] ?? []) : []
   function toggle(marker: AttendanceMarker) {
     if (menu) void toggleAttendanceMarker(semesterId, menu.slotId, menu.date, marker)
@@ -178,6 +205,23 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
 
   const activeDay = days.includes(selectedDay) ? selectedDay : days[0]
 
+  // Mobil beim Öffnen / Tageswechsel auf „jetzt" (heute) bzw. den ersten Termin
+  // des Tages scrollen – nicht bei jedem Minuten-Tick (now bewusst nicht in deps).
+  useEffect(() => {
+    const el = mobileScrollRef.current
+    if (!el) return
+    const date = addDays(weekStart, activeDay - 1)
+    if (isToday(date) && weekOffset === 0 && nowVisible) {
+      el.scrollTop = Math.max(0, nowTop - 80)
+      return
+    }
+    const first = slots
+      .filter((s) => s.weekday === activeDay)
+      .sort((a, b) => a.start - b.start)[0]
+    if (first) el.scrollTop = Math.max(0, ((first.start - startHour * 60) / 60) * PX_PER_HOUR - 16)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeDay, weekOffset, slots])
+
   const renderTaskChip = (t: Task) => {
     const c = t.courseId ? byId.get(t.courseId) : undefined
     return (
@@ -185,7 +229,7 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
         key={t.id}
         onClick={() => editTask(t.id)}
         title={t.title}
-        className="flex max-w-full items-center gap-1 rounded-full bg-white px-1.5 py-0.5 text-[10px] font-medium text-stone-600 shadow-sm ring-1 ring-stone-200/80 hover:ring-stone-300"
+        className="flex max-w-full items-center gap-1 rounded-full bg-white px-1.5 py-0.5 text-[11px] font-medium text-stone-600 shadow-sm ring-1 ring-stone-200/80 hover:ring-stone-300"
       >
         <span
           className="h-1.5 w-1.5 shrink-0 rounded-full"
@@ -202,16 +246,19 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
     <div className="w-10 shrink-0 sm:w-12" style={{ height: gridHeight }}>
       {hours.map((h) => (
         <div key={h} className="relative" style={{ height: PX_PER_HOUR }}>
-          <span className="absolute -top-2 right-1 text-[10px] text-stone-400">{h}:00</span>
+          <span className="absolute right-1 top-0 -translate-y-1/2 text-[11px] tabular-nums text-stone-400">
+            {h}:00
+          </span>
         </div>
       ))}
     </div>
   )
 
   // Eine Tagesspalte mit Terminen + "Jetzt"-Linie (für Wochen- UND Tagesansicht).
-  const renderDayColumn = (wd: number) => {
+  const renderDayColumn = (wd: number, mobile = false) => {
     const date = addDays(weekStart, wd - 1)
     const dateStr = format(date, 'yyyy-MM-dd')
+    const today = isToday(date) && weekOffset === 0
     const daySlots = slots.filter((s) => s.weekday === wd)
     const layout = layoutDay(daySlots)
     return (
@@ -233,32 +280,39 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
 
         {daySlots.map((s) => {
           const top = ((s.start - startHour * 60) / 60) * PX_PER_HOUR
-          const height = ((s.end - s.start) / 60) * PX_PER_HOUR
+          const rawHeight = ((s.end - s.start) / 60) * PX_PER_HOUR
+          const height = Math.max(rawHeight - 2, 34)
           const markers = attendance[attendanceKey(s.id, dateStr)] ?? []
-          const tint = markers.includes('besucht')
-            ? ATT_META.besucht.color
-            : markers.includes('nicht_besucht')
-              ? ATT_META.nicht_besucht.color
-              : s.color
           const notAttended = markers.includes('nicht_besucht')
           const lay = layout.get(s.id) ?? { col: 0, cols: 1 }
           const widthPct = 100 / lay.cols
           const leftPct = lay.col * widthPct
+          // Schmale Parallel-Blöcke (≥3 Spalten) → nur Kürzel + Farbe; Rest per Tap.
+          const narrow = lay.cols >= 3
+          const showMeta = !narrow && (mobile || height >= 34)
+          const showTime = !narrow && (mobile || height >= 44)
+          const isRunning = today && nowMin >= s.start && nowMin < s.end
+          const isPast = today && nowMin >= s.end
+          // Farbe = NUR Kursidentität (Status nie als Fläche – Konflikt/WCAG).
+          const tint = s.color
           return (
             <button
               key={s.id}
               onClick={(e) => setMenu({ slotId: s.id, date: dateStr, x: e.clientX, y: e.clientY })}
+              title={`${s.short} · ${slotKindShort(s.kind)}${s.room ? ` · ${s.room}` : ''} · ${timeRange(s)}`}
               className={cn(
-                'absolute overflow-hidden rounded-lg px-2 py-1 text-left text-[11px] leading-tight shadow-sm transition hover:shadow-md',
-                notAttended && 'opacity-70',
+                'absolute overflow-hidden px-2 py-1 text-left leading-tight shadow-sm transition hover:shadow-md',
+                narrow ? 'rounded-md px-1.5' : 'rounded-lg',
+                isRunning && 'ring-2 ring-rose-400/70',
               )}
               style={{
                 top,
-                height: Math.max(height - 2, 18),
+                height,
                 left: `calc(${leftPct}% + 2px)`,
                 width: `calc(${widthPct}% - 4px)`,
                 backgroundColor: tint + '22',
                 borderLeft: `3px solid ${tint}`,
+                opacity: isPast ? 0.55 : notAttended ? 0.6 : undefined,
               }}
             >
               {markers.length > 0 && (
@@ -278,21 +332,32 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
                   })}
                 </span>
               )}
+              {/* Kürzel: Identität trägt der Farbrand; Text bleibt lesbar (WCAG). */}
               <div
-                className={cn('font-semibold', notAttended && 'line-through')}
-                style={{ color: s.color }}
+                className={cn(
+                  'truncate text-[13px] font-semibold leading-tight text-stone-800',
+                  markers.length > 0 && 'pr-9',
+                  notAttended && 'text-stone-500 line-through',
+                )}
               >
                 {s.short}
               </div>
-              <div className="text-stone-500">
-                {slotKindShort(s.kind)}
-                {s.room ? ` · ${s.room}` : ''}
-              </div>
+              {showMeta && (
+                <div className="truncate text-[11px] leading-snug text-stone-600">
+                  {slotKindShort(s.kind)}
+                  {s.room ? ` · ${s.room}` : ''}
+                </div>
+              )}
+              {showTime && (
+                <div className="truncate text-[11px] font-medium leading-snug tabular-nums text-stone-500">
+                  {timeRange(s)}
+                </div>
+              )}
             </button>
           )
         })}
 
-        {isToday(date) && nowVisible && (
+        {today && nowVisible && (
           <div className="pointer-events-none absolute inset-x-0 z-20" style={{ top: nowTop }}>
             <div className="relative h-px bg-rose-400/80">
               <span className="absolute -left-[3px] top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full bg-rose-400" />
@@ -333,12 +398,12 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
           )}
         </div>
 
-        <div className="ml-auto flex items-center gap-3 text-[11px] text-stone-500">
+        <div className="ml-auto hidden items-center gap-3 text-[11px] text-stone-500 sm:flex">
           {ATT_ORDER.map((s) => {
             const m = ATT_META[s]
             return (
               <span key={s} className="flex items-center gap-1">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: m.color }} />
+                <span className="h-2 w-2 rounded-full" style={{ backgroundColor: m.color }} />
                 {m.label}
               </span>
             )
@@ -353,6 +418,48 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
         </div>
       ) : (
         <>
+          {/* „Next up" – der wichtigste Blick: was läuft / kommt als Nächstes */}
+          {nextUp && (
+            <div
+              className={cn(
+                'mx-4 mb-2 flex items-center gap-3 rounded-2xl bg-white/90 px-4 py-2.5 ring-1 sm:mx-5',
+                nextUp.mode === 'running' ? 'ring-rose-300/70' : 'ring-stone-200/70',
+              )}
+            >
+              <span
+                className="h-9 w-1 shrink-0 rounded-full"
+                style={{ backgroundColor: nextUp.slot.color }}
+              />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-base font-semibold text-stone-900">{nextUp.slot.short}</span>
+                  <span className="rounded bg-stone-100 px-1.5 py-0.5 text-[11px] font-medium text-stone-600">
+                    {slotKindLabel(nextUp.slot.kind)}
+                  </span>
+                </div>
+                <div className="truncate text-[11px] tabular-nums text-stone-500">
+                  {timeRange(nextUp.slot)}
+                  {nextUp.slot.room ? ` · ${nextUp.slot.room}` : ''}
+                </div>
+              </div>
+              <div className="ml-auto shrink-0 text-right">
+                <div
+                  className={cn(
+                    'text-sm font-semibold tabular-nums',
+                    nextUp.mode === 'running' ? 'text-rose-600' : 'text-brand-600',
+                  )}
+                >
+                  {nextUp.mode === 'running'
+                    ? `läuft · bis ${fmtTime(nextUp.slot.end)}`
+                    : relStart(nextUp.slot.start - nowMin)}
+                </div>
+                <div className="text-[10px] uppercase tracking-wide text-stone-400">
+                  {nextUp.mode === 'running' ? 'gerade' : 'als Nächstes'}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* MOBIL: Einzeltag mit Tagesauswahl */}
           <div className="flex flex-1 flex-col overflow-hidden sm:hidden">
             <div className="flex gap-1 overflow-x-auto px-4 pb-2">
@@ -368,7 +475,7 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
                       active
                         ? 'bg-stone-900 text-white'
                         : isToday(date)
-                          ? 'bg-brand-300/60 text-stone-800'
+                          ? 'bg-brand-50 text-stone-700'
                           : 'text-stone-500 hover:bg-white',
                     )}
                   >
@@ -387,10 +494,10 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
               </div>
             )}
 
-            <div className="flex-1 overflow-auto px-4 pb-6">
+            <div ref={mobileScrollRef} className="flex-1 overflow-auto px-4 pb-6">
               <div className="flex" data-tour="schedule">
                 {timeAxis}
-                {renderDayColumn(activeDay)}
+                {renderDayColumn(activeDay, true)}
               </div>
             </div>
           </div>
@@ -409,13 +516,20 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
                       <div
                         className={cn(
                           'mb-1 flex items-baseline gap-1.5 rounded-xl px-2 py-1',
-                          isToday(date) ? 'bg-brand-300/60' : '',
+                          isToday(date) && 'border-b-2 border-brand-400',
                         )}
                       >
-                        <span className="text-sm font-semibold text-stone-700">
+                        <span
+                          className={cn(
+                            'text-sm font-semibold',
+                            isToday(date) ? 'text-brand-600' : 'text-stone-700',
+                          )}
+                        >
                           {WEEKDAY_LABEL[wd - 1]}
                         </span>
-                        <span className="text-[11px] text-stone-400">{format(date, 'd.M.')}</span>
+                        <span className="text-[11px] tabular-nums text-stone-400">
+                          {format(date, 'd.M.')}
+                        </span>
                       </div>
                       <div className="flex flex-wrap gap-1">{dayTasks.map(renderTaskChip)}</div>
                     </div>
@@ -426,7 +540,7 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
               {/* Raster */}
               <div className="flex" data-tour="schedule">
                 {timeAxis}
-                {days.map(renderDayColumn)}
+                {days.map((wd) => renderDayColumn(wd, false))}
               </div>
             </div>
           </div>

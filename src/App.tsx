@@ -164,8 +164,10 @@ export default function App() {
   // Hat der aktive Studiengang (noch) kein Semester, erzwingen wir die Studium-
   // Ansicht (dort kann man ein Semester anlegen) statt in "Lädt…" zu hängen.
   const effectiveView = semester ? view : 'study'
-  // „Studium" und „Lernpläne" sind eigenständige Vollansichten (ohne QuickAdd/Filter).
-  const isFullView = effectiveView === 'study' || effectiveView === 'plans'
+  // „Studium", „Lernpläne" und „Stundenplan" sind eigenständige Vollansichten
+  // (ohne die task-zentrierte QuickAdd-/Filter-Leiste – die gehört zum Board).
+  const isFullView =
+    effectiveView === 'study' || effectiveView === 'plans' || effectiveView === 'schedule'
 
   // Im Aufgaben-Board nur die unmittelbar anstehenden Lern-Sessions zeigen –
   // ein kurzes Fenster (heute + nächste 2 Tage + überfällige), damit ein frisch
