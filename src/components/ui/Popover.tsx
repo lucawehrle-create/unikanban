@@ -8,11 +8,21 @@ interface PopoverProps {
   badge?: number
   align?: 'left' | 'right'
   width?: number
+  /** Runder Icon-Button (h-9 w-9) statt Text-Pille – für Aktions-Cluster. */
+  round?: boolean
   children: ReactNode | ((close: () => void) => ReactNode)
 }
 
 /** Pill-Trigger + Panel-Popover (Outside-Click/Escape schließt). */
-export function Popover({ label, icon, badge, align = 'right', width = 260, children }: PopoverProps) {
+export function Popover({
+  label,
+  icon,
+  badge,
+  align = 'right',
+  width = 260,
+  round = false,
+  children,
+}: PopoverProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -34,21 +44,27 @@ export function Popover({ label, icon, badge, align = 'right', width = 260, chil
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((o) => !o)}
+        aria-label={round ? label : undefined}
         className={cn(
-          'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium shadow-sm ring-1 transition',
-          badge
-            ? 'bg-stone-900 text-white ring-stone-900'
-            : 'bg-white/70 text-stone-600 ring-stone-200/70 hover:bg-white',
+          'shadow-sm ring-1 transition',
+          round
+            ? 'flex h-9 w-9 items-center justify-center rounded-full bg-white/70 text-stone-600 ring-stone-200/70 hover:bg-white'
+            : cn(
+                'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium',
+                badge
+                  ? 'bg-stone-900 text-white ring-stone-900'
+                  : 'bg-white/70 text-stone-600 ring-stone-200/70 hover:bg-white',
+              ),
         )}
       >
         {icon}
-        {label}
-        {badge ? (
+        {!round && label}
+        {!round && badge ? (
           <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-white px-1 text-[10px] font-semibold text-stone-900">
             {badge}
           </span>
         ) : null}
-        <ChevronDown size={13} className={badge ? 'text-white/70' : 'text-stone-400'} />
+        {!round && <ChevronDown size={13} className={badge ? 'text-white/70' : 'text-stone-400'} />}
       </button>
 
       {open && (

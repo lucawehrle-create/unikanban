@@ -46,6 +46,18 @@ export function SemesterSwitcher({ semester }: { semester: Semester }) {
       >
         <span className="font-semibold text-stone-700">{semester.name}</span>
         <span className="hidden text-stone-400 sm:inline">· {shortPhase(semester)}</span>
+        {/* Wochen-Fortschritt im Vorlesungszeitraum – auf einen Blick sichtbar. */}
+        {info.phase === 'vorlesung' && info.week != null && info.weeks ? (
+          <span
+            className="hidden h-1 w-8 overflow-hidden rounded-full bg-stone-200 sm:block"
+            title={`Woche ${info.week} von ${info.weeks}`}
+          >
+            <span
+              className="block h-full rounded-full bg-brand-400"
+              style={{ width: `${Math.min(100, Math.round((info.week / info.weeks) * 100))}%` }}
+            />
+          </span>
+        ) : null}
         {nearExam != null && (
           <span className="rounded-full bg-orange-100 px-1.5 py-0.5 text-[10px] font-semibold text-orange-600">
             {nearExam} T
