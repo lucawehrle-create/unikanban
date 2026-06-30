@@ -7,20 +7,11 @@ import { useUI } from '@/store/ui'
 import { Header } from '@/components/Header'
 import { BottomNav } from '@/components/BottomNav'
 import { DemoBanner } from '@/components/DemoBanner'
-import { OnboardingChat } from '@/components/OnboardingChat'
 import { QuickAdd } from '@/components/QuickAdd'
 import { FilterBar } from '@/components/FilterBar'
 import { Board } from '@/components/Board'
-import { WeekView } from '@/components/WeekView'
-import { Schedule } from '@/components/Schedule'
-import { StudyView } from '@/components/StudyView'
-import { StudyPlansView } from '@/components/StudyPlansView'
 import { TaskEditor } from '@/components/TaskEditor'
-import { CourseManager } from '@/components/CourseManager'
-import { CalendarModal } from '@/components/CalendarModal'
-import { AccountModal } from '@/components/AccountModal'
 import { ReflectionModal } from '@/components/ReflectionModal'
-import { FeedbackModal } from '@/components/FeedbackModal'
 import { AuthGate } from '@/components/AuthGate'
 import { SyncLoading } from '@/components/SyncLoading'
 import { Tour } from '@/components/Tour'
@@ -29,7 +20,18 @@ import { isSyncConfigured } from '@/lib/supabase'
 import { hasSeenTour } from '@/lib/tour'
 import { useLocalReminderNotifications } from '@/lib/reminders'
 
+// Lazy: Onboarding (nur Neu-Nutzer), Neben-Views & Modals erst bei Bedarf laden
+// → kleineres Initial-Bundle, schnellerer Start.
 const Landing = lazy(() => import('@/components/landing/Landing'))
+const OnboardingChat = lazy(() => import('@/components/OnboardingChat').then((m) => ({ default: m.OnboardingChat })))
+const WeekView = lazy(() => import('@/components/WeekView').then((m) => ({ default: m.WeekView })))
+const Schedule = lazy(() => import('@/components/Schedule').then((m) => ({ default: m.Schedule })))
+const StudyView = lazy(() => import('@/components/StudyView').then((m) => ({ default: m.StudyView })))
+const StudyPlansView = lazy(() => import('@/components/StudyPlansView').then((m) => ({ default: m.StudyPlansView })))
+const CourseManager = lazy(() => import('@/components/CourseManager').then((m) => ({ default: m.CourseManager })))
+const CalendarModal = lazy(() => import('@/components/CalendarModal').then((m) => ({ default: m.CalendarModal })))
+const AccountModal = lazy(() => import('@/components/AccountModal').then((m) => ({ default: m.AccountModal })))
+const FeedbackModal = lazy(() => import('@/components/FeedbackModal').then((m) => ({ default: m.FeedbackModal })))
 
 export default function App() {
   const programCount = useLiveQuery(() => db.programs.count(), [])
@@ -147,7 +149,12 @@ export default function App() {
   if (isSyncConfigured && user && programCount === 0 && syncStatus !== 'synced') {
     return <SyncLoading />
   }
-  if (programCount === 0) return <OnboardingChat />
+  if (programCount === 0)
+    return (
+      <Suspense fallback={<div className="h-full bg-cream-50" />}>
+        <OnboardingChat />
+      </Suspense>
+    )
   if (!program) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-stone-400">Lädt…</div>
@@ -191,24 +198,28 @@ export default function App() {
       )}
 
       <main className="min-h-0 flex-1 pt-1">
-        {semester && effectiveView === 'board' && (
-          <Board tasks={boardTasks} courses={courses} hasTasks={tasks.length > 0} />
-        )}
-        {semester && effectiveView === 'week' && <WeekView tasks={visible} courses={courses} />}
-        {semester && effectiveView === 'schedule' && (
-          <Schedule tasks={visible} courses={courses} semesterId={semester.id} />
-        )}
-        {semester && effectiveView === 'plans' && <StudyPlansView />}
-        {effectiveView === 'study' && <StudyView activeProgram={program} />}
+        <Suspense fallback={<div className="flex h-full items-center justify-center text-sm text-stone-400">Lädt…</div>}>
+          {semester && effectiveView === 'board' && (
+            <Board tasks={boardTasks} courses={courses} hasTasks={tasks.length > 0} />
+          )}
+          {semester && effectiveView === 'week' && <WeekView tasks={visible} courses={courses} />}
+          {semester && effectiveView === 'schedule' && (
+            <Schedule tasks={visible} courses={courses} semesterId={semester.id} />
+          )}
+          {semester && effectiveView === 'plans' && <StudyPlansView />}
+          {effectiveView === 'study' && <StudyView activeProgram={program} />}
+        </Suspense>
       </main>
 
       <BottomNav />
 
       <TaskEditor courses={courses} />
-      {showCourseManager && semester && <CourseManager courses={courses} semester={semester} tasks={tasks} />}
-      {showCalendar && semester && <CalendarModal semester={semester} courses={courses} tasks={tasks} />}
-      {(showAccount || conflict) && <AccountModal />}
-      {showFeedback && <FeedbackModal />}
+      <Suspense fallback={null}>
+        {showCourseManager && semester && <CourseManager courses={courses} semester={semester} tasks={tasks} />}
+        {showCalendar && semester && <CalendarModal semester={semester} courses={courses} tasks={tasks} />}
+        {(showAccount || conflict) && <AccountModal />}
+        {showFeedback && <FeedbackModal />}
+      </Suspense>
       <ReflectionModal />
       <Tour />
     </div>
