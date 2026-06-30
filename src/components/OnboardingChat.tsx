@@ -887,7 +887,7 @@ export function OnboardingChat() {
       const est = (fs - 1) * 30
       setPriorEcts(String(est))
       setPhase('boot')
-      void say([`Du bist im ${fs}. Semester — grob ${est} ECTS bisher? (anpassbar; Schnitt optional)`], 'priorInput')
+      void say([`Du bist im ${fs}. Semester — grob ${est} ECTS bisher? Und dein bisheriger Notenschnitt über alle abgeschlossenen Semester? (beides anpassbar, Schnitt optional)`], 'priorInput')
       return
     }
     setPhase('boot')
@@ -1462,20 +1462,29 @@ export function OnboardingChat() {
           )}
 
           {phase === 'priorInput' && (
-            <div className="flex items-center gap-2">
-              <input
-                type="number" inputMode="decimal" value={priorEcts}
-                onChange={(e) => setPriorEcts(e.target.value)} placeholder="bisherige ECTS"
-                className="w-full rounded-full border border-stone-200 bg-white px-4 py-2 text-sm outline-none focus:border-brand-400"
-              />
-              <input
-                type="number" inputMode="decimal" step="0.1" value={priorAvg}
-                onChange={(e) => setPriorAvg(e.target.value)} placeholder="Schnitt z.B. 2,1"
-                className="w-full rounded-full border border-stone-200 bg-white px-4 py-2 text-sm outline-none focus:border-brand-400"
-              />
-              <button onClick={submitPrior} aria-label="Übernehmen" className="shrink-0 rounded-full bg-brand-400 p-2.5 text-stone-900 hover:bg-brand-500">
-                <Send size={16} />
-              </button>
+            <div className="space-y-1.5">
+              <div className="flex items-end gap-2">
+                <label className="min-w-0 flex-1">
+                  <span className="mb-0.5 block pl-1 text-[11px] font-medium text-stone-500">Bisherige ECTS</span>
+                  <input
+                    type="number" inputMode="decimal" value={priorEcts}
+                    onChange={(e) => setPriorEcts(e.target.value)} placeholder="z.B. 120"
+                    className="w-full rounded-full border border-stone-200 bg-white px-4 py-2 text-sm outline-none focus:border-brand-400"
+                  />
+                </label>
+                <label className="min-w-0 flex-1">
+                  <span className="mb-0.5 block pl-1 text-[11px] font-medium text-stone-500">Ø-Note bisher</span>
+                  <input
+                    type="number" inputMode="decimal" step="0.1" value={priorAvg}
+                    onChange={(e) => setPriorAvg(e.target.value)} placeholder="z.B. 2,1"
+                    className="w-full rounded-full border border-stone-200 bg-white px-4 py-2 text-sm outline-none focus:border-brand-400"
+                  />
+                </label>
+                <button onClick={submitPrior} aria-label="Übernehmen" className="mb-0.5 shrink-0 rounded-full bg-brand-400 p-2.5 text-stone-900 hover:bg-brand-500">
+                  <Send size={16} />
+                </button>
+              </div>
+              <p className="pl-1 text-[11px] text-stone-400">Notenschnitt über alle bisher abgeschlossenen Semester (optional).</p>
             </div>
           )}
 
