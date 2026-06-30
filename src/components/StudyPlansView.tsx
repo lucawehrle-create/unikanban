@@ -8,6 +8,7 @@ import {
   ChevronRight,
   RotateCcw,
   Scale,
+  Sparkles,
 } from 'lucide-react'
 import { parseISO, format, differenceInCalendarDays } from 'date-fns'
 import { de } from 'date-fns/locale'
@@ -210,6 +211,20 @@ function PlanEditor({
 
   return (
     <div className="space-y-5">
+      {/* Einstieg, solange noch kein Plan existiert */}
+      {planned === 0 && (
+        <div className="rounded-xl bg-brand-50 p-3.5 ring-1 ring-brand-200/70">
+          <div className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-stone-800">
+            <Sparkles size={15} className="text-brand-500" /> In 3 Schritten zum Lernplan
+          </div>
+          <ol className="space-y-0.5 text-xs text-stone-600">
+            <li><strong className="text-stone-700">1.</strong> Datum &amp; Material – Klausur, Kapitel, Altklausuren, Karteikarten.</li>
+            <li><strong className="text-stone-700">2.</strong> Strategie wählen – sofort starten, mit Pausen oder später.</li>
+            <li><strong className="text-stone-700">3.</strong> „Lernplan anlegen" – ich verteile alles bis zur Klausur.</li>
+          </ol>
+          <p className="mt-1.5 text-[11px] text-stone-500">Deine Übungsblätter sind automatisch zur Wiederholung dabei.</p>
+        </div>
+      )}
       {/* Fortschritt (nur bei aktivem Plan) */}
       {planned > 0 && (
         <div className="rounded-xl bg-stone-50 p-3">
@@ -462,6 +477,11 @@ function PlanEditor({
           </span>
         )}
       </div>
+      {active.summary.sessions === 0 && (
+        <p className="text-[11px] font-medium text-amber-700">
+          Gib mindestens 1 Kapitel, eine Altklausur oder ein Blatt zum Wiederholen an — dann lege ich den Plan an.
+        </p>
+      )}
       <p className="text-[11px] leading-relaxed text-stone-400">
         Die Sessions werden echte Aufgaben (erscheinen in „Diese Woche", im Kalender &amp; in
         Erinnerungen). Im Aufgaben-Board siehst du nur die aktuell anstehenden – nicht die ganze
