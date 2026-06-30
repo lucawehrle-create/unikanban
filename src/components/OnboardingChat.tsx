@@ -194,6 +194,7 @@ interface CourseDraft {
   slots: CourseSlot[]
   weekly: boolean
   weeklyDays?: number[] // Abgabetage der Blätter (1=Mo … 7=So), pro Kurs – mehrere möglich
+  weeklyInterval?: number // 1 = wöchentlich, 2 = 14-tägig
   exam?: string // yyyy-MM-dd
 }
 function toDraft(name: string, idx: number): CourseDraft {
@@ -749,7 +750,7 @@ export function OnboardingChat() {
       [
         'Fast fertig! 🎉 Das reicht schon, um loszulegen.',
         optionLine,
-        'Alles kannst du aber auch jederzeit später in der App ergänzen.',
+        'Block-Veranstaltungen, Hausarbeiten, Referate & alles Weitere ergänzt du jederzeit in der App.',
       ],
       'finishOrMore',
     )
@@ -838,6 +839,9 @@ export function OnboardingChat() {
       }),
     )
   }
+  function setWeeklyInterval(i: number, n: number) {
+    setCourses((cur) => cur.map((c, j) => (j === i ? { ...c, weeklyInterval: n } : c)))
+  }
 
   // Übergang zum (optionalen) Klausur-Schritt — schaltet später den Lernplan frei.
   function goExams(lead: string[]) {
@@ -863,7 +867,11 @@ export function OnboardingChat() {
       return
     }
     weeklyConfirmed.current = true // Abgabetage bestätigt → Serien dürfen entstehen
-    pushUser(wk.map((c) => `${c.short} ${(c.weeklyDays ?? []).map((d) => WEEKDAY_SHORT[d]).join('/')}`).join(', '))
+    pushUser(
+      wk
+        .map((c) => `${c.short} ${(c.weeklyDays ?? []).map((d) => WEEKDAY_SHORT[d]).join('/')}${(c.weeklyInterval ?? 1) === 2 ? ' (14-tägig)' : ''}`)
+        .join(', '),
+    )
     goExams([])
   }
 
@@ -931,12 +939,14 @@ export function OnboardingChat() {
     setBusy(true)
     const d = draft.current
     const list = courses.filter((c) => c.name.trim())
-    // Eine Serie je gewähltem Abgabetag (mehrere Abgaben/Woche möglich).
-    const seriesCount = weeklyConfirmed.current
-      ? list.reduce((n, c) => n + (c.weekly ? (c.weeklyDays?.length ?? 0) : 0), 0)
+    // Geschätzte Blatt-Anzahl: je Abgabetag eine Serie, Rhythmus berücksichtigt.
+    const taskApprox = weeklyConfirmed.current
+      ? list.reduce((n, c) => {
+          if (!c.weekly || !c.weeklyDays?.length) return n
+          return n + c.weeklyDays.length * Math.ceil(d.semWeeks / (c.weeklyInterval ?? 1))
+        }, 0)
       : 0
     const examN = list.filter((c) => c.exam).length
-    const taskApprox = seriesCount * d.semWeeks
     const parts = [`${list.length} Kurs${list.length === 1 ? '' : 'e'}`]
     if (taskApprox) parts.push(`~${taskApprox} Abgaben`)
     if (examN) parts.push(`${examN} Klausur${examN === 1 ? '' : 'en'}`)
@@ -974,7 +984,7 @@ export function OnboardingChat() {
                   time: '12:00',
                   count: sem.weeks,
                   startWeek: 1,
-                  intervalWeeks: 1,
+                  intervalWeeks: c.weeklyInterval ?? 1,
                 }))
               : undefined
           return {
@@ -1339,7 +1349,7 @@ export function OnboardingChat() {
                       <div className="truncate font-medium text-stone-800">{c.name}</div>
                       <div className="text-[11px] text-stone-400">
                         {c.slots.length ? c.slots.map((s) => `${WEEKDAY_SHORT[s.weekday]} ${s.start}`).join(' · ') : 'keine Zeit'}
-                        {c.weekly && c.weeklyDays?.length ? ` · Blatt ${c.weeklyDays.map((d) => WEEKDAY_SHORT[d]).join('/')}` : ''}
+                        {c.weekly && c.weeklyDays?.length ? ` · Blatt ${c.weeklyDays.map((d) => WEEKDAY_SHORT[d]).join('/')}${(c.weeklyInterval ?? 1) === 2 ? ' (14-tägig)' : ''}` : ''}
                         {c.exam ? ` · Klausur ${format(new Date(c.exam), 'dd.MM.')}` : ''}
                       </div>
                     </div>
@@ -1458,6 +1468,24 @@ export function OnboardingChat() {
                           </button>
                         )
                       })}
+                    </div>
+                  )}
+                  {c.weekly && (
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1 pl-7">
+                      <span className="mr-0.5 text-[11px] text-stone-400">Rhythmus:</span>
+                      {([[1, 'wöchentlich'], [2, '14-tägig']] as const).map(([val, label]) => (
+                        <button
+                          key={val}
+                          onClick={() => setWeeklyInterval(i, val)}
+                          aria-pressed={(c.weeklyInterval ?? 1) === val}
+                          className={cn(
+                            'rounded-full px-2 py-0.5 text-xs font-medium transition',
+                            (c.weeklyInterval ?? 1) === val ? 'bg-brand-400 text-stone-900' : 'bg-white text-stone-500 ring-1 ring-stone-200 hover:bg-stone-50',
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
                     </div>
                   )}
                 </div>
