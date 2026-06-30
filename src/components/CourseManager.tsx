@@ -124,6 +124,11 @@ export function CourseManager({
   async function save() {
     if (!draft) return
     if (!draft.short.trim()) draft.short = draft.name.slice(0, 5).toUpperCase()
+    // Vertauschte Zeiten korrigieren (Ende < Beginn ⇒ tauschen) – sonst negative
+    // Höhe im Stundenplan-Raster. Zeiten sind „HH:MM" (lexikografisch vergleichbar).
+    draft.slots = draft.slots.map((s) =>
+      s.start && s.end && s.end < s.start ? { ...s, start: s.end, end: s.start } : s,
+    )
     await saveCourse(draft)
     let msg = 'Kurs gespeichert.'
     if (draft.recurring?.length) {
@@ -425,6 +430,11 @@ export function CourseManager({
                   >
                     <X size={14} />
                   </button>
+                  {s.start && s.end && s.end <= s.start && (
+                    <span className="w-full text-[11px] font-medium text-red-500">
+                      Ende liegt vor dem Beginn – wird beim Speichern getauscht.
+                    </span>
+                  )}
                 </div>
               ))}
               <button

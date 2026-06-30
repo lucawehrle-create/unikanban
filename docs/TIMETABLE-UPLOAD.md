@@ -44,6 +44,19 @@ den kostenpflichtigen Key – aufrufen können.
   einem Spalte-für-Spalte-Prompt, damit Tage nicht vertauscht und Räume
   zeichengenau übernommen werden.
 
+## Rate-Limit (optional, empfohlen)
+
+Schützt den bezahlten Key vor Spam: max. 8 Uploads pro Nutzer & Minute. Dafür
+einmalig die Tabelle anlegen (Code läuft auch ohne sie weiter – dann ohne
+Limit):
+
+```bash
+# supabase/parse-timetable-rate.sql im Supabase SQL-Editor ausführen
+```
+
+Die Function nutzt zusätzlich ein 45-Sekunden-Timeout für den Anthropic-Aufruf,
+damit hängende Anfragen keine Kosten/Latenz verursachen.
+
 ## Grenzen
 
 - Max. 8 MB pro Datei.

@@ -916,8 +916,11 @@ export function OnboardingChat() {
   }
 
   function submitPrior() {
-    draft.current.priorEcts = Number(priorEcts) || 0
-    draft.current.priorAvg = Number(priorAvg) || 0
+    draft.current.priorEcts = Math.max(0, Number(priorEcts) || 0)
+    // Notenschnitt auf die deutsche Bestanden-Skala 1,0–4,0 begrenzen (0 = keiner),
+    // sonst verfälscht z.B. „5" den GPA im Studium-Dashboard.
+    const avg = Number(priorAvg) || 0
+    draft.current.priorAvg = avg > 0 ? Math.min(4, Math.max(1, avg)) : 0
     pushUser(`${draft.current.priorEcts || 0} ECTS · Ø ${draft.current.priorAvg || '—'}`)
     goReview()
   }
@@ -993,7 +996,7 @@ export function OnboardingChat() {
             name: c.name.trim(),
             short: (c.short.trim() || c.name.slice(0, 4)).toUpperCase(),
             color: c.color,
-            slots: c.slots,
+            slots: c.slots.map((s) => (s.start && s.end && s.end < s.start ? { ...s, start: s.end, end: s.start } : s)),
             recurring,
           }
         })

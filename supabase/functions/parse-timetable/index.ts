@@ -14,7 +14,17 @@
 // Modell: günstigstes Claude mit Bild-/PDF-Fähigkeit (Haiku 4.5). Per Secret
 //   TIMETABLE_MODEL überschreibbar.
 
+import { createClient } from 'npm:@supabase/supabase-js@2'
+
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? ''
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
+const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+// Pro Nutzer max. RATE_MAX Uploads je RATE_WINDOW_SEC – schützt den bezahlten
+// Key vor Spam. Greift nur, wenn die Tabelle parse_timetable_calls existiert
+// (sonst läuft die Function ungebremst weiter, kein harter Fehler).
+const RATE_MAX = 8
+const RATE_WINDOW_SEC = 60
+const ANTHROPIC_TIMEOUT_MS = 45_000
 // Sonnet als Standard: Stundenpläne sind dichte Raster mit kleinen Raumkürzeln
 // und verbundenen Zellen – Haiku liest die zu unzuverlässig. Per Secret
 // TIMETABLE_MODEL überschreibbar (z.B. claude-opus-4-8 für max. Genauigkeit,
@@ -149,6 +159,40 @@ function cleanCourses(courses: unknown) {
     .slice(0, 30)
 }
 
+/** Nutzer-ID aus dem (vom Gateway bereits geprüften) JWT lesen. */
+function userIdFromJwt(req: Request): string | null {
+  const part = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').split('.')[1]
+  if (!part) return null
+  try {
+    let b64 = part.replace(/-/g, '+').replace(/_/g, '/')
+    while (b64.length % 4) b64 += '='
+    const payload = JSON.parse(atob(b64))
+    return typeof payload.sub === 'string' ? payload.sub : null
+  } catch {
+    return null
+  }
+}
+
+/** true = Limit überschritten. Bei fehlender Tabelle/Fehler: nicht blockieren. */
+async function rateLimited(userId: string): Promise<boolean> {
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return false
+  try {
+    const supa = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } })
+    const since = new Date(Date.now() - RATE_WINDOW_SEC * 1000).toISOString()
+    const { count, error } = await supa
+      .from('parse_timetable_calls')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .gte('called_at', since)
+    if (error) return false
+    if ((count ?? 0) >= RATE_MAX) return true
+    await supa.from('parse_timetable_calls').insert({ user_id: userId })
+    return false
+  } catch {
+    return false
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return json({ error: 'Methode nicht erlaubt.' }, 405)
@@ -167,6 +211,11 @@ Deno.serve(async (req: Request) => {
   if (!ALLOWED.has(mediaType)) return json({ error: 'Nicht unterstütztes Format. Bitte PNG, JPG oder PDF.' }, 415)
   if (file.length * 0.75 > MAX_BYTES) return json({ error: 'Datei zu groß (max. 8 MB).' }, 413)
 
+  const userId = userIdFromJwt(req)
+  if (userId && (await rateLimited(userId))) {
+    return json({ error: 'Zu viele Uploads in kurzer Zeit – bitte einen Moment warten.' }, 429)
+  }
+
   const source = { type: 'base64', media_type: mediaType, data: file }
   const fileBlock = mediaType === 'application/pdf'
     ? { type: 'document', source }
@@ -180,6 +229,7 @@ Deno.serve(async (req: Request) => {
         'x-api-key': ANTHROPIC_API_KEY,
         'anthropic-version': '2023-06-01',
       },
+      signal: AbortSignal.timeout(ANTHROPIC_TIMEOUT_MS),
       body: JSON.stringify({
         model: MODEL,
         max_tokens: 4096,
@@ -216,6 +266,10 @@ Deno.serve(async (req: Request) => {
     return json({ courses: cleanCourses(input.courses), semester, fachsemester })
   } catch (err) {
     console.error('parse-timetable failed', err)
-    return json({ error: 'Interner Fehler.' }, 500)
+    const timedOut = (err as Error)?.name === 'TimeoutError'
+    return json(
+      { error: timedOut ? 'Zeitüberschreitung beim Auslesen – bitte erneut versuchen.' : 'Interner Fehler.' },
+      timedOut ? 504 : 500,
+    )
   }
 })

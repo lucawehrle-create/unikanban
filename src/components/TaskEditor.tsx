@@ -51,9 +51,14 @@ export function TaskEditor({ courses }: { courses: Course[] }) {
       footer={
         <>
           <button
-            onClick={() => {
-              void deleteTask(id)
-              close()
+            onClick={async () => {
+              if (!window.confirm(`„${task.title}" wirklich löschen?`)) return
+              try {
+                await deleteTask(id)
+                close()
+              } catch {
+                window.alert('Löschen hat nicht geklappt – bitte erneut versuchen.')
+              }
             }}
             className="mr-auto flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-red-600 hover:bg-red-50"
           >
