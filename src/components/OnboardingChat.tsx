@@ -1363,15 +1363,15 @@ export function OnboardingChat() {
 
           {/* Antwort-Optionen & Aktionen — direkt im Verlauf, unter der Frage. */}
           {phase === 'subject' && (
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <div className="grid grid-cols-3 gap-2.5">
               {COMMON_PROGRAMS.map((p) => (
                 <button
                   key={p.name}
                   onClick={() => pickSubject(p.name)}
-                  className="flex items-center gap-2 rounded-xl bg-white px-3 py-2.5 text-sm font-medium text-stone-700 ring-1 ring-stone-200 transition hover:bg-stone-50 active:scale-[.98]"
+                  className="group flex flex-col items-center gap-1.5 rounded-2xl bg-white px-2 py-4 text-[13px] font-semibold text-stone-700 shadow-sm ring-1 ring-stone-200 transition hover:-translate-y-0.5 hover:shadow-md hover:ring-brand-300 active:scale-[.97]"
                 >
-                  <span className="text-lg leading-none">{p.icon}</span>
-                  <span className="truncate">{p.name}</span>
+                  <span className="text-3xl leading-none transition-transform duration-200 group-hover:scale-110">{p.icon}</span>
+                  <span className="w-full truncate text-center">{p.name}</span>
                 </button>
               ))}
             </div>
@@ -1608,6 +1608,8 @@ export function OnboardingChat() {
         </div>
       </div>
 
+      {phase === 'done' && <Confetti />}
+
       {/* Ablege-Fläche beim Drag&Drop eines Stundenplans */}
       {dragOver && (
         <div className="pointer-events-none absolute inset-0 z-30 flex items-center justify-center bg-cream-50/90 p-6 backdrop-blur-sm">
@@ -1777,6 +1779,35 @@ function Bubble({ role, showAvatar = true, children }: { role: 'bot' | 'user'; s
       >
         {children}
       </div>
+    </div>
+  )
+}
+// Dezentes Konfetti zum Abschluss („done"). Deterministisch verteilt, pures CSS.
+const CONFETTI_COLORS = ['#f7c948', '#f0b429', '#6366f1', '#10b981', '#ef4444', '#ec4899', '#0ea5e9']
+const CONFETTI = Array.from({ length: 28 }, (_, i) => ({
+  left: (i * 37 + 5) % 100,
+  delay: (i % 7) * 0.1,
+  duration: 1.7 + (i % 5) * 0.25,
+  color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+  size: 6 + (i % 3) * 2,
+}))
+function Confetti() {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-40 overflow-hidden" aria-hidden>
+      {CONFETTI.map((c, i) => (
+        <span
+          key={i}
+          className="sb-confetti absolute top-0 block rounded-[2px]"
+          style={{
+            left: `${c.left}%`,
+            width: c.size,
+            height: c.size * 1.5,
+            backgroundColor: c.color,
+            animationDelay: `${c.delay}s`,
+            animationDuration: `${c.duration}s`,
+          }}
+        />
+      ))}
     </div>
   )
 }

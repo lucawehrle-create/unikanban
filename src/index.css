@@ -158,3 +158,16 @@ body {
 .sb-msg-in {
   animation: sb-msg-in 0.22s ease-out both;
 }
+
+/* Abschluss-Konfetti (Onboarding „done"). Basis unsichtbar → reduced-motion zeigt nichts. */
+@keyframes sb-confetti {
+  0% { transform: translateY(-24px) rotate(0deg); opacity: 0; }
+  8% { opacity: 1; }
+  100% { transform: translateY(105vh) rotate(540deg); opacity: 0; }
+}
+.sb-confetti {
+  opacity: 0;
+  animation-name: sb-confetti;
+  animation-timing-function: cubic-bezier(0.3, 0.6, 0.5, 1);
+  animation-fill-mode: both;
+}
