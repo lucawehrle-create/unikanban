@@ -1,8 +1,7 @@
-import { Clock, Flag, GraduationCap } from 'lucide-react'
+import { AlertTriangle, Clock, Flag, GraduationCap } from 'lucide-react'
 import type { Course, Task } from '@/db/types'
 import { TASK_TYPES } from '@/lib/taskTypes'
-import { classifyDue, DUE_META, formatDue } from '@/lib/deadline'
-import { priorityMeta } from '@/lib/priority'
+import { classifyDue, DUE_META, formatDue, formatUrgency } from '@/lib/deadline'
 import { difficultyMeta } from '@/lib/reflection'
 import { cn } from '@/lib/cn'
 
@@ -11,128 +10,162 @@ interface TaskCardProps {
   course?: Course
   onClick?: () => void
   dragging?: boolean
+  /** true in den Deadline-Spalten „Überfällig“/„Heute“ – der Spaltenkopf trägt
+   *  das Dringlichkeitssignal dann schon, die Karte soll es nicht doppeln. */
+  suppressUrgency?: boolean
 }
 
-export function TaskCard({ task, course, onClick, dragging }: TaskCardProps) {
+// Visuelle Hierarchie (aus der Design-Recherche):
+//   1. Blick: Dringlichkeit (overdue/today) – linker Rot/Orange-Rand + eigene
+//      Klartext-Zeile. Nur echte Dringlichkeit darf „schreien“.
+//   2. Blick: Kurs-Identität – Farbbalken + Kürzel-Pill (konstant über alle
+//      Gruppierungen).
+//   3. Blick: Fortschritt/Priorität/Detail – zurückgenommen, kontextuell.
+// Regel: Rot bedeutet pro Karte genau EINE Sache (Dringlichkeit). Priorität ist
+// Form/Gewicht (gefüllte Flagge nur bei „hoch“), kein weiterer Rotton.
+export function TaskCard({ task, course, onClick, dragging, suppressUrgency }: TaskCardProps) {
   const type = TASK_TYPES[task.type]
-  const due = classifyDue(task.dueDate, task.status === 'erledigt')
+  const done = task.status === 'erledigt'
+  const due = classifyDue(task.dueDate, done)
   const dueMeta = DUE_META[due]
   const phasesDone = task.phases.filter((p) => p.done).length
   const phasesTotal = task.phases.length
-  const done = task.status === 'erledigt'
-  const prio = priorityMeta(task.priority)
+
+  const isUrgent = (due === 'overdue' || due === 'today') && !suppressUrgency
+  const inProgress = task.status === 'dran'
+  const isHigh = task.priority === 'hoch'
+
+  // Der linke Rand trägt entweder Kurs- ODER Dringlichkeitsidentität – nie beides.
+  const barColor =
+    isUrgent && due === 'overdue'
+      ? '#ef4444' // red-500
+      : isUrgent && due === 'today'
+        ? '#f97316' // orange-500
+        : (course?.color ?? '#cbd5e1')
 
   return (
     <button
       onClick={onClick}
       className={cn(
-        'group relative w-full overflow-hidden rounded-2xl bg-white px-3.5 py-3 text-left shadow-sm ring-1 ring-stone-200/80 transition',
+        'group relative w-full overflow-hidden rounded-2xl bg-white p-3 text-left ring-1 ring-stone-200/70 transition',
         'hover:-translate-y-0.5 hover:shadow-md hover:ring-stone-300',
         dragging && 'opacity-50',
         done && 'opacity-60',
       )}
     >
-      {/* Farbiger Kursbalken links */}
-      <span
-        className="absolute inset-y-0 left-0 w-1.5"
-        style={{ backgroundColor: course?.color ?? '#cbd5e1' }}
-      />
+      {/* Akzent-Rand links: Kurs (Default) oder Dringlichkeit (overdue/today) */}
+      <span className="absolute inset-y-0 left-0 w-[3px]" style={{ backgroundColor: barColor }} />
+
+      {/* Priorität nur bei „hoch“ – als Form/Gewicht, nicht als weiterer Rotton */}
+      {isHigh && !done && (
+        <Flag
+          size={13}
+          className="absolute right-3 top-3 text-stone-900"
+          fill="currentColor"
+          aria-label="Hohe Priorität"
+        />
+      )}
 
       <div className="flex items-start gap-2 pl-1.5">
         <span className="mt-0.5 text-sm leading-none" title={type.label}>
           {type.emoji}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex items-start gap-1.5">
-            <div
-              className={cn('flex-1 text-sm font-medium text-stone-800', done && 'line-through')}
-            >
-              {task.title}
-            </div>
-            {prio && !done && (
-              <Flag
-                size={13}
-                className="mt-0.5 shrink-0"
-                style={{ color: prio.color, fill: prio.color }}
-                aria-label={`Priorität ${prio.label}`}
-              />
+          {/* Titel – größtes Element, max. 2 Zeilen */}
+          <div
+            className={cn(
+              'text-sm font-medium leading-snug text-stone-800 [letter-spacing:-0.006em] line-clamp-2',
+              isHigh && !done && 'pr-5',
+              done && 'line-through',
             )}
+          >
+            {task.title}
           </div>
 
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
-            {task.examId && (
+          {/* 1. Blick: Dringlichkeit – das lauteste Sekundärsignal */}
+          {isUrgent && (
+            <div className={cn('mt-2 flex items-center gap-1 text-xs font-medium', dueMeta.text)}>
+              {due === 'overdue' ? <AlertTriangle size={12} /> : <Clock size={12} />}
+              {formatUrgency(task.dueDate)}
+            </div>
+          )}
+
+          {/* 2./3. Blick: Meta – max. 3 Signale im Default */}
+          <div
+            className={cn(
+              'flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]',
+              isUrgent ? 'mt-1' : 'mt-2',
+            )}
+          >
+            {task.examId && !done && (
               <span
-                className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-semibold text-indigo-600 ring-1 ring-indigo-200"
+                className="inline-flex"
                 title="Aus deinem Lernplan – dient der Klausurvorbereitung"
               >
-                <GraduationCap size={11} /> Lernplan
+                <GraduationCap size={12} className="text-indigo-500" />
               </span>
             )}
 
             {course && (
               <span
-                className="rounded px-1.5 py-0.5 font-semibold"
-                style={{ backgroundColor: course.color + '22', color: course.color }}
+                className={cn(
+                  'rounded px-1.5 py-0.5 text-xs font-semibold',
+                  done && 'bg-stone-100 text-stone-500',
+                )}
+                style={
+                  done ? undefined : { backgroundColor: course.color + '22', color: course.color }
+                }
               >
                 {course.short}
               </span>
             )}
 
-            {/* Aufgaben-Art dezent als neutrales Tag – das Emoji allein ist nicht
-                eindeutig. Bei „Sonstiges“ weglassen (generisch = nur Rauschen). */}
-            {task.type !== 'sonstiges' && (
-              <span className="rounded bg-stone-100 px-1.5 py-0.5 font-medium text-stone-500">
-                {type.label}
-              </span>
-            )}
-
-            {due !== 'none' && (
+            {/* Fälligkeit nur dezent für soon/week/later – overdue/today stehen oben */}
+            {(due === 'soon' || due === 'week' || due === 'later') && (
               <span className={cn('inline-flex items-center gap-1 font-medium', dueMeta.text)}>
                 <span className={cn('inline-block h-1.5 w-1.5 rounded-full', dueMeta.dot)} />
                 {formatDue(task.dueDate)}
               </span>
             )}
 
-            {task.points?.max != null && (
-              <span className="text-stone-400">
+            {/* Punkte: nur erledigt oder bereits bewertet */}
+            {task.points?.max != null && (done || task.points.earned != null) && (
+              <span className="tabular-nums text-stone-500">
                 {task.points.earned != null ? `${task.points.earned}/` : ''}
                 {task.points.max} P
               </span>
             )}
 
-            {phasesTotal > 0 && (
-              <span className="text-stone-400">
-                {phasesDone}/{phasesTotal} Schritte
-              </span>
-            )}
-
-            {task.duration != null && (
+            {/* Lernzeit: nur während „In Arbeit“ relevant */}
+            {inProgress && task.duration != null && (
               <span
-                className="inline-flex items-center gap-1 text-stone-400"
+                className="inline-flex items-center gap-1 tabular-nums text-stone-500"
                 title="eingeplante Lernzeit"
               >
                 <Clock size={11} /> {task.duration} Min
               </span>
             )}
 
-            {task.reflection && (
-              <span
-                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 font-medium text-white"
-                style={{ backgroundColor: difficultyMeta(task.reflection.difficulty).color }}
-                title={`Reflexion: ${difficultyMeta(task.reflection.difficulty).label}`}
-              >
+            {/* Reflexion: nur auf erledigten Karten, entsättigt */}
+            {task.reflection && done && (
+              <span className="inline-flex items-center gap-1 text-stone-500">
+                <span
+                  className="inline-block h-1.5 w-1.5 rounded-full"
+                  style={{ backgroundColor: difficultyMeta(task.reflection.difficulty).color }}
+                />
                 {difficultyMeta(task.reflection.difficulty).label}
               </span>
             )}
           </div>
 
-          {phasesTotal > 0 && (
-            <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-stone-100">
+          {/* Fortschritt: ein Signal, nur wenn schon mind. ein Schritt erledigt */}
+          {phasesDone > 0 && (
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-stone-200">
               <div
                 className="h-full rounded-full transition-all"
                 style={{
                   width: `${(phasesDone / phasesTotal) * 100}%`,
-                  backgroundColor: course?.color ?? '#94a3b8',
+                  backgroundColor: (course?.color ?? '#94a3b8') + 'cc',
                 }}
               />
             </div>

@@ -126,6 +126,16 @@ function buildColumns(tasks: Task[], courses: Course[], groupBy: GroupBy) {
   return { columns, groups }
 }
 
+/** Kontextueller Hinweis für eine leere Spalte statt eines generischen „leer“. */
+function emptyColumnHint(colId: string, groupBy: GroupBy): string {
+  if (groupBy === 'status') {
+    if (colId === 'dran') return 'Zieh eine Aufgabe hierher, wenn du loslegst'
+    if (colId === 'erledigt') return 'Hier sammeln sich erledigte Aufgaben'
+  }
+  if (colId === 'done') return 'Hier sammeln sich erledigte Aufgaben'
+  return 'Nichts hier'
+}
+
 function Droppable({
   id,
   enabled,
@@ -269,6 +279,16 @@ export function Board({ tasks, courses, hasTasks }: BoardProps) {
     <div className="flex h-full gap-4 overflow-x-auto px-5 pb-5">
       {columns.map((col) => {
         const items = sortTasks(groups.get(col.id) ?? [], sortBy)
+        // Deadline-Gruppierung: dringliche Spaltenköpfe einfärben – dann tragen
+        // sie das Signal und die Karten unterdrücken ihre Dringlichkeitszeile.
+        const overdueCol = groupBy === 'deadline' && col.id === 'overdue'
+        const todayCol = groupBy === 'deadline' && col.id === 'today'
+        const headTint = overdueCol ? 'bg-red-50' : todayCol ? 'bg-orange-50' : ''
+        const badgeCls = overdueCol
+          ? 'bg-red-100 text-red-700'
+          : todayCol
+            ? 'bg-orange-100 text-orange-700'
+            : 'bg-stone-100 text-stone-500'
         return (
           <Droppable
             key={col.id}
@@ -276,19 +296,26 @@ export function Board({ tasks, courses, hasTasks }: BoardProps) {
             enabled={dndEnabled}
             className="flex max-h-full min-w-[280px] flex-1 flex-col rounded-3xl bg-white/40 p-2.5 ring-1 ring-stone-200/60 backdrop-blur"
           >
-            <div className="flex items-center justify-between px-2 py-1.5">
+            <div
+              className={cn(
+                'flex items-center justify-between rounded-xl px-2 py-1.5',
+                headTint,
+              )}
+            >
               <div className="flex items-center gap-2">
                 {col.accent && (
                   <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: col.accent }} />
                 )}
                 <span className="text-sm font-semibold text-stone-700">{col.title}</span>
               </div>
-              <span className="rounded-full bg-stone-100 px-2 text-xs font-medium text-stone-500">
+              <span
+                className={cn('rounded-full px-2 text-xs font-semibold tabular-nums', badgeCls)}
+              >
                 {items.length}
               </span>
             </div>
 
-            <div className="grid flex-1 content-start gap-2.5 overflow-y-auto p-1 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]">
+            <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto p-1">
               {items.map((t) => (
                 <Draggable key={t.id} task={t} enabled={dndEnabled}>
                   <TaskCard
@@ -296,11 +323,14 @@ export function Board({ tasks, courses, hasTasks }: BoardProps) {
                     course={t.courseId ? byId.get(t.courseId) : undefined}
                     onClick={() => editTask(t.id)}
                     dragging={activeId === t.id}
+                    suppressUrgency={overdueCol || todayCol}
                   />
                 </Draggable>
               ))}
               {items.length === 0 && (
-                <div className="col-span-full px-2 py-6 text-center text-xs text-stone-400">leer</div>
+                <div className="px-2 py-6 text-center text-xs text-stone-500">
+                  {emptyColumnHint(col.id, groupBy)}
+                </div>
               )}
             </div>
           </Droppable>
@@ -310,9 +340,17 @@ export function Board({ tasks, courses, hasTasks }: BoardProps) {
   )
 
   // ---- Mobil: Spalten-Tabs + eine Spalte als vertikale Liste ----
+  // Bei Deadline-Gruppierung standardmäßig auf die erste nicht-leere dringliche
+  // Spalte (Überfällig → Heute) starten, sonst auf die erste Spalte.
+  const fallbackCol =
+    groupBy === 'deadline'
+      ? (['overdue', 'today'].find((id) => (groups.get(id) ?? []).length) ?? columns[0]?.id)
+      : columns[0]?.id
   const activeColId =
-    mobileCol && columns.some((c) => c.id === mobileCol) ? mobileCol : columns[0]?.id
+    mobileCol && columns.some((c) => c.id === mobileCol) ? mobileCol : fallbackCol
   const activeItems = activeColId ? sortTasks(groups.get(activeColId) ?? [], sortBy) : []
+  const activeSuppressUrgency =
+    groupBy === 'deadline' && (activeColId === 'overdue' || activeColId === 'today')
 
   const mobileView = (
     <div className="flex h-full flex-col sm:hidden">
@@ -335,7 +373,7 @@ export function Board({ tasks, courses, hasTasks }: BoardProps) {
               {col.title}
               <span
                 className={cn(
-                  'rounded-full px-1.5 text-xs',
+                  'rounded-full px-1.5 text-xs tabular-nums',
                   active ? 'bg-white/20 text-white' : 'bg-stone-100 text-stone-500',
                 )}
               >
@@ -353,12 +391,15 @@ export function Board({ tasks, courses, hasTasks }: BoardProps) {
               task={t}
               course={t.courseId ? byId.get(t.courseId) : undefined}
               onClick={() => editTask(t.id)}
+              suppressUrgency={activeSuppressUrgency}
             />
             {dndEnabled && <MobileMove task={t} />}
           </div>
         ))}
         {activeItems.length === 0 && (
-          <div className="py-12 text-center text-sm text-stone-400">Nichts in dieser Spalte.</div>
+          <div className="py-12 text-center text-sm text-stone-500">
+            {activeColId ? emptyColumnHint(activeColId, groupBy) : 'Nichts in dieser Spalte.'}
+          </div>
         )}
       </div>
     </div>

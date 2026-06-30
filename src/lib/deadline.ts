@@ -25,9 +25,27 @@ export const DUE_META: Record<DueClass, { label: string; dot: string; text: stri
   overdue: { label: 'überfällig', dot: 'bg-red-500', text: 'text-red-600' },
   today: { label: 'heute', dot: 'bg-orange-500', text: 'text-orange-600' },
   soon: { label: 'morgen', dot: 'bg-amber-500', text: 'text-amber-600' },
-  week: { label: 'diese Woche', dot: 'bg-yellow-400', text: 'text-yellow-600' },
+  // amber-700 statt yellow-600: yellow-600 verfehlt 4.5:1 auf Weiß/Creme (WCAG AA).
+  week: { label: 'diese Woche', dot: 'bg-amber-500', text: 'text-amber-700' },
   later: { label: 'später', dot: 'bg-stone-300', text: 'text-stone-500' },
   none: { label: '', dot: '', text: '' },
+}
+
+/**
+ * Dringlichkeits-Klartext für die hervorgehobene Zeile auf der Karte – nur für
+ * overdue/today gedacht (das laute Sekundärsignal). „seit 3 Tagen überfällig“ /
+ * „heute fällig“.
+ */
+export function formatUrgency(dueISO?: string): string {
+  if (!dueISO) return ''
+  const d = parseISO(dueISO)
+  if (isToday(d)) return 'heute fällig'
+  const diff = differenceInCalendarDays(d, new Date())
+  if (diff < 0) {
+    const n = Math.abs(diff)
+    return n === 1 ? 'seit gestern überfällig' : `seit ${n} Tagen überfällig`
+  }
+  return 'heute fällig'
 }
 
 /** Kurzes, menschenlesbares Fälligkeitslabel. */
