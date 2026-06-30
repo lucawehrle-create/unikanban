@@ -388,7 +388,7 @@ export function OnboardingChat() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [msgs, typing, phase, courses])
+  }, [msgs, typing, uploading, phase, courses])
 
   // Dokument hart sperren (iOS scrollt sonst beim Fokussieren) + Container-Höhe
   // nur AN DIE TASTATUR koppeln, solange ein Feld fokussiert ist. Beim Blur wird
@@ -1138,6 +1138,17 @@ export function OnboardingChat() {
             <Bubble role="bot" showAvatar={msgs[msgs.length - 1]?.role !== 'bot'}>
               <span className="inline-flex gap-1 py-0.5" aria-label="SemBan schreibt">
                 <Dot /> <Dot d="0.15s" /> <Dot d="0.3s" />
+              </span>
+            </Bubble>
+          )}
+          {uploading && (
+            <Bubble role="bot" showAvatar={msgs[msgs.length - 1]?.role !== 'bot'}>
+              <span className="inline-flex items-center gap-2 text-stone-500" aria-live="polite">
+                <Loader2 size={15} className="animate-spin text-brand-500" />
+                <span>
+                  Ich lese deinen Stundenplan aus…
+                  <span className="block text-[11px] text-stone-400">Kann ein paar Sekunden dauern.</span>
+                </span>
               </span>
             </Bubble>
           )}
