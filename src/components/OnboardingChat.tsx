@@ -1199,7 +1199,7 @@ export function OnboardingChat() {
                       </div>
                     )}
                     {c.exam && (
-                      <div className="mt-1 text-[11px] font-medium text-amber-600">📝 Klausur {format(new Date(c.exam), 'dd.MM.')}</div>
+                      <div className="mt-1 text-[11px] font-medium text-amber-600">📝 Klausur {format(new Date(c.exam + 'T00:00:00'), 'dd.MM.')}</div>
                     )}
                   </div>
                   {phase === 'courses' && (
@@ -1367,7 +1367,7 @@ export function OnboardingChat() {
                       <div className="text-[11px] text-stone-400">
                         {c.slots.length ? c.slots.map((s) => `${WEEKDAY_SHORT[s.weekday]} ${s.start}`).join(' · ') : 'keine Zeit'}
                         {c.weekly && c.weeklyDays?.length ? ` · Blatt ${c.weeklyDays.map((d) => WEEKDAY_SHORT[d]).join('/')}${(c.weeklyInterval ?? 1) === 2 ? ' (14-tägig)' : ''}` : ''}
-                        {c.exam ? ` · Klausur ${format(new Date(c.exam), 'dd.MM.')}` : ''}
+                        {c.exam ? ` · Klausur ${format(new Date(c.exam + 'T00:00:00'), 'dd.MM.')}` : ''}
                       </div>
                     </div>
                     <span className="shrink-0 rounded-md bg-stone-100 px-2 py-0.5 text-[11px] font-semibold text-stone-500">{c.short}</span>

@@ -55,7 +55,10 @@ type Tab = 'subscribe' | 'export' | 'import'
 const WD = ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 
 function fmtDate(iso: string, allDay: boolean): string {
-  return new Date(iso).toLocaleDateString('de-DE', {
+  // Reine Datumswerte ("yyyy-MM-dd") als LOKALE Mitternacht lesen (sonst UTC →
+  // Verschiebung um einen Tag in negativen Zeitzonen).
+  const d = iso.length === 10 ? new Date(iso + 'T00:00:00') : new Date(iso)
+  return d.toLocaleDateString('de-DE', {
     weekday: 'short',
     day: '2-digit',
     month: 'short',
