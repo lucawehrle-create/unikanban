@@ -278,7 +278,7 @@ export function WeekView({ tasks, courses }: WeekViewProps) {
 
   return (
     <div className="h-full overflow-y-auto px-5 pb-6">
-      <div className="mx-auto max-w-3xl space-y-2.5">
+      <div className="mx-auto max-w-4xl space-y-2.5">
         {/* Klausurphase nur, wenn akut (laufend oder ≤14 Tage) */}
         <ExamPhasePanel onlyImminent />
 

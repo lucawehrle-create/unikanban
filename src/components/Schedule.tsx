@@ -658,7 +658,7 @@ export function Schedule({ courses, tasks, semesterId }: ScheduleProps) {
 
           {/* DESKTOP: ganze Woche */}
           <div className="hidden flex-1 overflow-auto px-5 pb-6 sm:block">
-            <div className="mx-auto min-w-[640px] max-w-5xl">
+            <div className="min-w-[640px]">
               {/* Kopfzeile: Tage + fällige Aufgaben */}
               <div className="flex pb-2">
                 <div className="w-12 shrink-0" />
