@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react'
-import { Plus, CornerDownLeft } from 'lucide-react'
+import { Plus, CornerDownLeft, Check } from 'lucide-react'
 import type { Course } from '@/db/types'
 import { parseQuickAdd } from '@/lib/quickAdd'
 import { SELECTABLE_TASK_TYPES, TASK_TYPES } from '@/lib/taskTypes'
@@ -103,7 +103,9 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
   }, [trigger, token, courses])
 
   const showSuggest = focused && !dismissed && trigger != null && suggestions.length > 0
-  const showHelper = focused && !dismissed && trigger == null && value.trim() === ''
+  // Kürzel-Legende dauerhaft während der Eingabe sichtbar (nicht nur bei leerem
+  // Feld) – damit man immer sieht, welches Zeichen wofür steht.
+  const showLegend = focused && trigger == null
 
   function accept(s: Suggestion) {
     // Cursorposition live aus dem Input lesen (State kann nach Maus-Drag veralten)
@@ -252,36 +254,42 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
           </div>
         )}
 
-        {/* Helfer: zeigt verfügbare Kürzel, wenn noch kein Trigger getippt */}
-        {showHelper && (
-          <div className="absolute left-0 right-0 top-full z-40 mt-1.5 flex flex-wrap items-center gap-1.5 rounded-2xl border border-stone-200 bg-white px-3 py-2.5 shadow-xl">
-            <span className="mr-1 text-[11px] font-medium text-stone-400">Tippe:</span>
-            {[
-              { ch: '#', label: 'Kurs' },
-              { ch: '@', label: 'Art' },
-              { ch: '!', label: 'Frist' },
-              { ch: 'p', label: 'Priorität' },
-            ].map((h) => (
-              <button
-                key={h.ch}
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  insertTrigger(h.ch)
-                }}
-                className="flex items-center gap-1.5 rounded-full bg-stone-100 py-1 pl-1 pr-2.5 text-xs font-medium text-stone-600 hover:bg-brand-100"
-              >
-                <kbd className="rounded-md bg-white px-1.5 py-0.5 font-mono text-[11px] font-semibold text-stone-700 shadow-sm ring-1 ring-stone-200">
-                  {h.ch}
-                </kbd>
-                {h.label}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
+      {/* Persistente Kürzel-Legende: immer sichtbar während der Eingabe, klickbar */}
+      {showLegend && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 px-1">
+          <span className="text-[11px] font-medium text-stone-400">Kürzel:</span>
+          {[
+            { ch: '#', label: 'Kurs', used: !!draft.courseId },
+            { ch: '@', label: 'Art', used: !!draft.type },
+            { ch: '!', label: 'Frist', used: !!draft.dueDate },
+            { ch: 'p', label: 'Priorität', used: !!draft.priority },
+          ].map((h) => (
+            <button
+              key={h.ch}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                insertTrigger(h.ch)
+              }}
+              title={`${h.ch} ${h.label} einfügen`}
+              className={cn(
+                'flex items-center gap-1.5 rounded-full py-1 pl-1 pr-2.5 text-xs font-medium transition',
+                h.used ? 'bg-brand-100 text-stone-700' : 'bg-stone-100 text-stone-600 hover:bg-brand-100',
+              )}
+            >
+              <kbd className="rounded-md bg-white px-1.5 py-0.5 font-mono text-[11px] font-semibold text-stone-700 shadow-sm ring-1 ring-stone-200">
+                {h.ch}
+              </kbd>
+              {h.label}
+              {h.used && <Check size={12} className="text-brand-600" />}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Live-Vorschau der erkannten Felder */}
-      {value.trim() && !showSuggest && !showHelper && (
+      {value.trim() && !showSuggest && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5 px-1 text-[11px] text-stone-500">
           <span className="text-stone-400">→</span>
           <span className="font-medium text-stone-700">{draft.title || '(Titel?)'}</span>
