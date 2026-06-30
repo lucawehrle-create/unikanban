@@ -6,7 +6,11 @@ export interface QuickAddDraft {
   title: string
   courseId?: string
   type?: TaskTypeId
+  /** Art wurde aus Titelwörtern erkannt (nicht per @ gesetzt). */
+  typeAuto?: boolean
   dueDate?: string
+  /** Frist wurde aus dem Fließtext erkannt (nicht per ! gesetzt). */
+  dueAuto?: boolean
   priority?: Priority
 }
 
@@ -64,12 +68,46 @@ function parseDateToken(tokenRaw: string): string | undefined {
   return undefined
 }
 
+// Wörter, die im Fließtext eine darauffolgende Frist einleiten („… bis Freitag“).
+const DATE_PREPOSITIONS = new Set(['bis', 'am', 'zum', 'fällig', 'faellig', 'deadline'])
+// Eigenständiges numerisches Datum („3.7.“, „12.07.2026“).
+const NUMERIC_DATE = /^\d{1,2}\.\d{1,2}\.?(\d{2,4})?$/
+
+function stripWord(w: string): string {
+  return w.toLowerCase().replace(/[^a-zäöüß]/g, '')
+}
+
+/**
+ * Erkennt eine natürlich formulierte Frist im Titel – ohne `!`. Konservativ,
+ * um Fehlerkennung zu vermeiden: entweder eine Präposition + Datumswort
+ * („bis Freitag“, „am 3.7.“) oder ein eigenständiges numerisches Datum
+ * („3.7.“). Bare Wochentage allein lösen NICHT aus (zu fehleranfällig).
+ * Gibt die Frist und den um die Datumswörter bereinigten Titel zurück.
+ */
+function extractTitleDate(words: string[]): { dueDate?: string; rest: string[] } {
+  for (let i = 0; i < words.length; i++) {
+    const curLow = words[i].toLowerCase().replace(/[.,;:]+$/, '')
+    if (DATE_PREPOSITIONS.has(curLow) && i + 1 < words.length) {
+      const nextRaw = words[i + 1].replace(/[.,;:]+$/, '')
+      const due = parseDateToken(nextRaw)
+      if (due) return { dueDate: due, rest: words.slice(0, i).concat(words.slice(i + 2)) }
+    }
+    if (NUMERIC_DATE.test(words[i])) {
+      const due = parseDateToken(words[i])
+      if (due) return { dueDate: due, rest: words.slice(0, i).concat(words.slice(i + 1)) }
+    }
+  }
+  return { rest: words }
+}
+
 /**
  * Parst eine Schnell-Erfassen-Zeile.
  *   #kurs   → Kurs (über Kürzel oder Name)
  *   @typ    → Aufgaben-Typ
  *   !datum  → Fälligkeit (mo/di/.., heute/morgen, 12.07.)
- * Alles übrige wird zum Titel.
+ * Alles übrige wird zum Titel. Zusätzlich werden Aufgaben-Art (aus Stichwörtern
+ * wie „Übungsblatt“, „Hausarbeit“) und natürliche Fristen („bis Freitag“) auch
+ * ohne ausdrückliches @/! erkannt – ein explizites @typ/!datum hat Vorrang.
  */
 export function parseQuickAdd(raw: string, courses: Course[]): QuickAddDraft {
   const draft: QuickAddDraft = { title: '' }
@@ -111,6 +149,32 @@ export function parseQuickAdd(raw: string, courses: Course[]): QuickAddDraft {
     titleParts.push(word)
   }
 
-  draft.title = titleParts.join(' ').trim()
+  let words = titleParts
+  // Natürliche Frist im Titel – nur, wenn keine ausdrückliche !-Frist gesetzt ist.
+  if (!draft.dueDate) {
+    const { dueDate, rest } = extractTitleDate(words)
+    if (dueDate) {
+      draft.dueDate = dueDate
+      draft.dueAuto = true
+      words = rest
+    }
+  }
+  // Aufgaben-Art aus Titelwörtern – nur, wenn kein ausdrückliches @typ gesetzt
+  // ist. Kurze Stichwörter (< 3 Zeichen) ignorieren, um Fehlerkennung zu
+  // vermeiden. Die Wörter bleiben im Titel stehen (z. B. „Übungsblatt 3“).
+  if (!draft.type) {
+    for (const w of words) {
+      const s = stripWord(w)
+      if (s.length < 3) continue
+      const t = matchTaskType(s)
+      if (t) {
+        draft.type = t
+        draft.typeAuto = true
+        break
+      }
+    }
+  }
+
+  draft.title = words.join(' ').trim()
   return draft
 }

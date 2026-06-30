@@ -114,6 +114,11 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
   const course = draft.courseId ? courses.find((c) => c.id === draft.courseId) : undefined
   const prio = priorityMeta(draft.priority)
 
+  // Beispiele für den Leerzustand – nutzen ein echtes Kürzel, falls vorhanden,
+  // und führen zugleich die Auto-Erkennung (Art/Frist ohne @/!) vor.
+  const sampleShort = courses[0]?.short ?? 'kurs'
+  const examples = [`Blatt 3 #${sampleShort} @übung !fr`, `Hausarbeit #${sampleShort} bis 15.7.`]
+
   // Aktiver Trigger + Vorschläge
   const { token } = useMemo(() => tokenAt(value, caret), [value, caret])
   const trigger: TriggerKind | null = useMemo(() => {
@@ -192,6 +197,29 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
     setCaret(inputRef.current?.selectionStart ?? value.length)
   }
 
+  /** Erstes noch nicht gesetztes Feld (in der Reihenfolge #, @, !, p). */
+  function firstMissingTrigger(): string | null {
+    if (!draft.courseId) return '#'
+    if (!draft.type) return '@'
+    if (!draft.dueDate) return '!'
+    if (!draft.priority) return 'p'
+    return null
+  }
+
+  /** Übernimmt ein Syntax-Beispiel in das Feld und setzt den Cursor ans Ende. */
+  function fillExample(ex: string) {
+    setValue(ex)
+    setInlineActive(false)
+    setDismissed(false)
+    requestAnimationFrame(() => {
+      const el = inputRef.current
+      el?.focus()
+      const pos = ex.length
+      el?.setSelectionRange(pos, pos)
+      setCaret(pos)
+    })
+  }
+
   async function submit() {
     const title = draft.title.trim()
     if (!title) return
@@ -211,8 +239,9 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
     const el = inputRef.current
     const selActive = !!el && inlineActive && el.selectionStart !== el.selectionEnd
     if (selActive && el) {
-      // Übernehmen: Leertaste (mit Leerzeichen), Tab (Cursor ans Ende), Enter (absenden).
-      if (e.key === ' ' || e.key === 'Tab') {
+      // Übernehmen: Leertaste (+ Leerzeichen), Tab / Pfeil-rechts (Cursor ans
+      // Ende, wie Adressleiste), Enter (absenden).
+      if (e.key === ' ' || e.key === 'Tab' || e.key === 'ArrowRight') {
         e.preventDefault()
         const end = el.selectionEnd ?? el.value.length
         const space = e.key === ' ' ? ' ' : ''
@@ -234,7 +263,7 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
         return
       }
       // Backspace löscht die Markierung (Standard) → ergänzter Rest komplett weg.
-      // Pfeile/Weitertippen: Standardverhalten (Markierung ersetzen/aufheben).
+      // Weitertippen: Standardverhalten (Markierung ersetzen/aufheben).
     }
     if (showSuggest) {
       if (e.key === 'ArrowDown') {
@@ -258,6 +287,17 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
       if (e.key === 'Escape') {
         e.preventDefault()
         setDismissed(true)
+        return
+      }
+    }
+    // Tab springt zum nächsten noch fehlenden Feld (fügt dessen Kürzel ein),
+    // solange schon etwas getippt wurde. Ist alles gesetzt, verlässt Tab das
+    // Feld wie gewohnt. Shift+Tab nie kapern (Rücknavigation).
+    if (e.key === 'Tab' && !e.shiftKey && value.trim()) {
+      const missing = firstMissingTrigger()
+      if (missing) {
+        e.preventDefault()
+        insertTrigger(missing)
         return
       }
     }
@@ -345,6 +385,39 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
 
       </div>
 
+      {/* Hinweis, solange eine Inline-Ergänzung markiert ist (Adressleisten-Stil) */}
+      {inlineActive && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-1 px-1 text-[11px] text-stone-400">
+          <kbd className="rounded bg-stone-100 px-1 py-0.5 font-mono text-stone-600">↹ Tab</kbd>
+          <span>oder</span>
+          <kbd className="rounded bg-stone-100 px-1 py-0.5 font-mono text-stone-600">Leer</kbd>
+          <span>übernehmen ·</span>
+          <kbd className="rounded bg-stone-100 px-1 py-0.5 font-mono text-stone-600">→</kbd>
+          <span>ans Ende ·</span>
+          <kbd className="rounded bg-stone-100 px-1 py-0.5 font-mono text-stone-600">⌫</kbd>
+          <span>verwerfen</span>
+        </div>
+      )}
+
+      {/* Beispiele im Leerzustand: zeigen Syntax + Auto-Erkennung, füllen bei Klick */}
+      {focused && !value.trim() && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 px-1">
+          <span className="text-[11px] font-medium text-stone-400">Beispiele:</span>
+          {examples.map((ex) => (
+            <button
+              key={ex}
+              onMouseDown={(e) => {
+                e.preventDefault()
+                fillExample(ex)
+              }}
+              className="rounded-full bg-stone-100 px-2.5 py-1 text-[11px] text-stone-600 transition hover:bg-brand-100"
+            >
+              {ex}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Persistente Kürzel-Legende: immer sichtbar während der Eingabe, klickbar */}
       {showLegend && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5 px-1">
@@ -378,7 +451,7 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
       )}
 
       {/* Live-Vorschau der erkannten Felder */}
-      {value.trim() && !showSuggest && (
+      {value.trim() && !showSuggest && !inlineActive && (
         <div className="mt-2 flex flex-wrap items-center gap-1.5 px-1 text-[11px] text-stone-500">
           <span className="text-stone-400">→</span>
           <span className="font-medium text-stone-700">{draft.title || '(Titel?)'}</span>
@@ -392,9 +465,21 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
           )}
           <span className="rounded-full bg-stone-100 px-2 py-0.5">
             {TASK_TYPES[draft.type ?? 'sonstiges'].emoji} {TASK_TYPES[draft.type ?? 'sonstiges'].label}
+            {draft.typeAuto && (
+              <span className="ml-1 text-brand-600" title="automatisch erkannt">
+                ✨
+              </span>
+            )}
           </span>
           {draft.dueDate && (
-            <span className="rounded-full bg-stone-100 px-2 py-0.5">📅 {formatDue(draft.dueDate)}</span>
+            <span className="rounded-full bg-stone-100 px-2 py-0.5">
+              📅 {formatDue(draft.dueDate)}
+              {draft.dueAuto && (
+                <span className="ml-1 text-brand-600" title="automatisch erkannt">
+                  ✨
+                </span>
+              )}
+            </span>
           )}
           {prio && (
             <span
