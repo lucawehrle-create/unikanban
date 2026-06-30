@@ -51,17 +51,21 @@
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
+  /* Eingabe so hoch wie der Griff → die Spur wird darin mittig gerendert und
+     der Griff zentriert robust (statt fragiler margin-top-Mathematik auf 8px). */
+  height: 24px;
+  background: transparent;
+  outline: none;
+  cursor: pointer;
+}
+.slider-grade::-webkit-slider-runnable-track {
   height: 8px;
   border-radius: 9999px;
   background: #e7e5e4; /* stone-200 */
-  outline: none;
-  cursor: pointer;
 }
 .slider-grade::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  /* border-box: der 3px-Rahmen zählt zur Höhe → echte 24px, sonst sitzt der
-     Griff durch den Rahmen ~3px aus der Mitte. margin-top zentriert auf 8px-Spur. */
   box-sizing: border-box;
   height: 24px;
   width: 24px;
@@ -69,7 +73,13 @@
   background: #fff;
   border: 3px solid #f0b429; /* brand-500 */
   box-shadow: 0 1px 5px rgba(42, 42, 110, 0.25);
+  /* (Spur 8px − Griff 24px) / 2 = −8px → mittig auf der Spur */
   margin-top: -8px;
+}
+.slider-grade::-moz-range-track {
+  height: 8px;
+  border-radius: 9999px;
+  background: #e7e5e4;
 }
 .slider-grade::-moz-range-thumb {
   box-sizing: border-box;
