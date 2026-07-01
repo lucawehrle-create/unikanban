@@ -58,6 +58,28 @@ const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const VAPID_PUBLIC_KEY = Deno.env.get('VAPID_PUBLIC_KEY')!
 const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY')!
 const VAPID_SUBJECT = Deno.env.get('VAPID_SUBJECT') ?? 'mailto:admin@example.com'
+// Geteiltes Geheimnis für den Cron-Aufruf. Die Function läuft mit --no-verify-jwt
+// (der Cron sendet kein Nutzer-JWT), darf aber nicht anonym auslösbar sein –
+// sonst könnte jeder wiederholt alle Nutzerdaten durchlaufen und Pushes anstoßen.
+const CRON_SECRET = Deno.env.get('CRON_SECRET') ?? ''
+
+/** Konstantzeit-Vergleich, damit die Prüfung kein Timing-Leck ist. */
+function safeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false
+  let diff = 0
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i)
+  return diff === 0
+}
+
+/** Nur der Cron (oder ein Admin mit Service-Role-Key) darf auslösen. */
+function authorized(req: Request): boolean {
+  const bearer = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim()
+  const cronHeader = (req.headers.get('x-cron-secret') ?? '').trim()
+  if (CRON_SECRET && (safeEqual(bearer, CRON_SECRET) || safeEqual(cronHeader, CRON_SECRET))) return true
+  // Der Cron sendet standardmäßig den Service-Role-Key als Bearer – auch der gilt.
+  if (SERVICE_ROLE_KEY && safeEqual(bearer, SERVICE_ROLE_KEY)) return true
+  return false
+}
 
 webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY)
 
@@ -267,16 +289,23 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+  if (!authorized(req)) {
+    return new Response(JSON.stringify({ error: 'Nicht autorisiert.' }), {
+      status: 401,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
+  }
   try {
     const summary = await run()
     return new Response(JSON.stringify(summary), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err) {
+    // Details nur ins Log, nicht an den Aufrufer (verrät sonst interne Struktur).
     console.error('run failed', err)
-    return new Response(
-      JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
-    )
+    return new Response(JSON.stringify({ error: 'Interner Fehler.' }), {
+      status: 500,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
   }
 })

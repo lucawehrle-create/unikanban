@@ -3,6 +3,12 @@
 --
 -- Admin (sieht alle Bug-Reports & darf Feature-Status setzen): per E-Mail.
 -- Bei anderer Admin-Adresse die drei Vorkommen unten anpassen.
+--
+-- WICHTIG: Die Admin-Prüfung stützt sich auf die E-Mail im JWT. Das ist nur
+-- sicher, solange in Supabase (Auth → Providers) die E-Mail-BESTÄTIGUNG aktiv
+-- ist – sonst könnte sich jemand mit der Admin-Adresse registrieren, ohne sie
+-- zu besitzen, und würde Admin-Rechte erben. „Confirm email" also aktiviert
+-- lassen und keine OAuth-Provider erlauben, die unbestätigte E-Mails liefern.
 
 -- ---------- Tabellen ----------
 
@@ -80,6 +86,30 @@ create policy fr_update_author on public.feature_requests
   for update to authenticated
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
+
+-- RLS allein kann nicht verhindern, dass ein Autor beim Bearbeiten AUCH den
+-- `status` (oder user_id/created_at) mitändert – das darf nur der Admin. Ein
+-- Trigger friert diese Felder für Nicht-Admins auf den bisherigen Wert ein.
+create or replace function public.lock_feature_fields()
+  returns trigger
+  language plpgsql
+  security definer
+  set search_path = public
+as $$
+begin
+  if (auth.jwt() ->> 'email') is distinct from 'lucawehrle@gmail.com' then
+    new.status := old.status;
+    new.user_id := old.user_id;
+    new.created_at := old.created_at;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_lock_feature_fields on public.feature_requests;
+create trigger trg_lock_feature_fields
+  before update on public.feature_requests
+  for each row execute function public.lock_feature_fields();
 
 drop policy if exists fr_delete on public.feature_requests;
 create policy fr_delete on public.feature_requests

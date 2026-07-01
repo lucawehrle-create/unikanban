@@ -159,15 +159,16 @@ function cleanCourses(courses: unknown) {
     .slice(0, 30)
 }
 
-/** Nutzer-ID aus dem (vom Gateway bereits geprüften) JWT lesen. */
-function userIdFromJwt(req: Request): string | null {
-  const part = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').split('.')[1]
-  if (!part) return null
+/** Nutzer-ID aus dem JWT – serverseitig verifiziert (Signatur + Ablauf), nicht
+ *  bloß dekodiert. So kann kein selbstgebautes Token das Rate-Limit umgehen. */
+async function userIdFromJwt(req: Request): Promise<string | null> {
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return null
+  const jwt = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim()
+  if (!jwt) return null
   try {
-    let b64 = part.replace(/-/g, '+').replace(/_/g, '/')
-    while (b64.length % 4) b64 += '='
-    const payload = JSON.parse(atob(b64))
-    return typeof payload.sub === 'string' ? payload.sub : null
+    const supa = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } })
+    const { data, error } = await supa.auth.getUser(jwt)
+    return error ? null : data.user?.id ?? null
   } catch {
     return null
   }
@@ -213,7 +214,7 @@ Deno.serve(async (req: Request) => {
 
   // Ohne extrahierbare User-id ablehnen, statt das Rate-Limit zu überspringen
   // (sonst umgingen Tokens ohne `sub` das Limit komplett → teure KI-Calls offen).
-  const userId = userIdFromJwt(req)
+  const userId = await userIdFromJwt(req)
   if (!userId) return json({ error: 'Nicht autorisiert.' }, 401)
   if (await rateLimited(userId)) {
     return json({ error: 'Zu viele Uploads in kurzer Zeit – bitte einen Moment warten.' }, 429)

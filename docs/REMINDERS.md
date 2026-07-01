@@ -68,9 +68,15 @@ supabase functions deploy send-reminders --no-verify-jwt
 ```
 
 `--no-verify-jwt`, weil die Function vom Cron-Job (ohne Nutzer-JWT) aufgerufen
-wird. Das ist unkritisch: Die Function nutzt intern nur die Service-Role und
-sendet ausschließlich an die bereits gespeicherten Abos – sie nimmt keine
-nutzergesteuerten Eingaben entgegen und liefert nur eine anonyme Zusammenfassung.
+wird. Damit sie trotzdem **nicht anonym** ausgelöst werden kann, prüft sie selbst
+ein geteiltes Geheimnis: Aufrufer müssen entweder den **Service-Role-Key** als
+`Authorization: Bearer …` senden oder ein separat gesetztes `CRON_SECRET`
+(als Bearer oder im Header `x-cron-secret`). Ohne gültiges Geheimnis antwortet
+sie mit `401`. Optionales Secret setzen:
+
+```bash
+supabase secrets set CRON_SECRET=$(openssl rand -hex 32)
+```
 
 ## Schritt 6 – Stündlich per Cron planen
 
@@ -86,7 +92,9 @@ select cron.schedule(
   select net.http_post(
     url := 'https://<PROJECT_REF>.functions.supabase.co/send-reminders',
     headers := jsonb_build_object(
-      'Authorization', 'Bearer <SERVICE_ROLE_OR_ANON>',
+      -- Service-Role-Key (NICHT den anon-Key: der ist öffentlich und würde die
+      -- Function offen lassen). Alternativ: 'x-cron-secret' mit CRON_SECRET.
+      'Authorization', 'Bearer <SERVICE_ROLE_KEY>',
       'Content-Type', 'application/json'
     )
   )
