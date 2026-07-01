@@ -230,12 +230,10 @@ function buildShareSVG(
     .map((r, i) => {
       const y = legendStartY + i * rowH
       const pctCol = dark ? r.color : readable(r.color)
-      const cnt = `${r.done}/${r.total}`
       return (
-        `<circle cx='158' cy='${y - 14}' r='17' fill='${r.color}'/>` +
-        `<text x='198' y='${y}' font-size='42' font-weight='600' fill='${pal.legendLabel}'>${esc(r.label)}</text>` +
-        `<text x='790' y='${y}' text-anchor='end' font-size='30' fill='${pal.count}'>${esc(cnt)}</text>` +
-        `<text x='922' y='${y}' text-anchor='end' font-size='52' font-weight='800' fill='${pctCol}'>${r.pct}%</text>`
+        `<circle cx='170' cy='${y - 14}' r='17' fill='${r.color}'/>` +
+        `<text x='214' y='${y}' font-size='44' font-weight='600' fill='${pal.legendLabel}'>${esc(r.label)}</text>` +
+        `<text x='910' y='${y}' text-anchor='end' font-size='52' font-weight='800' fill='${pctCol}'>${r.pct}%</text>`
       )
     })
     .join('')
@@ -243,13 +241,15 @@ function buildShareSVG(
   const bg = dark
     ? `<defs>` +
       `<linearGradient id='bg' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#20205a'/><stop offset='1' stop-color='#15153f'/></linearGradient>` +
-      `<radialGradient id='spot' cx='0.5' cy='0.43' r='0.6'><stop offset='0' stop-color='#3a3a86' stop-opacity='0.55'/><stop offset='1' stop-color='#15153f' stop-opacity='0'/></radialGradient>` +
+      `<radialGradient id='spot' cx='0.5' cy='0.42' r='0.62'><stop offset='0' stop-color='#3c3c8e' stop-opacity='0.6'/><stop offset='1' stop-color='#15153f' stop-opacity='0'/></radialGradient>` +
+      `<radialGradient id='vig' cx='0.5' cy='0.46' r='0.75'><stop offset='0.55' stop-color='#0d0d28' stop-opacity='0'/><stop offset='1' stop-color='#0b0b24' stop-opacity='0.6'/></radialGradient>` +
       `<filter id='glow' x='-40%' y='-40%' width='180%' height='180%'><feGaussianBlur stdDeviation='${glowStd}'/></filter>` +
       `<filter id='heroShadow' x='-30%' y='-30%' width='160%' height='160%'><feDropShadow dx='0' dy='0' stdDeviation='7' flood-color='#0b0b24' flood-opacity='0.45'/></filter>` +
       `<filter id='footShadow' x='-30%' y='-30%' width='160%' height='160%'><feDropShadow dx='0' dy='4' stdDeviation='10' flood-color='#000000' flood-opacity='0.3'/></filter>` +
       `</defs>` +
       `<rect width='${STORY_W}' height='${STORY_H}' fill='url(#bg)'/>` +
-      `<rect width='${STORY_W}' height='${STORY_H}' fill='url(#spot)'/>`
+      `<rect width='${STORY_W}' height='${STORY_H}' fill='url(#spot)'/>` +
+      `<rect width='${STORY_W}' height='${STORY_H}' fill='url(#vig)'/>`
     : `<defs>` +
       `<linearGradient id='bg' x1='0' y1='0' x2='0.4' y2='1'><stop offset='0' stop-color='#fdfcf7'/><stop offset='0.55' stop-color='#faf7ee'/><stop offset='0.92' stop-color='#f7c948'/></linearGradient>` +
       `<radialGradient id='spot' cx='0.5' cy='0.43' r='0.55'><stop offset='0' stop-color='#f7c948' stop-opacity='0.35'/><stop offset='1' stop-color='#f7c948' stop-opacity='0'/></radialGradient>` +
@@ -295,10 +295,10 @@ function buildShareSVG(
     `<text x='${cx}' y='1178' text-anchor='middle' font-size='40' font-weight='700' fill='${pal.text}'>${esc(brag)}</text>` +
     // Legende
     legend +
-    // Footer-Lockup (die „Werbung", dezent) – über der Story-Antwortleiste
-    `<g filter='url(#footShadow)'>${logoSvg(cx - 200, 1662, 76, dark)}</g>` +
-    `<text x='${cx - 108}' y='1714' font-size='50' font-weight='800' fill='${pal.text}'>SemBan</text>` +
-    `<text x='${cx - 108}' y='1754' font-size='27' font-weight='600' fill='${pal.handle}'>@semban · unikanban.vercel.app</text>` +
+    // Footer-Lockup, exakt zentriert (Logo → Wortmarke → Handle) über der Antwortleiste
+    `<g filter='url(#footShadow)'>${logoSvg(cx - 38, 1632, 76, dark)}</g>` +
+    `<text x='${cx}' y='1742' text-anchor='middle' font-size='48' font-weight='800' fill='${pal.text}'>SemBan</text>` +
+    `<text x='${cx}' y='1784' text-anchor='middle' font-size='27' font-weight='600' fill='${pal.handle}'>@semban · semban.de</text>` +
     `</svg>`
   )
 }
