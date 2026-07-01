@@ -244,6 +244,10 @@ function BrowserFrame({
         alt={alt ?? ''}
         aria-hidden={alt ? undefined : true}
         loading={eager ? 'eager' : 'lazy'}
+        // Hero der Landing priorisieren (ersetzt den früheren statischen Preload
+        // in index.html, der auch für eingeloggte Nutzer feuerte, die die Landing
+        // nie sehen). fetchPriority ist ein gültiges DOM-Attribut in React 18.
+        {...(eager ? { fetchPriority: 'high' as const } : {})}
         className="block w-full"
       />
     </div>

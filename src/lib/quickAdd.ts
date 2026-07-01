@@ -41,6 +41,47 @@ function endOfDay(d: Date): Date {
   return x
 }
 
+/** Uhrzeit-Token → {h, m}, z. B. "12:00" oder "14uhr". Sonst undefined. */
+function parseClock(raw: string): { h: number; m: number } | undefined {
+  const w = raw.toLowerCase().replace(/[.,;]+$/, '')
+  const colon = w.match(/^(\d{1,2}):(\d{2})$/)
+  if (colon) {
+    const h = +colon[1]
+    const m = +colon[2]
+    return h < 24 && m < 60 ? { h, m } : undefined
+  }
+  const uhr = w.match(/^(\d{1,2})uhr$/)
+  if (uhr) {
+    const h = +uhr[1]
+    return h < 24 ? { h, m: 0 } : undefined
+  }
+  return undefined
+}
+
+/** Erste Uhrzeit im Wort-Array finden – auch zweiteilig als „14 Uhr". */
+function findClock(
+  words: string[],
+): { h: number; m: number; idx: number; extraIdx?: number } | undefined {
+  for (let i = 0; i < words.length; i++) {
+    const c = parseClock(words[i])
+    if (c) return { ...c, idx: i }
+    // „14 Uhr": Zahl + eigenes Wort „Uhr". Bare Zahlen ohne „Uhr" lösen NICHT
+    // aus (wären sonst mit Blatt-/Kapitelnummern verwechselbar).
+    if (/^\d{1,2}$/.test(words[i]) && i + 1 < words.length && stripWord(words[i + 1]) === 'uhr') {
+      const h = +words[i]
+      if (h < 24) return { h, m: 0, idx: i, extraIdx: i + 1 }
+    }
+  }
+  return undefined
+}
+
+/** Uhrzeit auf eine Frist-ISO anwenden (lokale Wanduhrzeit). */
+function applyClock(iso: string, h: number, m: number): string {
+  const d = new Date(iso)
+  d.setHours(h, m, 0, 0)
+  return d.toISOString()
+}
+
 function parseDateToken(tokenRaw: string): string | undefined {
   const token = tokenRaw.toLowerCase()
   const today = new Date()
@@ -229,6 +270,18 @@ export function parseQuickAdd(raw: string, courses: Course[]): QuickAddDraft {
       words = rest
     }
   }
+
+  // Uhrzeit an die erkannte Frist hängen (z. B. „bis Freitag 12:00", „heute 14
+  // Uhr"). Nur, wenn schon ein Frist-Tag existiert – eine nackte Uhrzeit ohne Tag
+  // ist zu mehrdeutig (könnte eine Blatt-/Kapitelnummer sein).
+  if (draft.dueDate) {
+    const clock = findClock(words)
+    if (clock) {
+      draft.dueDate = applyClock(draft.dueDate, clock.h, clock.m)
+      words = words.filter((_, i) => i !== clock.idx && i !== clock.extraIdx)
+    }
+  }
+
   // Auto-erkannte Wörter werden – wie ein ausdrückliches #/@/!/p – aus dem Titel
   // entfernt und nur als Tag gezeigt. Ihre Indizes sammeln wir hier ein.
   const remove = new Set<number>()
@@ -254,6 +307,7 @@ export function parseQuickAdd(raw: string, courses: Course[]): QuickAddDraft {
   // Aufgaben-Art aus Titelwörtern – nur, wenn kein ausdrückliches @typ gesetzt
   // ist. Kurze Stichwörter (< 3 Zeichen) ignorieren, um Fehlerkennung zu
   // vermeiden.
+  let typeIdx: number | undefined
   if (!draft.type) {
     for (let i = 0; i < words.length; i++) {
       const s = stripWord(words[i])
@@ -262,16 +316,23 @@ export function parseQuickAdd(raw: string, courses: Course[]): QuickAddDraft {
       if (t) {
         draft.type = t
         draft.typeAuto = true
-        remove.add(i)
+        typeIdx = i
         break
       }
     }
   }
 
-  // Erkannte Metadaten-Wörter aus dem Titel streichen. Bleibt dadurch nichts
-  // übrig (reine Metadaten-Eingabe), den vollen Text als Titel behalten, damit
-  // immer ein Titel da ist.
-  const titleWords = words.filter((_, i) => !remove.has(i))
+  // Titel bauen: Kurs-/Prioritätswörter immer streichen. Das Typ-Wort NUR, wenn
+  // danach noch ein „echtes" (nicht rein numerisches) Wort bleibt – sonst wäre
+  // der Titel nur eine nackte Nummer („Übungsblatt 11" → „11").
+  const isNumericToken = (w: string) => /^\d+[.)]?$/.test(w)
+  const base = [...words.keys()].filter((i) => !remove.has(i))
+  const withoutType = typeIdx == null ? base : base.filter((i) => i !== typeIdx)
+  const keep =
+    typeIdx != null && !withoutType.some((i) => !isNumericToken(words[i])) ? base : withoutType
+  const titleWords = keep.map((i) => words[i])
+  // Bleibt gar nichts übrig (reine Metadaten-Eingabe), den vollen Text behalten,
+  // damit immer ein Titel da ist.
   draft.title = (titleWords.length ? titleWords : words).join(' ').trim()
   return draft
 }
