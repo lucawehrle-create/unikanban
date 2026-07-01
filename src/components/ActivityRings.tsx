@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Check, Download, Link2, Loader2, MessageCircle, Share2, X } from 'lucide-react'
+import { Check, Download, Instagram, Link2, Loader2, MessageCircle, Share2, X } from 'lucide-react'
 import type { RingStat } from '@/lib/studyPlans'
 
 /**
@@ -430,8 +430,9 @@ export function SharePanel({
 }) {
   const [variant, setVariant] = useState<ShareVariant>('dark')
   const [preview, setPreview] = useState<string | null>(null)
-  const [busy, setBusy] = useState<null | 'share' | 'save'>(null)
+  const [busy, setBusy] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [hint, setHint] = useState('')
   const blobRef = useRef<Blob | null>(null)
   const native = canShareImage()
 
@@ -453,27 +454,54 @@ export function SharePanel({
     }
   }, [rings, overall, scopeLabel, variant, pill])
 
-  const shareImage = async () => {
+  const flash = (msg: string) => {
+    setHint(msg)
+    setTimeout(() => setHint(''), 6000)
+  }
+
+  // Öffnet die native Teilen-Funktion mit dem Bild (mobil: WhatsApp, Instagram,
+  // Stories …). Gibt zurück, ob geteilt werden konnte.
+  const shareFile = async (): Promise<boolean> => {
     const blob = blobRef.current
-    if (!blob) return
-    setBusy('share')
+    if (!blob || !native) return false
+    setBusy(true)
     try {
       const file = new File([blob], 'semban-lernaktivitaet.png', { type: 'image/png' })
       await navigator.share({ files: [file], title: 'Meine Lern-Aktivität', text: SHARE_TEXT })
+      return true
     } catch {
-      /* abgebrochen – nichts tun */
+      return false /* abgebrochen */
     } finally {
-      setBusy(null)
+      setBusy(false)
     }
   }
+
+  const shareImage = () => void shareFile()
 
   const saveImage = () => {
     if (blobRef.current) download(blobRef.current)
   }
 
-  const whatsapp = () => {
+  // WhatsApp: mobil das Bild über die native Teilen-Funktion (dort WhatsApp
+  // wählen), sonst die WhatsApp-Web-Einladung mit unserem Link.
+  const whatsapp = async () => {
+    if (native) {
+      await shareFile()
+      return
+    }
     const text = encodeURIComponent(`${SHARE_TEXT}\n${SHARE_URL}`)
     window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener')
+  }
+
+  // Instagram nimmt kein Bild per Link entgegen: mobil über die native Teilen-
+  // Funktion (dort „Story"/Instagram wählen), am Desktop Bild speichern + Hinweis.
+  const instagram = async () => {
+    if (native) {
+      await shareFile()
+      return
+    }
+    saveImage()
+    flash('Bild gespeichert – jetzt in deiner Instagram-Story posten ✨')
   }
 
   const copyLink = async () => {
@@ -532,52 +560,54 @@ export function SharePanel({
           </button>
         </div>
 
-        {/* Bild teilen / speichern */}
-        <div className="mb-2 flex gap-2">
-          {native && (
-            <button
-              onClick={shareImage}
-              disabled={!preview || busy === 'share'}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-stone-900 py-3 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:opacity-50"
-            >
-              <Share2 size={16} /> Teilen
-            </button>
-          )}
-          <button
-            onClick={saveImage}
-            disabled={!preview}
-            className={`flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition disabled:opacity-50 ${
-              native
-                ? 'w-14 bg-stone-100 text-stone-700 hover:bg-stone-200'
-                : 'flex-1 bg-stone-900 text-white hover:bg-stone-800'
-            }`}
-          >
-            <Download size={16} />
-            {!native && 'Bild speichern'}
-          </button>
-        </div>
+        {/* Primär: native Teilen-Funktion (alle Apps auf einmal) */}
         {native && (
-          <p className="mb-3 text-center text-[11px] text-stone-400">
-            WhatsApp, Instagram, Stories …
-          </p>
+          <button
+            onClick={shareImage}
+            disabled={!preview || busy}
+            className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl bg-stone-900 py-3 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:opacity-50"
+          >
+            <Share2 size={16} /> Teilen
+          </button>
         )}
 
-        {/* Weitersagen */}
-        <div className="mt-3 flex gap-2 border-t border-stone-100 pt-3">
+        {/* Plattform-Schnellziele */}
+        <div className="grid grid-cols-2 gap-2">
           <button
             onClick={whatsapp}
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#25D366]/10 py-2.5 text-sm font-semibold text-[#128C4B] transition hover:bg-[#25D366]/20"
+            disabled={!preview}
+            className="flex items-center justify-center gap-2 rounded-xl bg-[#25D366]/10 py-2.5 text-sm font-semibold text-[#128C4B] transition hover:bg-[#25D366]/20 disabled:opacity-50"
           >
             <MessageCircle size={16} /> WhatsApp
           </button>
           <button
+            onClick={instagram}
+            disabled={!preview}
+            className="flex items-center justify-center gap-2 rounded-xl bg-[#d62976]/10 py-2.5 text-sm font-semibold text-[#c13584] transition hover:bg-[#d62976]/20 disabled:opacity-50"
+          >
+            <Instagram size={16} /> Instagram
+          </button>
+          <button
+            onClick={saveImage}
+            disabled={!preview}
+            className="flex items-center justify-center gap-2 rounded-xl bg-stone-100 py-2.5 text-sm font-semibold text-stone-700 transition hover:bg-stone-200 disabled:opacity-50"
+          >
+            <Download size={16} /> Speichern
+          </button>
+          <button
             onClick={copyLink}
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-stone-100 py-2.5 text-sm font-semibold text-stone-700 transition hover:bg-stone-200"
+            className="flex items-center justify-center gap-2 rounded-xl bg-stone-100 py-2.5 text-sm font-semibold text-stone-700 transition hover:bg-stone-200"
           >
             {copied ? <Check size={16} className="text-green-600" /> : <Link2 size={16} />}
             {copied ? 'Kopiert' : 'Link'}
           </button>
         </div>
+
+        {hint && (
+          <p className="mt-3 rounded-xl bg-brand-50 px-3 py-2 text-center text-[12px] font-medium text-stone-600">
+            {hint}
+          </p>
+        )}
       </div>
     </div>
   )
