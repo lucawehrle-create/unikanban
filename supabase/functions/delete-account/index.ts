@@ -8,7 +8,8 @@
 //   dem geprüften JWT) – niemand kann fremde Konten löschen.
 //
 // Ablauf:
-//   1. Nutzer-ID aus dem (vom Gateway geprüften) JWT lesen.
+//   1. JWT serverseitig via auth.getUser() verifizieren → Nutzer-ID. (Zusätzlich
+//      zur Gateway-JWT-Prüfung; hält auch bei versehentlichem --no-verify-jwt.)
 //   2. parse_timetable_calls best-effort löschen – die einzige Tabelle OHNE
 //      FK-Cascade auf auth.users (reine Rate-Limit-Logs).
 //   3. auth.admin.deleteUser(uid): löscht den Nutzer. Alle übrigen Tabellen
@@ -37,30 +38,22 @@ const json = (body: unknown, status = 200) =>
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   })
 
-/** Nutzer-ID aus dem (vom Gateway bereits geprüften) JWT lesen. */
-function userIdFromJwt(req: Request): string | null {
-  const part = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').split('.')[1]
-  if (!part) return null
-  try {
-    let b64 = part.replace(/-/g, '+').replace(/_/g, '/')
-    while (b64.length % 4) b64 += '='
-    const payload = JSON.parse(atob(b64))
-    return typeof payload.sub === 'string' ? payload.sub : null
-  } catch {
-    return null
-  }
-}
-
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   if (req.method !== 'POST') return json({ error: 'Methode nicht erlaubt.' }, 405)
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY)
     return json({ error: 'Server nicht konfiguriert.' }, 500)
 
-  const uid = userIdFromJwt(req)
-  if (!uid) return json({ error: 'Nicht angemeldet.' }, 401)
-
   const supa = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false } })
+
+  // JWT serverseitig verifizieren (Signatur + Ablauf), nicht bloß dekodieren:
+  // so kann selbst bei versehentlichem --no-verify-jwt-Deploy niemand mit einem
+  // selbstgebauten Token ein fremdes Konto löschen.
+  const jwt = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim()
+  if (!jwt) return json({ error: 'Nicht angemeldet.' }, 401)
+  const { data: userData, error: authErr } = await supa.auth.getUser(jwt)
+  const uid = userData.user?.id
+  if (authErr || !uid) return json({ error: 'Nicht angemeldet.' }, 401)
 
   // Einzige Tabelle ohne Cascade – best effort, Fehler ignorieren.
   try {

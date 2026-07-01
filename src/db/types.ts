@@ -187,6 +187,28 @@ export interface TaskReflection {
   reflectedAt: string
 }
 
+/**
+ * Abonnierter Uni-Kalender (Moodle/StudIP/ILIAS-ICS-Feed). Wird regelmäßig
+ * abgerufen; neue Einzeltermine/Abgaben landen automatisch als Aufgaben.
+ */
+export interface IcsFeed {
+  id: string
+  /** Feed-Adresse (https://…, webcal:// wird beim Anlegen normalisiert). */
+  url: string
+  /** Anzeigename, Standard: Hostname des Feeds. */
+  label: string
+  createdAt: string
+  /** Letzter Abgleich (ISO) – auch bei Fehlern gesetzt (Throttle). */
+  lastSyncAt?: string
+  /** Fehlertext des letzten Abgleichs (undefined = ok). */
+  lastError?: string
+  /** Beim letzten Abgleich neu importierte Termine. */
+  lastNewCount?: number
+  /** Schlüssel (Titel|Tag) aller bereits gesehenen Termine – verhindert, dass
+   *  vom Nutzer gelöschte Aufgaben beim nächsten Abgleich wiederkehren. */
+  importedKeys?: string[]
+}
+
 export interface Task {
   id: string
   semesterId: string
