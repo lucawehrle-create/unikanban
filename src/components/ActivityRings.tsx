@@ -1,3 +1,5 @@
+import { useEffect, useRef, useState } from 'react'
+import { Check, Download, Link2, Loader2, MessageCircle, Share2, X } from 'lucide-react'
 import type { RingStat } from '@/lib/studyPlans'
 
 /**
@@ -349,12 +351,12 @@ function buildShareSVG(
   )
 }
 
-/** Rendert die Story (9:16) als PNG und teilt sie (Web Share API) bzw. lädt sie herunter. */
-export async function shareRings(
+/** Rendert die Story (9:16) als PNG-Blob. */
+export async function renderSharePng(
   rings: RingStat[],
   overall: number,
   opts: { scopeLabel?: string; variant?: ShareVariant; pill?: string } = {},
-): Promise<void> {
+): Promise<Blob | null> {
   const fontCss = await interFontCss()
   const svg = buildShareSVG(
     rings,
@@ -376,30 +378,207 @@ export async function shareRings(
   canvas.width = STORY_W * scale
   canvas.height = STORY_H * scale
   const ctx = canvas.getContext('2d')
-  if (!ctx) return
+  if (!ctx) return null
   ctx.scale(scale, scale)
   ctx.drawImage(img, 0, 0)
-  const blob = await new Promise<Blob | null>((r) => canvas.toBlob((b) => r(b), 'image/png'))
-  if (!blob) return
-  const file = new File([blob], 'semban-lernaktivitaet.png', { type: 'image/png' })
+  return await new Promise<Blob | null>((r) => canvas.toBlob((b) => r(b), 'image/png'))
+}
+
+const SHARE_URL = 'https://semban.de'
+const SHARE_TEXT = 'Meine Klausur-Vorbereitung mit SemBan 📚'
+
+/** Kann der Browser Dateien über die native Teilen-Funktion teilen? (v.a. mobil) */
+export function canShareImage(): boolean {
   try {
     const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean }
-    if (nav.canShare && nav.canShare({ files: [file] })) {
-      await navigator.share({
-        files: [file],
-        title: 'Meine Lern-Aktivität',
-        text: 'Meine Klausur-Vorbereitung in SemBan 📚',
-      })
-      return
-    }
+    if (!nav.canShare) return false
+    const probe = new File([new Uint8Array(1)], 'probe.png', { type: 'image/png' })
+    return nav.canShare({ files: [probe] })
   } catch {
-    /* Nutzer hat abgebrochen oder Teilen nicht erlaubt → Download-Fallback */
+    return false
   }
+}
+
+function download(blob: Blob) {
   const a = document.createElement('a')
   a.href = URL.createObjectURL(blob)
-  a.download = file.name
+  a.download = 'semban-lernaktivitaet.png'
   document.body.appendChild(a)
   a.click()
   a.remove()
   URL.revokeObjectURL(a.href)
+}
+
+/**
+ * Teilen-Dialog: Bild-Stil (Hell/Dunkel) live vorschauen und gezielt teilen –
+ * native Teilen-Funktion (WhatsApp, Instagram, Stories …), Bild speichern,
+ * WhatsApp-Einladung oder Link kopieren. Ersetzt den früheren Dark/Bright-
+ * Umschalter, der wie ein App-Theme-Schalter aussah.
+ */
+export function SharePanel({
+  rings,
+  overall,
+  scopeLabel,
+  pill,
+  onClose,
+}: {
+  rings: RingStat[]
+  overall: number
+  scopeLabel: string
+  pill?: string
+  onClose: () => void
+}) {
+  const [variant, setVariant] = useState<ShareVariant>('dark')
+  const [preview, setPreview] = useState<string | null>(null)
+  const [busy, setBusy] = useState<null | 'share' | 'save'>(null)
+  const [copied, setCopied] = useState(false)
+  const blobRef = useRef<Blob | null>(null)
+  const native = canShareImage()
+
+  // Vorschau (und der zu teilende Blob) bei jedem Stil-Wechsel neu rendern.
+  useEffect(() => {
+    let alive = true
+    let objUrl: string | null = null
+    blobRef.current = null
+    setPreview(null)
+    renderSharePng(rings, overall, { scopeLabel, variant, pill }).then((blob) => {
+      if (!alive || !blob) return
+      blobRef.current = blob
+      objUrl = URL.createObjectURL(blob)
+      setPreview(objUrl)
+    })
+    return () => {
+      alive = false
+      if (objUrl) URL.revokeObjectURL(objUrl)
+    }
+  }, [rings, overall, scopeLabel, variant, pill])
+
+  const shareImage = async () => {
+    const blob = blobRef.current
+    if (!blob) return
+    setBusy('share')
+    try {
+      const file = new File([blob], 'semban-lernaktivitaet.png', { type: 'image/png' })
+      await navigator.share({ files: [file], title: 'Meine Lern-Aktivität', text: SHARE_TEXT })
+    } catch {
+      /* abgebrochen – nichts tun */
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const saveImage = () => {
+    if (blobRef.current) download(blobRef.current)
+  }
+
+  const whatsapp = () => {
+    const text = encodeURIComponent(`${SHARE_TEXT}\n${SHARE_URL}`)
+    window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener')
+  }
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(SHARE_URL)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    } catch {
+      /* Clipboard nicht verfügbar */
+    }
+  }
+
+  const styleBtn = (v: ShareVariant) =>
+    `flex-1 rounded-lg py-1.5 text-xs font-semibold transition ${
+      variant === v ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'
+    }`
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-t-3xl bg-white p-5 shadow-xl sm:rounded-3xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-base font-semibold text-stone-900">Teilen</h3>
+          <button
+            onClick={onClose}
+            aria-label="Schließen"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Vorschau (9:16) */}
+        <div className="mx-auto mb-3 aspect-[9/16] w-40 overflow-hidden rounded-2xl bg-stone-100 ring-1 ring-stone-200">
+          {preview ? (
+            <img src={preview} alt="Vorschau" className="h-full w-full object-cover" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center">
+              <Loader2 size={22} className="animate-spin text-stone-300" />
+            </div>
+          )}
+        </div>
+
+        {/* Stil-Umschalter (nur fürs Bild) */}
+        <div className="mb-4 flex items-center gap-1 rounded-xl bg-stone-100 p-1">
+          <button onClick={() => setVariant('dark')} className={styleBtn('dark')}>
+            Dunkel
+          </button>
+          <button onClick={() => setVariant('cream')} className={styleBtn('cream')}>
+            Hell
+          </button>
+        </div>
+
+        {/* Bild teilen / speichern */}
+        <div className="mb-2 flex gap-2">
+          {native && (
+            <button
+              onClick={shareImage}
+              disabled={!preview || busy === 'share'}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-stone-900 py-3 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:opacity-50"
+            >
+              <Share2 size={16} /> Teilen
+            </button>
+          )}
+          <button
+            onClick={saveImage}
+            disabled={!preview}
+            className={`flex items-center justify-center gap-2 rounded-xl py-3 text-sm font-semibold transition disabled:opacity-50 ${
+              native
+                ? 'w-14 bg-stone-100 text-stone-700 hover:bg-stone-200'
+                : 'flex-1 bg-stone-900 text-white hover:bg-stone-800'
+            }`}
+          >
+            <Download size={16} />
+            {!native && 'Bild speichern'}
+          </button>
+        </div>
+        {native && (
+          <p className="mb-3 text-center text-[11px] text-stone-400">
+            WhatsApp, Instagram, Stories …
+          </p>
+        )}
+
+        {/* Weitersagen */}
+        <div className="mt-3 flex gap-2 border-t border-stone-100 pt-3">
+          <button
+            onClick={whatsapp}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#25D366]/10 py-2.5 text-sm font-semibold text-[#128C4B] transition hover:bg-[#25D366]/20"
+          >
+            <MessageCircle size={16} /> WhatsApp
+          </button>
+          <button
+            onClick={copyLink}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-stone-100 py-2.5 text-sm font-semibold text-stone-700 transition hover:bg-stone-200"
+          >
+            {copied ? <Check size={16} className="text-green-600" /> : <Link2 size={16} />}
+            {copied ? 'Kopiert' : 'Link'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }

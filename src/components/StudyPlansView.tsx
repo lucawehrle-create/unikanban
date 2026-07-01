@@ -9,7 +9,6 @@ import {
   Coffee,
   FileText,
   Layers,
-  Moon,
   Pause,
   Play,
   RotateCcw,
@@ -51,7 +50,7 @@ import {
   type StudySettings,
 } from '@/lib/studyPlans'
 import { Modal } from './Modal'
-import { ActivityRings, readable, shareRings } from './ActivityRings'
+import { ActivityRings, readable, SharePanel } from './ActivityRings'
 import { DatePicker } from './DatePicker'
 import { Select } from './ui/Select'
 import { cn } from '@/lib/cn'
@@ -1168,7 +1167,7 @@ function ActivityOverview({ allTasks, courses }: { allTasks: Task[]; courses: Co
     [allTasks, scopeCourse?.id],
   )
   const [active, setActive] = useState<number | null>(null)
-  const [shareVariant, setShareVariant] = useState<'dark' | 'cream'>('dark')
+  const [shareOpen, setShareOpen] = useState(false)
   const withMaterial = stats.filter((s) => s.total > 0)
   const overall = withMaterial.length
     ? Math.round(withMaterial.reduce((s, r) => s + r.pct, 0) / withMaterial.length)
@@ -1189,9 +1188,6 @@ function ActivityOverview({ allTasks, courses }: { allTasks: Task[]; courses: Co
     return n === 0 ? 'Klausur heute' : n === 1 ? 'Klausur morgen' : `Klausur in ${n} Tagen`
   }, [scopeCourse, planned])
 
-  const doShare = () =>
-    void shareRings(stats, overall, { scopeLabel: shareScope, variant: shareVariant, pill: sharePill })
-
   return (
     <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70 sm:p-5">
       <div className="mb-3 flex items-start justify-between gap-2">
@@ -1203,39 +1199,12 @@ function ActivityOverview({ allTasks, courses }: { allTasks: Task[]; courses: Co
               : 'Abdeckung je Vorbereitungsart über alle Lernpläne'}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          {/* Dunkel/Hell fürs Teilen-Bild */}
-          <div className="flex items-center rounded-full bg-stone-100 p-0.5">
-            <button
-              onClick={() => setShareVariant('dark')}
-              title="Teilen-Bild: Dunkel"
-              aria-pressed={shareVariant === 'dark'}
-              className={cn(
-                'flex h-7 w-7 items-center justify-center rounded-full transition',
-                shareVariant === 'dark' ? 'bg-stone-900 text-white' : 'text-stone-500 hover:text-stone-700',
-              )}
-            >
-              <Moon size={13} />
-            </button>
-            <button
-              onClick={() => setShareVariant('cream')}
-              title="Teilen-Bild: Hell"
-              aria-pressed={shareVariant === 'cream'}
-              className={cn(
-                'flex h-7 w-7 items-center justify-center rounded-full transition',
-                shareVariant === 'cream' ? 'bg-brand-400 text-stone-900' : 'text-stone-500 hover:text-stone-700',
-              )}
-            >
-              <Sun size={13} />
-            </button>
-          </div>
-          <button
-            onClick={doShare}
-            className="flex items-center gap-1.5 rounded-full bg-stone-100 px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:bg-stone-200"
-          >
-            <Share2 size={13} /> Teilen
-          </button>
-        </div>
+        <button
+          onClick={() => setShareOpen(true)}
+          className="flex shrink-0 items-center gap-1.5 rounded-full bg-stone-900 px-3.5 py-1.5 text-xs font-medium text-white transition hover:bg-stone-800"
+        >
+          <Share2 size={13} /> Teilen
+        </button>
       </div>
 
       {/* Umfang: Gesamt vs. einzelner Kurs */}
@@ -1310,6 +1279,16 @@ function ActivityOverview({ allTasks, courses }: { allTasks: Task[]; courses: Co
           })}
         </div>
       </div>
+
+      {shareOpen && (
+        <SharePanel
+          rings={stats}
+          overall={overall}
+          scopeLabel={shareScope}
+          pill={sharePill}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
     </div>
   )
 }
