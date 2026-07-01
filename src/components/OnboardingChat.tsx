@@ -65,7 +65,10 @@ function parseSubject(raw: string): { name: string; type?: ProgramType; fs?: num
   if (/\b(master|m\.?\s?sc|m\.?\s?a|magister)\b/i.test(t)) type = 'master'
   else if (/\b(bachelor|b\.?\s?sc|b\.?\s?a)\b/i.test(t)) type = 'bachelor'
   const fsMatch = t.match(/(\d{1,2})\.?\s*(?:fach)?(?:semester|fs)\b/i)
-  const fs = fsMatch ? Number(fsMatch[1]) : undefined
+  // Nur plausible Fachsemester übernehmen – ein Tippfehler („99. Semester")
+  // würde sonst die ECTS-Schätzung der Studienakte massiv verfälschen.
+  const fsNum = fsMatch ? Number(fsMatch[1]) : NaN
+  const fs = fsNum >= 1 && fsNum <= 20 ? fsNum : undefined
   // Art-/Semester-Wörter aus dem Namen entfernen.
   const name = t
     .replace(/\b(bachelor|master|b\.?\s?sc\.?|m\.?\s?sc\.?|b\.?\s?a\.?|m\.?\s?a\.?|magister)\b/gi, '')
@@ -74,6 +77,19 @@ function parseSubject(raw: string): { name: string; type?: ProgramType; fs?: num
     .replace(/\s{2,}/g, ' ')
     .trim()
   return { name: name || t, type, fs }
+}
+
+/**
+ * Antwort auf „Bachelor oder Master?" einordnen. Neben parseSubject (Bachelor/
+ * Master/Abkürzungen) gelten auch andere deutsche Abschlüsse als „Sonstiges".
+ * undefined = nicht zuordenbar → der Chat fragt nach, statt still zu raten.
+ */
+function parseTypeAnswer(raw: string): ProgramType | undefined {
+  const t = parseSubject(raw).type
+  if (t) return t
+  if (/\b(staatsexamen|staatsex|diplom|lehramt|sonstiges?|anderes?|other|keins?|egal|wei(ß|ss)\s?(nicht|ich nicht)|keine ahnung)\b/i.test(raw))
+    return 'other'
+  return undefined
 }
 
 // 1 = Montag … 7 = Sonntag (Slot-/Recurring-Konvention).
@@ -347,6 +363,9 @@ export function OnboardingChat() {
 
   const bottomRef = useRef<HTMLDivElement>(null)
   const started = useRef(false)
+  // Je 1 freundliche Nachfrage bei unverständlicher Freitext-Antwort; beim
+  // zweiten Mal transparent mit Default weitermachen (kein Nerv-Loop).
+  const retries = useRef({ type: 0, fs: 0 })
   const reviewing = useRef(false) // true, wenn vom Überblick aus Kurse bearbeitet werden
   const maxStep = useRef(0) // höchster erreichter Schritt (für die Fortschrittsleiste)
   const history = useRef<Checkpoint[]>([]) // Zurück-Stapel
@@ -497,9 +516,10 @@ export function OnboardingChat() {
   }
 
   // Kursfrage — Pflicht-Pfad endet hier (alles Weitere ist optional).
-  function goCourses() {
+  // lead: optionale Zeilen davor (z.B. Hinweis „Fachsemester übersprungen").
+  function goCourses(lead: string[] = []) {
     setPhase('boot')
-    void say(['Welche Kurse hast du gerade? 📚', coursesHint()], 'courses')
+    void say([...lead, 'Welche Kurse hast du gerade? 📚', coursesHint()], 'courses')
   }
 
   // Studiengang gesetzt (per Kachel oder Freitext) → direkt zu Abschluss/Kursen.
@@ -531,10 +551,10 @@ export function OnboardingChat() {
   // Nach Bachelor/Master: kurz das Fachsemester (One-Tap) – es speist den
   // ECTS-/Noten-Fortschritt im „Studium". Schon bekannt (aus Freitext)? Dann
   // direkt weiter zu den Kursen.
-  function afterType() {
-    if (draft.current.fs) { goCourses(); return }
+  function afterType(lead: string[] = []) {
+    if (draft.current.fs) { goCourses(lead); return }
     setPhase('boot')
-    void say(['In welchem Fachsemester bist du gerade?'], 'fachsemester')
+    void say([...lead, 'In welchem Fachsemester bist du gerade?'], 'fachsemester')
   }
   function chooseType(t: ProgramType) {
     checkpoint('type')
@@ -546,12 +566,27 @@ export function OnboardingChat() {
   function submitTypeText() {
     const v = text.trim()
     if (!v) return
+    const parsed = parseTypeAnswer(v)
+    // Unverständlich? Einmal freundlich nachfragen statt still „Sonstiges" raten
+    // (sonst startet z.B. die Antwort „Informatik" mit falschem Abschluss).
+    if (!parsed && retries.current.type === 0) {
+      retries.current.type = 1
+      pushUser(v)
+      setText('')
+      setPhase('boot')
+      void say(
+        ['Hmm, das konnte ich keinem Abschluss zuordnen. 🤔', 'Tipp einfach auf Bachelor, Master oder Sonstiges – oder schreib z.B. „Staatsexamen".'],
+        'type',
+      )
+      return
+    }
     checkpoint('type')
-    draft.current.type = parseSubject(v).type ?? 'other'
+    draft.current.type = parsed ?? 'other'
     draft.current.target = TARGET_BY_TYPE[draft.current.type]
     pushUser(v)
     setText('')
-    afterType()
+    // Auch die 2. Antwort unklar → transparent auf „Sonstiges" zurückfallen.
+    afterType(parsed ? [] : ['Alles klar – ich trag „Sonstiges" ein (Ziel 180 ECTS, jederzeit unter „Studium" änderbar).'])
   }
 
   function chooseFs(n: number) {
@@ -563,12 +598,29 @@ export function OnboardingChat() {
   function submitFsText() {
     const v = text.trim()
     if (!v) return
+    // Erste Zahl im Text (nicht alle Ziffern zusammenziehen: „1 von 12" wäre
+    // sonst 112) und auf einen plausiblen Bereich prüfen. Das Fachsemester
+    // speist die ECTS-Schätzung – ein stiller Fehlwert verfälscht die Studienakte.
+    const m = v.match(/\d{1,2}/)
+    const n = m ? parseInt(m[0], 10) : NaN
+    const valid = Number.isFinite(n) && n >= 1 && n <= 20
+    if (!valid && retries.current.fs === 0) {
+      retries.current.fs = 1
+      pushUser(v)
+      setText('')
+      setPhase('boot')
+      void say(
+        ['Da habe ich keine Semester-Zahl erkannt. 🤔 Tipp auf eine der Zahlen – oder schreib z.B. „12".'],
+        'fachsemester',
+      )
+      return
+    }
     checkpoint('fachsemester')
-    const n = parseInt(v.replace(/\D/g, ''), 10)
-    draft.current.fs = Number.isFinite(n) ? n : 0
+    draft.current.fs = valid ? n : 0
     pushUser(v)
     setText('')
-    goCourses()
+    // Auch die 2. Antwort unklar → Schritt transparent überspringen.
+    goCourses(valid ? [] : ['Kein Problem, das überspringen wir – du kannst es später unter „Studium" nachtragen.'])
   }
 
   function chooseSemester(name: string) {
