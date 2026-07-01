@@ -25,6 +25,9 @@ export function DataSection() {
     setError('')
     try {
       await importBackup(await file.text())
+      // Importierte Daten sind echte Daten: Demo-Modus beenden, sonst bliebe das
+      // Demo-Banner stehen und „Eigenes Studium starten" würde sie wieder löschen.
+      useUI.getState().setDemo(false)
       note('Backup wiederhergestellt.')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Import fehlgeschlagen.')

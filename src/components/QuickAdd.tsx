@@ -109,6 +109,7 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
   // true, solange der zuletzt automatisch ergänzte Rest markiert ist.
   const [inlineActive, setInlineActive] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const submittingRef = useRef(false)
 
   const draft = useMemo(() => parseQuickAdd(value, courses), [value, courses])
   const course = draft.courseId ? courses.find((c) => c.id === draft.courseId) : undefined
@@ -233,16 +234,24 @@ export function QuickAdd({ semesterId, courses }: QuickAddProps) {
   async function submit() {
     const title = draft.title.trim()
     if (!title) return
-    await createTask({
-      semesterId,
-      title,
-      type: draft.type ?? 'sonstiges',
-      courseId: draft.courseId,
-      dueDate: draft.dueDate,
-      priority: draft.priority,
-    })
-    setValue('')
-    setCaret(0)
+    // Doppel-Absenden verhindern (Enter-Wiederholung/Klick während des await),
+    // sonst entsteht ein Duplikat.
+    if (submittingRef.current) return
+    submittingRef.current = true
+    try {
+      await createTask({
+        semesterId,
+        title,
+        type: draft.type ?? 'sonstiges',
+        courseId: draft.courseId,
+        dueDate: draft.dueDate,
+        priority: draft.priority,
+      })
+      setValue('')
+      setCaret(0)
+    } finally {
+      submittingRef.current = false
+    }
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {

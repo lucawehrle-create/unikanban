@@ -2,6 +2,7 @@ import {
   addDays,
   addWeeks,
   differenceInCalendarDays,
+  endOfDay,
   format,
   isWithinInterval,
   parseISO,
@@ -84,8 +85,10 @@ export function getPhaseInfo(semester: Semester, now: Date = new Date()): PhaseI
     ? { phase: nextExamPhase, daysUntil: differenceInCalendarDays(parseISO(nextExamPhase.start), now) }
     : undefined
 
+  // Ende inklusive des ganzen letzten Tages: e.end ist ein Kalenderdatum, sonst
+  // fiele der komplette Schlusstag (ab 00:00:01) aus der Klausurenphase heraus.
   const currentExam = exams.find((e) =>
-    isWithinInterval(now, { start: parseISO(e.start), end: parseISO(e.end) }),
+    isWithinInterval(now, { start: parseISO(e.start), end: endOfDay(parseISO(e.end)) }),
   )
   if (currentExam) {
     return { phase: 'klausurphase', label: currentExam.label, weeks: semester.weeks, currentExam, nextExam }

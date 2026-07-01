@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect } from 'react'
+import { type ReactNode, useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
 
 interface ModalProps {
@@ -8,13 +8,36 @@ interface ModalProps {
   footer?: ReactNode
 }
 
+// Stapel offener Modals: Bei gestapelten Modals (z.B. Reflexion über dem
+// Aufgaben-Editor) darf Escape nur das OBERSTE schließen – sonst reagieren beide
+// window-Listener und das darunterliegende Modal schließt unerwartet mit.
+const modalStack: symbol[] = []
+
 export function Modal({ title, onClose, children, footer }: ModalProps) {
+  const idRef = useRef<symbol>()
+  if (!idRef.current) idRef.current = Symbol('modal')
+
+  // Nur bei Mount/Unmount auf dem Stapel ein-/austragen (nicht bei jedem Render,
+  // sonst würde ein neu erzeugtes onClose die Reihenfolge durcheinanderbringen).
+  useEffect(() => {
+    const id = idRef.current!
+    modalStack.push(id)
+    return () => {
+      const i = modalStack.indexOf(id)
+      if (i >= 0) modalStack.splice(i, 1)
+    }
+  }, [])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       // Hat ein offenes Popover (Select/DatePicker/TimeField) das Escape schon
       // verarbeitet (preventDefault), schließt das Modal NICHT mit – sonst gingen
       // Formulareingaben verloren, statt nur das Popover zu schließen.
-      if (e.key === 'Escape' && !e.defaultPrevented) onClose()
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      // Nur das oberste Modal schließen.
+      if (modalStack[modalStack.length - 1] !== idRef.current) return
+      e.preventDefault()
+      onClose()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)

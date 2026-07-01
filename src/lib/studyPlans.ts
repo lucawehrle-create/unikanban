@@ -303,7 +303,11 @@ function sodMs(d: Date): number {
   return x.getTime()
 }
 function weekKeyOf(d: Date): number {
-  return Math.floor((sodMs(d) - WEEK_REF) / 604800000)
+  // Erst in ganze Kalendertage umrechnen (DST-sicher: eine Woche über die Zeit-
+  // umstellung hat nicht exakt 604800000 ms – sonst verschöbe sich die Wochen-
+  // grenze und Montage fielen ins Vorwochen-Budget), dann durch 7 teilen.
+  const days = Math.round((sodMs(d) - WEEK_REF) / 86400000)
+  return Math.floor(days / 7)
 }
 function isoWeekday(d: Date): number {
   return ((d.getDay() + 6) % 7) + 1

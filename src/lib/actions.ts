@@ -28,17 +28,23 @@ export async function toggleAttendanceMarker(
   marker: AttendanceMarker,
 ): Promise<void> {
   const id = attendanceKey(slotId, date)
-  const rec = await db.attendance.get(id)
-  let markers = rec?.markers ?? []
-  if (markers.includes(marker)) {
-    markers = markers.filter((m) => m !== marker)
-  } else {
-    markers = [...markers, marker]
-    if (marker === 'besucht') markers = markers.filter((m) => m !== 'nicht_besucht')
-    if (marker === 'nicht_besucht') markers = markers.filter((m) => m !== 'besucht')
-  }
-  if (markers.length === 0) await db.attendance.delete(id)
-  else await db.attendance.put({ id, semesterId, slotId, date, markers })
+  // Read-modify-write in einer Transaktion serialisieren: das Menü ruft die
+  // Funktion „fire-and-forget" auf; zwei schnelle Klicks (z.B. „vorbereitet"
+  // dann „besucht") würden sonst beide denselben Stand lesen und der zweite
+  // Write den ersten Marker überschreiben (Lost Update).
+  await db.transaction('rw', db.attendance, async () => {
+    const rec = await db.attendance.get(id)
+    let markers = rec?.markers ?? []
+    if (markers.includes(marker)) {
+      markers = markers.filter((m) => m !== marker)
+    } else {
+      markers = [...markers, marker]
+      if (marker === 'besucht') markers = markers.filter((m) => m !== 'nicht_besucht')
+      if (marker === 'nicht_besucht') markers = markers.filter((m) => m !== 'besucht')
+    }
+    if (markers.length === 0) await db.attendance.delete(id)
+    else await db.attendance.put({ id, semesterId, slotId, date, markers })
+  })
 }
 
 /** Entfernt alle Marker einer Termin-Sitzung. */
@@ -88,12 +94,14 @@ export async function saveProgram(program: Program): Promise<void> {
 }
 
 export async function deleteProgram(id: string): Promise<void> {
-  await db.transaction('rw', db.programs, db.semesters, db.courses, db.tasks, async () => {
+  await db.transaction('rw', db.programs, db.semesters, db.courses, db.tasks, db.attendance, async () => {
     const wasActive = (await db.programs.get(id))?.active ?? false
     const sems = await db.semesters.where('programId').equals(id).toArray()
     for (const s of sems) {
       await db.courses.where('semesterId').equals(s.id).delete()
       await db.tasks.where('semesterId').equals(s.id).delete()
+      // Anwesenheits-Einträge des Semesters mitentfernen (sonst verwaiste Rows).
+      await db.attendance.where('semesterId').equals(s.id).delete()
     }
     await db.semesters.where('programId').equals(id).delete()
     await db.programs.delete(id)
@@ -151,10 +159,12 @@ export async function saveSemester(semester: Semester): Promise<void> {
 
 /** Löscht ein Semester samt seinen Kursen & Aufgaben. Aktiviert ggf. ein anderes. */
 export async function deleteSemester(id: string): Promise<void> {
-  await db.transaction('rw', db.programs, db.semesters, db.courses, db.tasks, async () => {
+  await db.transaction('rw', db.programs, db.semesters, db.courses, db.tasks, db.attendance, async () => {
     const sem = await db.semesters.get(id)
     await db.courses.where('semesterId').equals(id).delete()
     await db.tasks.where('semesterId').equals(id).delete()
+    // Anwesenheits-Einträge des Semesters mitentfernen (sonst verwaiste Rows).
+    await db.attendance.where('semesterId').equals(id).delete()
     await db.semesters.delete(id)
     if (sem?.active) {
       // Bevorzugt ein Semester desselben Studiengangs aktivieren, sonst irgendeines –

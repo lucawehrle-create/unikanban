@@ -711,6 +711,10 @@ function ProgramForm({
   const [semName, setSemName] = useState('')
 
   async function submit() {
+    // „davon benotet" kann nie mehr sein als die gesamten Vor-ECTS – sonst
+    // wären mehr ECTS benotet als überhaupt erbracht (interne Inkonsistenz in
+    // Schnitt/Prognose). Leeres Feld = „alle benotet".
+    const gradedPrior = Math.min(priorGraded || priorEcts, priorEcts) || undefined
     if (isNew) {
       const pid = await createProgram({
         name,
@@ -718,7 +722,7 @@ function ProgramForm({
         targetEcts: target,
         priorEcts: priorEcts || undefined,
         priorGradeAvg: priorAvg ? clampGrade(priorAvg) : undefined,
-        priorGradedEcts: (priorGraded || priorEcts) || undefined,
+        priorGradedEcts: gradedPrior,
       })
       await createSemester({
         programId: pid,
