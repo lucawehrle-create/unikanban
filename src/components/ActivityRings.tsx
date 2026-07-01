@@ -347,7 +347,7 @@ function buildShareSVG(
     // Footer-Lockup, exakt zentriert (Logo → Wortmarke → Handle)
     `<g filter='url(#footShadow)'>${logoSvg(cx - 34, 1652, 68, dark)}</g>` +
     `<text x='${cx}' y='1758' text-anchor='middle' font-size='44' font-weight='800' letter-spacing='-1' fill='${pal.text}'>SemBan</text>` +
-    `<text x='${cx}' y='1798' text-anchor='middle' font-size='26' font-weight='600' letter-spacing='0.2' fill='${pal.handle}'>@semban · semban.de</text>` +
+    `<text x='${cx}' y='1798' text-anchor='middle' font-size='26' font-weight='600' letter-spacing='0.2' fill='${pal.handle}'>semban.de</text>` +
     `</svg>`
   )
 }
