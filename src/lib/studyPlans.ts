@@ -829,8 +829,6 @@ export function planProgress(allTasks: Task[], courseId: string): PlanProgress {
   return { total, done, open, overdue, pct: total ? Math.round((done / total) * 100) : 0 }
 }
 
-// --- Klausur-Bereitschaft ---------------------------------------------------
-
 // --- Lern-Aktivität (Apple-Activity-Ringe) ----------------------------------
 
 export interface RingStat {
@@ -869,15 +867,17 @@ export function computeRingStats(allTasks: Task[], courseId?: string): RingStat[
     if (t.status === 'erledigt') a.done++
     acc.set(kind, a)
   }
-  return RING_ORDER.map((kind) => {
-    const a = acc.get(kind) ?? { done: 0, total: 0 }
+  // Nur Kategorien zeigen, die im Plan tatsächlich vorkommen (kein Ring/keine
+  // Zeile für z.B. Tutorien oder Klausuren, wenn es davon nichts gibt).
+  return RING_ORDER.filter((kind) => (acc.get(kind)?.total ?? 0) > 0).map((kind) => {
+    const a = acc.get(kind)!
     return {
       kind,
       label: RING_LABEL[kind],
       color: KIND_META[kind].color,
       done: a.done,
       total: a.total,
-      pct: a.total ? Math.round((a.done / a.total) * 100) : 0,
+      pct: Math.round((a.done / a.total) * 100),
     }
   })
 }
@@ -929,75 +929,6 @@ function kindOfTask(t: Task): ItemKind | null {
   if (t.type === 'altklausur') return 'altklausur'
   if (t.type === 'karteikarten') return 'karten'
   return null
-}
-
-// Gewicht der Lernbereiche für die Bereitschaft: Kernverständnis (Kapitel) und
-// Klausursimulation (Altklausuren) zählen am stärksten, Karteikarten sind nur
-// eine tägliche Gewohnheit und fließen NICHT in den Wert ein.
-const READINESS_WEIGHT: Partial<Record<ItemKind, number>> = {
-  kapitel: 0.35,
-  altklausur: 0.25,
-  uebung: 0.25,
-  tut: 0.15,
-}
-// Reihenfolge der Bereiche in der Anzeige.
-const READINESS_ORDER: ItemKind[] = ['kapitel', 'uebung', 'tut', 'altklausur']
-
-export interface ReadinessArea {
-  kind: ItemKind
-  label: string
-  done: number
-  total: number
-  pct: number
-}
-export interface Readiness {
-  /** Gewichtete Material-Abdeckung 0–100 („wie bereit"). */
-  pct: number
-  /** Bereiche mit Material (in Anzeige-Reihenfolge). */
-  areas: ReadinessArea[]
-  /** Schwächster Bereich mit Material (niedrigste Abdeckung). */
-  weakest?: ReadinessArea
-  /** Ob überhaupt gewichtetes Material vorhanden ist. */
-  hasMaterial: boolean
-}
-
-/**
- * „Klausur-Bereitschaft": gewichtete Abdeckung des Kernmaterials (Kapitel,
- * Übungen/Tutorien, Altklausuren) – aussagekräftiger als die reine Session-Zahl,
- * weil z.B. viele Karteikarten ohne Altklausuren nicht „bereit" bedeuten.
- */
-export function computeReadiness(allTasks: Task[], courseId: string): Readiness {
-  const acc = new Map<ItemKind, { done: number; total: number }>()
-  for (const t of allTasks) {
-    if (t.examId !== courseId) continue
-    const kind = kindOfTask(t)
-    if (!kind || READINESS_WEIGHT[kind] == null) continue // Karten & Unbekanntes raus
-    const a = acc.get(kind) ?? { done: 0, total: 0 }
-    a.total++
-    if (t.status === 'erledigt') a.done++
-    acc.set(kind, a)
-  }
-  const areas: ReadinessArea[] = []
-  let wSum = 0
-  let wCov = 0
-  for (const kind of READINESS_ORDER) {
-    const a = acc.get(kind)
-    if (!a || a.total === 0) continue
-    const cov = a.done / a.total
-    const w = READINESS_WEIGHT[kind]!
-    wSum += w
-    wCov += w * cov
-    areas.push({ kind, label: KIND_META[kind].label, done: a.done, total: a.total, pct: Math.round(cov * 100) })
-  }
-  const weakest = areas.length
-    ? areas.reduce((min, a) => (a.pct < min.pct ? a : min), areas[0])
-    : undefined
-  return {
-    pct: wSum ? Math.round((wCov / wSum) * 100) : 0,
-    areas,
-    weakest,
-    hasMaterial: wSum > 0,
-  }
 }
 
 /**

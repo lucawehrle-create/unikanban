@@ -30,7 +30,6 @@ import { useUI, getStudySettings } from '@/store/ui'
 import {
   KIND_META,
   STRATEGY_META,
-  computeReadiness,
   computeRingStats,
   previewCoursePlan,
   cardMinutesPerDay,
@@ -194,37 +193,6 @@ function NumField({
       onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur() }}
       className={className}
     />
-  )
-}
-
-/** Ring-Anzeige der Klausur-Bereitschaft. Bewusst ruhig grün (Wachstum), nicht
- *  rot/grün-alarmierend: früh wenig gelernt zu haben ist normal – das Tempo
- *  zeigt die „im Plan/überfällig"-Zeile, nicht dieser Wert. */
-function ReadinessRing({ pct }: { pct: number }) {
-  const r = 20
-  const circ = 2 * Math.PI * r
-  const off = circ * (1 - Math.min(100, Math.max(0, pct)) / 100)
-  return (
-    <div className="relative h-14 w-14 shrink-0">
-      <svg viewBox="0 0 48 48" className="h-14 w-14 -rotate-90">
-        <circle cx="24" cy="24" r={r} fill="none" stroke="#e7e5e4" strokeWidth="4" />
-        <circle
-          cx="24"
-          cy="24"
-          r={r}
-          fill="none"
-          stroke="#10b981"
-          strokeWidth="4"
-          strokeLinecap="round"
-          strokeDasharray={circ}
-          strokeDashoffset={off}
-          className="transition-all"
-        />
-      </svg>
-      <span className="absolute inset-0 flex items-center justify-center text-sm font-bold tabular-nums text-stone-800">
-        {pct}
-      </span>
-    </div>
   )
 }
 
@@ -733,7 +701,6 @@ function PlanEditor({
 
   const planned = planSessionCount(allTasks, course.id)
   const progress = planProgress(allTasks, course.id)
-  const readiness = computeReadiness(allTasks, course.id)
   const examDays = differenceInCalendarDays(parseISO(cfg.examDate), new Date())
 
   const catchUp = async () => {
@@ -770,62 +737,6 @@ function PlanEditor({
             Datum &amp; Material eintragen, Tempo wählen, „Lernplan anlegen" – ich verteile alles bis
             zur Klausur. Deine Übungsblätter sind automatisch zur Wiederholung dabei.
           </p>
-        </div>
-      )}
-
-      {/* Klausur-Bereitschaft (nur bei aktivem Plan) */}
-      {planned > 0 && (
-        <div className="rounded-xl bg-stone-50 p-3.5 ring-1 ring-stone-200/60">
-          <div className="flex items-center gap-3.5">
-            {readiness.hasMaterial ? (
-              <ReadinessRing pct={readiness.pct} />
-            ) : (
-              <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-stone-200 text-sm font-bold tabular-nums text-stone-500">
-                {progress.pct}
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline justify-between gap-2">
-                <span className="text-sm font-semibold text-stone-800">Klausur-Bereitschaft</span>
-                <span className="shrink-0 text-xs tabular-nums text-stone-500">
-                  {progress.done}/{progress.total} Sessions
-                </span>
-              </div>
-              {readiness.hasMaterial ? (
-                <div className="mt-1.5 space-y-1">
-                  {readiness.areas.map((a) => (
-                    <div key={a.kind} className="flex items-center gap-2">
-                      <span className="w-24 shrink-0 text-[11px] text-stone-500">{a.label}</span>
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-stone-200">
-                        <div
-                          className="h-full rounded-full transition-all"
-                          style={{ width: `${a.pct}%`, backgroundColor: KIND_META[a.kind].color }}
-                        />
-                      </div>
-                      <span className="w-10 shrink-0 text-right text-[11px] tabular-nums text-stone-500">
-                        {a.done}/{a.total}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-stone-200">
-                  <div
-                    className="h-full rounded-full bg-emerald-500 transition-all"
-                    style={{ width: `${progress.pct}%` }}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
-
-          {readiness.pct > 0 && readiness.weakest && readiness.weakest.pct < 100 && (
-            <div className="mt-2.5 text-[11px] text-stone-500">
-              Schwächste Stelle:{' '}
-              <span className="font-medium text-stone-700">{readiness.weakest.label}</span> (
-              {readiness.weakest.done}/{readiness.weakest.total} erledigt)
-            </div>
-          )}
         </div>
       )}
 
