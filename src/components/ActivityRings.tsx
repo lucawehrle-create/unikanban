@@ -155,23 +155,49 @@ async function interFontCss(): Promise<string> {
   return _fontCss
 }
 
-// Sem (Maskottchen) einmal als base64-Data-URL laden und cachen, damit er ins
-// Story-SVG eingebettet werden kann (externe URLs lädt der SVG-<img>-Rasterizer
-// nicht). Fällt bei Fehler still auf '' zurück (dann kein Sem im Bild).
-let _semUrl: string | null = null
-async function semShareDataUrl(): Promise<string> {
-  if (_semUrl != null) return _semUrl
+// Sem (Maskottchen) als base64-Data-URL laden und cachen, damit er ins Story-SVG
+// eingebettet werden kann (externe URLs lädt der SVG-<img>-Rasterizer nicht).
+// Die Pose richtet sich nach dem Gesamt-Fortschritt: enttäuscht → Daumen hoch →
+// feiert. Fehlt eine Pose, wird auf die Winke-Pose zurückgegriffen.
+const SHARE_POSES: Record<'sad' | 'ok' | 'win', string> = {
+  sad: '/mascot/sem-sad.webp',
+  ok: '/mascot/sem-happy.webp',
+  win: '/mascot/sem-cheer.webp',
+}
+function sharePoseKey(overall: number): 'sad' | 'ok' | 'win' {
+  if (overall <= 24) return 'sad'
+  if (overall <= 74) return 'ok'
+  return 'win'
+}
+async function fetchAsDataUrl(path: string): Promise<string> {
+  const res = await fetch(path)
+  if (!res.ok) throw new Error('asset')
+  const buf = new Uint8Array(await res.arrayBuffer())
+  // Echtes WebP? (RIFF…WEBP). Fehlt die Datei, liefern SPA-Server oft index.html
+  // mit Status 200 – das würde sonst als kaputtes Bild eingebettet.
+  const isWebp =
+    buf.length > 12 &&
+    buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+    buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50
+  if (!isWebp) throw new Error('not-webp')
+  let bin = ''
+  for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i])
+  return `data:image/webp;base64,${btoa(bin)}`
+}
+const _poseCache: Record<string, string> = {}
+async function semShareDataUrl(overall: number): Promise<string> {
+  const key = sharePoseKey(overall)
+  if (_poseCache[key] != null) return _poseCache[key]
   try {
-    const res = await fetch('/mascot/sem-wave.webp')
-    if (!res.ok) throw new Error('sem')
-    const buf = new Uint8Array(await res.arrayBuffer())
-    let bin = ''
-    for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i])
-    _semUrl = `data:image/webp;base64,${btoa(bin)}`
+    _poseCache[key] = await fetchAsDataUrl(SHARE_POSES[key])
   } catch {
-    _semUrl = ''
+    try {
+      _poseCache[key] = await fetchAsDataUrl('/mascot/sem-wave.webp')
+    } catch {
+      _poseCache[key] = ''
+    }
   }
-  return _semUrl
+  return _poseCache[key]
 }
 
 // Story-Format (9:16) – teilbar für Instagram/Facebook Stories.
@@ -270,17 +296,18 @@ function buildShareSVG(
     })
     .join('')
 
-  // Legende: Punkt + Label + große %-Zahl.
-  const legendStartY = 1296
-  const rowH = 80
+  // Legende: kompakter Block LINKS (Punkt + Label + %-Zahl), damit rechts Platz
+  // für Sem bleibt.
+  const legendStartY = 1300
+  const rowH = 74
   const legend = rings
     .map((r, i) => {
       const y = legendStartY + i * rowH
       const pctCol = dark ? r.color : readable(r.color)
       return (
-        `<circle cx='176' cy='${y - 14}' r='16' fill='${r.color}'/>` +
-        `<text x='218' y='${y}' font-size='44' font-weight='600' letter-spacing='-0.5' fill='${pal.legendLabel}'>${esc(r.label)}</text>` +
-        `<text x='904' y='${y}' text-anchor='end' font-size='50' font-weight='800' letter-spacing='-1' fill='${pctCol}'>${r.pct}%</text>`
+        `<circle cx='150' cy='${y - 14}' r='14' fill='${r.color}'/>` +
+        `<text x='186' y='${y}' font-size='40' font-weight='600' letter-spacing='-0.5' fill='${pal.legendLabel}'>${esc(r.label)}</text>` +
+        `<text x='566' y='${y}' text-anchor='end' font-size='46' font-weight='800' letter-spacing='-1' fill='${pctCol}'>${r.pct}%</text>`
       )
     })
     .join('')
@@ -296,6 +323,7 @@ function buildShareSVG(
 
   const filters =
     `<filter id='glow' x='-45%' y='-45%' width='190%' height='190%'><feGaussianBlur stdDeviation='${glowStd}'/></filter>` +
+    `<filter id='soft' x='-60%' y='-60%' width='220%' height='220%'><feGaussianBlur stdDeviation='14'/></filter>` +
     (dark
       ? `<filter id='heroShadow' x='-30%' y='-30%' width='160%' height='160%'><feDropShadow dx='0' dy='0' stdDeviation='8' flood-color='#07071c' flood-opacity='0.5'/></filter>` +
         `<filter id='footShadow' x='-40%' y='-40%' width='180%' height='180%'><feDropShadow dx='0' dy='4' stdDeviation='12' flood-color='#000000' flood-opacity='0.35'/></filter>`
@@ -348,13 +376,18 @@ function buildShareSVG(
       })()
     : ''
 
-  // Sem (Maskottchen) unten rechts als sympathische Signatur – „präsentiert"
-  // die Statistik. preserveAspectRatio unten-bündig, damit er auf der Grundlinie steht.
-  const semSize = 360
-  const semX = STORY_W - semSize + 26
-  const semY = STORY_H - semSize - 70
+  // Sem (Maskottchen): eigene Zone unten RECHTS, auf einem Bodenschatten „stehend"
+  // – wirkt komponiert statt in die Ecke geklebt. Pose kommt via semUrl (nach %).
+  const semSize = 470
+  const semCX = 842
+  const semBaseY = 1818 // Fuß-Grundlinie
+  const semX = semCX - semSize / 2
+  const semY = semBaseY - semSize
+  const groundCol = dark ? '#050518' : '#7a5c10'
+  const groundOp = dark ? 0.55 : 0.2
   const semSvg = semUrl
-    ? `<g filter='url(#footShadow)'><image href='${semUrl}' xlink:href='${semUrl}' x='${semX}' y='${semY}' width='${semSize}' height='${semSize}' preserveAspectRatio='xMidYMax meet'/></g>`
+    ? `<ellipse cx='${semCX}' cy='${semBaseY - 4}' rx='168' ry='30' fill='${groundCol}' opacity='${groundOp}' filter='url(#soft)'/>` +
+      `<g filter='url(#footShadow)'><image href='${semUrl}' xlink:href='${semUrl}' x='${semX}' y='${semY}' width='${semSize}' height='${semSize}' preserveAspectRatio='xMidYMax meet'/></g>`
     : ''
 
   return (
@@ -375,11 +408,11 @@ function buildShareSVG(
     legend +
     // Sem als Signatur (vor dem Footer, damit der Footer nicht verdeckt wird)
     semSvg +
-    // Footer-Lockup, exakt zentriert (Logo → Wortmarke → Adresse). Mehr Luft
-    // zwischen Logo und Textblock, damit es nicht ineinander hängt.
-    `<g filter='url(#footShadow)'>${logoSvg(cx - 29, 1628, 58, dark)}</g>` +
-    `<text x='${cx}' y='1752' text-anchor='middle' font-size='44' font-weight='800' letter-spacing='-1' fill='${pal.text}'>SemBan</text>` +
-    `<text x='${cx}' y='1792' text-anchor='middle' font-size='26' font-weight='600' letter-spacing='0.2' fill='${pal.handle}'>semban.de</text>` +
+    // Footer-Lockup unten LINKS (Logo + Wortmarke/Adresse) – bildet mit Sem
+    // rechts eine ausbalancierte Grundlinie.
+    `<g filter='url(#footShadow)'>${logoSvg(150, 1712, 54, dark)}</g>` +
+    `<text x='222' y='1748' font-size='40' font-weight='800' letter-spacing='-1' fill='${pal.text}'>SemBan</text>` +
+    `<text x='222' y='1790' font-size='24' font-weight='600' letter-spacing='0.2' fill='${pal.handle}'>semban.de</text>` +
     `</svg>`
   )
 }
@@ -422,7 +455,7 @@ export async function renderSharePng(
   overall: number,
   opts: { scopeLabel?: string; variant?: ShareVariant; pill?: string } = {},
 ): Promise<Blob | null> {
-  const [fontCss, semUrl] = await Promise.all([interFontCss(), semShareDataUrl()])
+  const [fontCss, semUrl] = await Promise.all([interFontCss(), semShareDataUrl(overall)])
   const make = (css: string) =>
     buildShareSVG(
       rings,
