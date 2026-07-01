@@ -176,6 +176,7 @@ function buildShareSVG(
   overall: number,
   scopeLabel: string,
   variant: ShareVariant,
+  pill?: string,
 ): string {
   const dark = variant !== 'cream'
   const cx = STORY_W / 2
@@ -263,12 +264,27 @@ function buildShareSVG(
   const sub = `${scopeLabel} · Klausur-Vorbereitung`
   const brag = bragFor(rings, overall)
 
+  // „Klausur in N Tagen"-Pill oben rechts (nur wenn ein Klausurdatum vorliegt).
+  const pillSvg = pill
+    ? (() => {
+        const pw = Math.round(pill.length * 16.5 + 64)
+        const px = 960 - pw
+        const fill = dark ? '#f5c645' : '#2a2a6e'
+        const tcol = dark ? '#2a2a6e' : '#fdfcf7'
+        return (
+          `<rect x='${px}' y='298' width='${pw}' height='58' rx='29' fill='${fill}'/>` +
+          `<text x='${px + pw / 2}' y='337' text-anchor='middle' font-size='30' font-weight='700' fill='${tcol}'>${esc(pill)}</text>`
+        )
+      })()
+    : ''
+
   return (
     `<svg xmlns='http://www.w3.org/2000/svg' width='${STORY_W}' height='${STORY_H}' viewBox='0 0 ${STORY_W} ${STORY_H}' font-family='${SHARE_FONT}'>` +
     bg +
-    // Top-Lockup (unter dem Plattform-Namensband)
+    // Top-Lockup (unter dem Plattform-Namensband) + optionales Klausur-Pill
     logoSvg(120, 292, 60, dark) +
     `<text x='196' y='340' font-size='44' font-weight='800' fill='${pal.text}'>SemBan</text>` +
+    pillSvg +
     // Headline + Sub
     `<text x='${cx}' y='474' text-anchor='middle' font-size='64' font-weight='800' fill='${pal.text}'>${esc(headline)}</text>` +
     `<text x='${cx}' y='532' text-anchor='middle' font-size='32' font-weight='500' fill='${pal.sub}'>${esc(sub)}</text>` +
@@ -291,9 +307,15 @@ function buildShareSVG(
 export async function shareRings(
   rings: RingStat[],
   overall: number,
-  opts: { scopeLabel?: string; variant?: ShareVariant } = {},
+  opts: { scopeLabel?: string; variant?: ShareVariant; pill?: string } = {},
 ): Promise<void> {
-  const svg = buildShareSVG(rings, overall, opts.scopeLabel ?? 'Alle Lernpläne', opts.variant ?? 'dark')
+  const svg = buildShareSVG(
+    rings,
+    overall,
+    opts.scopeLabel ?? 'Alle Lernpläne',
+    opts.variant ?? 'dark',
+    opts.pill,
+  )
   const url = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)))
   const img = new Image()
   await new Promise<void>((resolve, reject) => {
