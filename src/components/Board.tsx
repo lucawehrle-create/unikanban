@@ -227,6 +227,7 @@ export function Board({ tasks, courses, hasTasks }: BoardProps) {
       return (
         <EmptyState
           icon={<ListPlus size={26} />}
+          mascot="wave"
           title="Noch keine Aufgaben"
           description="Erfasse oben deine erste Aufgabe – tipp einfach den Titel. Oder lass dir aus deinen Kursen automatisch wöchentliche Aufgaben erstellen."
           primary={{

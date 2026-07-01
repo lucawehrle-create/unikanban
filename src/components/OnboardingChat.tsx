@@ -1,7 +1,7 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
 import { startOfWeek, format } from 'date-fns'
 import { ArrowLeft, Check, ChevronDown, Clock, FileText, Loader2, MapPin, Paperclip, Pencil, Send, Sparkles, X } from 'lucide-react'
-import { Logo } from './Logo'
+import { MascotAvatar } from './Mascot'
 import type { Course, CourseSlot, ProgramType, RecurringConfig, Task } from '@/db/types'
 import { db, uid } from '@/db/db'
 import { createProgram, createSemester } from '@/lib/actions'
@@ -457,7 +457,7 @@ export function OnboardingChat() {
         return
       }
     } catch { /* defekter Speicher → frisch starten */ }
-    void say(['Hi! 👋 In 30 Sekunden startklar — was studierst du?'], 'subject')
+    void say(['Hi, ich bin Sem! 👋 In 30 Sekunden startklar — was studierst du?'], 'subject')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -1133,10 +1133,10 @@ export function OnboardingChat() {
             <ArrowLeft size={18} />
           </button>
         )}
-        <Logo size={34} />
+        <MascotAvatar size={36} />
         <div className="leading-tight">
-          <div className="text-sm font-bold text-stone-800">SemBan-Assistent</div>
-          <div className="text-[11px] text-stone-400">Richtet dein Semester ein</div>
+          <div className="text-sm font-bold text-stone-800">Sem</div>
+          <div className="text-[11px] text-stone-400">Dein Lernbegleiter</div>
         </div>
         <button
           onClick={() => void loadDemo()}
@@ -1158,7 +1158,7 @@ export function OnboardingChat() {
 
       {/* Verlauf */}
       <div className="flex-1 overflow-y-auto px-4 py-5">
-        <div className="mx-auto flex max-w-xl flex-col gap-2.5" role="log" aria-live="polite" aria-label="Gespräch mit dem SemBan-Assistenten">
+        <div className="mx-auto flex max-w-xl flex-col gap-2.5" role="log" aria-live="polite" aria-label="Gespräch mit Sem">
           {msgs.map((m, idx) => (
             <Bubble key={m.id} role={m.role} showAvatar={msgs[idx - 1]?.role !== 'bot'}>
               {m.attachment
@@ -1807,11 +1807,7 @@ function Bubble({ role, showAvatar = true, children }: { role: 'bot' | 'user'; s
     <div className={cn('sb-msg-in flex items-end gap-2', bot ? 'justify-start' : 'justify-end')}>
       {bot && (
         <div className="h-7 w-7 shrink-0 self-end">
-          {showAvatar && (
-            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-stone-200/80">
-              <Logo size={18} />
-            </div>
-          )}
+          {showAvatar && <MascotAvatar size={28} className="shadow-sm" />}
         </div>
       )}
       <div

@@ -51,6 +51,7 @@ import {
 } from '@/lib/studyPlans'
 import { Modal } from './Modal'
 import { ActivityRings, readable, SharePanel } from './ActivityRings'
+import { Mascot } from './Mascot'
 import { DatePicker } from './DatePicker'
 import { Select } from './ui/Select'
 import { cn } from '@/lib/cn'
@@ -1320,8 +1321,12 @@ export function StudyPlansView() {
 
   if (courses.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center px-6 text-center text-sm text-stone-400">
-        Lege zuerst Kurse an, dann kannst du hier pro Kurs einen Lernplan erstellen.
+      <div className="flex h-full flex-col items-center justify-center px-6 text-center">
+        <Mascot pose="wave" size={128} className="drop-shadow-sm" />
+        <h2 className="mt-4 text-lg font-semibold text-stone-800">Noch kein Kurs für Lernpläne</h2>
+        <p className="mt-1.5 max-w-sm text-sm text-stone-500">
+          Lege zuerst Kurse an – dann plane ich mit dir pro Klausur einen Lernplan.
+        </p>
       </div>
     )
   }

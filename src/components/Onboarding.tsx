@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { startOfWeek, format } from 'date-fns'
 import { Plus, Sparkles, Trash2, ArrowRight, ArrowLeft, Check } from 'lucide-react'
-import { Logo } from './Logo'
+import { Mascot } from './Mascot'
 import type { ProgramType } from '@/db/types'
 import { db, uid } from '@/db/db'
 import { createProgram, createSemester } from '@/lib/actions'
@@ -122,11 +122,12 @@ export function Onboarding() {
       <div className="w-full max-w-lg rounded-3xl bg-cream-50 p-6 shadow-xl ring-1 ring-stone-200 sm:p-8">
         {step === 'welcome' ? (
           <div className="text-center">
-            <Logo size={64} className="mx-auto mb-4" />
-            <h1 className="text-xl font-bold text-stone-800">Willkommen bei SemBan</h1>
+            <Mascot pose="wave" size={132} className="mx-auto mb-1 drop-shadow-sm" />
+            <p className="text-sm font-semibold text-brand-600">Hi, ich bin Sem! 👋</p>
+            <h1 className="mt-1 text-xl font-bold text-stone-800">Willkommen bei SemBan</h1>
             <p className="mx-auto mt-2 max-w-sm text-sm text-stone-500">
-              Dein Semesterbegleiter. Richte in 30 Sekunden dein Studium ein – oder schau dich
-              erst mit Beispieldaten um.
+              Ich bin dein Lernbegleiter. Richte in 30 Sekunden dein Studium ein – oder schau
+              dich erst mit Beispieldaten um.
             </p>
             <div className="mt-6 flex flex-col gap-2">
               <button
