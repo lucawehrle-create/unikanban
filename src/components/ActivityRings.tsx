@@ -124,8 +124,33 @@ export function ActivityRings({
   )
 }
 
-const SHARE_FONT = '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+const SHARE_FONT = "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+// Inter (Latin-Subset) einmal laden und als @font-face-CSS (base64) cachen, damit
+// das gerenderte PNG überall dieselbe hochwertige Schrift nutzt – nicht den
+// System-Font. Fällt bei Fehler still auf die System-Schrift zurück.
+let _fontCss: string | null = null
+async function interFontCss(): Promise<string> {
+  if (_fontCss != null) return _fontCss
+  const weights = [500, 600, 700, 800, 900]
+  try {
+    const faces = await Promise.all(
+      weights.map(async (w) => {
+        const res = await fetch(`/fonts/inter-${w}.woff2`)
+        if (!res.ok) throw new Error('font')
+        const buf = new Uint8Array(await res.arrayBuffer())
+        let bin = ''
+        for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i])
+        return `@font-face{font-family:'Inter';font-style:normal;font-weight:${w};src:url(data:font/woff2;base64,${btoa(bin)}) format('woff2')}`
+      }),
+    )
+    _fontCss = faces.join('')
+  } catch {
+    _fontCss = ''
+  }
+  return _fontCss
+}
 
 // Story-Format (9:16) – teilbar für Instagram/Facebook Stories.
 const STORY_W = 1080
@@ -176,36 +201,35 @@ function buildShareSVG(
   overall: number,
   scopeLabel: string,
   variant: ShareVariant,
+  fontCss: string,
   pill?: string,
 ): string {
   const dark = variant !== 'cream'
   const cx = STORY_W / 2
-  const cy = 830 // Ring-Mittelpunkt
+  const cy = 838 // Ring-Mittelpunkt
 
   // Ring-Geometrie (Hero): feste Größen, damit jede Karte gleich aussieht.
-  const stroke = 36
-  const gap = 12
-  const outerR = 250
-  const glowStd = dark ? 9 : 5
+  const stroke = 38
+  const gap = 13
+  const outerR = 246
+  const glowStd = dark ? 10 : 6
 
   const pal = dark
     ? {
-        text: '#fdfcf7',
-        sub: '#b8b6c8',
+        text: '#f7f7fb',
+        sub: '#a9a7c4',
         hero: '#ffffff',
-        legendLabel: '#e7e5f0',
-        count: '#9a98b0',
-        handle: '#9a98b0',
-        trackAlpha: '30',
+        legendLabel: '#e9e8f4',
+        handle: '#8f8dab',
+        trackAlpha: '38',
       }
     : {
-        text: '#292524',
-        sub: '#78716c',
-        hero: '#292524',
-        legendLabel: '#292524',
-        count: '#a8a29e',
-        handle: '#57534e',
-        trackAlpha: '33',
+        text: '#211d1a',
+        sub: '#6f675c',
+        hero: '#211d1a',
+        legendLabel: '#2a2621',
+        handle: '#6f675c',
+        trackAlpha: '38',
       }
 
   const ringSVG = rings
@@ -218,46 +242,69 @@ function buildShareSVG(
       if (!(r.total > 0 && r.pct > 0)) return track
       const arc = (extra: string) =>
         `<circle cx='${cx}' cy='${cy}' r='${radius}' fill='none' stroke='${r.color}' stroke-width='${stroke}' stroke-linecap='round' stroke-dasharray='${circ}' stroke-dashoffset='${off}' transform='rotate(-90 ${cx} ${cy})'${extra}/>`
-      const glow = arc(` filter='url(#glow)' stroke-opacity='${dark ? 0.9 : 0.5}'`)
+      const glow = arc(` filter='url(#glow)' stroke-opacity='${dark ? 0.95 : 0.55}'`)
       return track + glow + arc('')
     })
     .join('')
 
-  // Legende (max 5 Zeilen): Punkt + Label + Anzahl + %.
-  const legendStartY = 1250
-  const rowH = 78
+  // Legende: Punkt + Label + große %-Zahl.
+  const legendStartY = 1296
+  const rowH = 80
   const legend = rings
     .map((r, i) => {
       const y = legendStartY + i * rowH
       const pctCol = dark ? r.color : readable(r.color)
       return (
-        `<circle cx='170' cy='${y - 14}' r='17' fill='${r.color}'/>` +
-        `<text x='214' y='${y}' font-size='44' font-weight='600' fill='${pal.legendLabel}'>${esc(r.label)}</text>` +
-        `<text x='910' y='${y}' text-anchor='end' font-size='52' font-weight='800' fill='${pctCol}'>${r.pct}%</text>`
+        `<circle cx='176' cy='${y - 14}' r='16' fill='${r.color}'/>` +
+        `<text x='218' y='${y}' font-size='44' font-weight='600' letter-spacing='-0.5' fill='${pal.legendLabel}'>${esc(r.label)}</text>` +
+        `<text x='904' y='${y}' text-anchor='end' font-size='50' font-weight='800' letter-spacing='-1' fill='${pctCol}'>${r.pct}%</text>`
       )
     })
     .join('')
 
+  // Dezente, riesige Ring-Echo-Kreise als Hintergrund-Motiv (bluten aus dem Bild).
+  const echoStroke = dark ? "stroke='#ffffff' stroke-opacity='0.05'" : "stroke='#ffffff' stroke-opacity='0.4'"
+  const echoRings =
+    `<g fill='none' ${echoStroke} stroke-width='2'>` +
+    `<circle cx='${cx}' cy='${cy}' r='440'/>` +
+    `<circle cx='${cx}' cy='${cy}' r='585'/>` +
+    `<circle cx='${cx}' cy='${cy}' r='740'/>` +
+    `</g>`
+
+  const filters =
+    `<filter id='glow' x='-45%' y='-45%' width='190%' height='190%'><feGaussianBlur stdDeviation='${glowStd}'/></filter>` +
+    (dark
+      ? `<filter id='heroShadow' x='-30%' y='-30%' width='160%' height='160%'><feDropShadow dx='0' dy='0' stdDeviation='8' flood-color='#07071c' flood-opacity='0.5'/></filter>` +
+        `<filter id='footShadow' x='-40%' y='-40%' width='180%' height='180%'><feDropShadow dx='0' dy='4' stdDeviation='12' flood-color='#000000' flood-opacity='0.35'/></filter>`
+      : `<filter id='heroShadow' x='-30%' y='-30%' width='160%' height='160%'><feDropShadow dx='0' dy='2' stdDeviation='7' flood-color='#8a6a12' flood-opacity='0.15'/></filter>` +
+        `<filter id='footShadow' x='-40%' y='-40%' width='180%' height='180%'><feDropShadow dx='0' dy='3' stdDeviation='9' flood-color='#8a6a12' flood-opacity='0.18'/></filter>`)
+
   const bg = dark
     ? `<defs>` +
-      `<linearGradient id='bg' x1='0' y1='0' x2='0' y2='1'><stop offset='0' stop-color='#20205a'/><stop offset='1' stop-color='#15153f'/></linearGradient>` +
-      `<radialGradient id='spot' cx='0.5' cy='0.42' r='0.62'><stop offset='0' stop-color='#3c3c8e' stop-opacity='0.6'/><stop offset='1' stop-color='#15153f' stop-opacity='0'/></radialGradient>` +
-      `<radialGradient id='vig' cx='0.5' cy='0.46' r='0.75'><stop offset='0.55' stop-color='#0d0d28' stop-opacity='0'/><stop offset='1' stop-color='#0b0b24' stop-opacity='0.6'/></radialGradient>` +
-      `<filter id='glow' x='-40%' y='-40%' width='180%' height='180%'><feGaussianBlur stdDeviation='${glowStd}'/></filter>` +
-      `<filter id='heroShadow' x='-30%' y='-30%' width='160%' height='160%'><feDropShadow dx='0' dy='0' stdDeviation='7' flood-color='#0b0b24' flood-opacity='0.45'/></filter>` +
-      `<filter id='footShadow' x='-30%' y='-30%' width='160%' height='160%'><feDropShadow dx='0' dy='4' stdDeviation='10' flood-color='#000000' flood-opacity='0.3'/></filter>` +
+      `<style>${fontCss}</style>` +
+      `<linearGradient id='bg' x1='0' y1='0' x2='0.25' y2='1'><stop offset='0' stop-color='#26265f'/><stop offset='0.5' stop-color='#1a1a47'/><stop offset='1' stop-color='#0f0f2b'/></linearGradient>` +
+      `<radialGradient id='aur1' cx='0.24' cy='0.14' r='0.55'><stop offset='0' stop-color='#6a6ae0' stop-opacity='0.4'/><stop offset='1' stop-color='#6a6ae0' stop-opacity='0'/></radialGradient>` +
+      `<radialGradient id='aur2' cx='0.86' cy='0.82' r='0.5'><stop offset='0' stop-color='#e9633c' stop-opacity='0.16'/><stop offset='1' stop-color='#e9633c' stop-opacity='0'/></radialGradient>` +
+      `<radialGradient id='spot' cx='0.5' cy='0.44' r='0.5'><stop offset='0' stop-color='#4444a2' stop-opacity='0.55'/><stop offset='1' stop-color='#4444a2' stop-opacity='0'/></radialGradient>` +
+      `<radialGradient id='vig' cx='0.5' cy='0.46' r='0.82'><stop offset='0.58' stop-color='#08081e' stop-opacity='0'/><stop offset='1' stop-color='#07071a' stop-opacity='0.72'/></radialGradient>` +
+      filters +
       `</defs>` +
       `<rect width='${STORY_W}' height='${STORY_H}' fill='url(#bg)'/>` +
+      `<rect width='${STORY_W}' height='${STORY_H}' fill='url(#aur1)'/>` +
+      `<rect width='${STORY_W}' height='${STORY_H}' fill='url(#aur2)'/>` +
+      echoRings +
       `<rect width='${STORY_W}' height='${STORY_H}' fill='url(#spot)'/>` +
       `<rect width='${STORY_W}' height='${STORY_H}' fill='url(#vig)'/>`
     : `<defs>` +
-      `<linearGradient id='bg' x1='0' y1='0' x2='0.4' y2='1'><stop offset='0' stop-color='#fdfcf7'/><stop offset='0.55' stop-color='#faf7ee'/><stop offset='0.92' stop-color='#f7c948'/></linearGradient>` +
-      `<radialGradient id='spot' cx='0.5' cy='0.43' r='0.55'><stop offset='0' stop-color='#f7c948' stop-opacity='0.35'/><stop offset='1' stop-color='#f7c948' stop-opacity='0'/></radialGradient>` +
-      `<filter id='glow' x='-40%' y='-40%' width='180%' height='180%'><feGaussianBlur stdDeviation='${glowStd}'/></filter>` +
-      `<filter id='heroShadow' x='-30%' y='-30%' width='160%' height='160%'><feDropShadow dx='0' dy='2' stdDeviation='6' flood-color='#1c1917' flood-opacity='0.1'/></filter>` +
-      `<filter id='footShadow' x='-30%' y='-30%' width='160%' height='160%'><feDropShadow dx='0' dy='3' stdDeviation='8' flood-color='#1c1917' flood-opacity='0.12'/></filter>` +
+      `<style>${fontCss}</style>` +
+      `<linearGradient id='bg' x1='0' y1='0' x2='0.35' y2='1'><stop offset='0' stop-color='#fffdf8'/><stop offset='0.5' stop-color='#fdf5e4'/><stop offset='1' stop-color='#f6c341'/></linearGradient>` +
+      `<radialGradient id='aur1' cx='0.22' cy='0.13' r='0.55'><stop offset='0' stop-color='#ffffff' stop-opacity='0.7'/><stop offset='1' stop-color='#ffffff' stop-opacity='0'/></radialGradient>` +
+      `<radialGradient id='spot' cx='0.5' cy='0.44' r='0.5'><stop offset='0' stop-color='#ffffff' stop-opacity='0.55'/><stop offset='1' stop-color='#ffffff' stop-opacity='0'/></radialGradient>` +
+      filters +
       `</defs>` +
       `<rect width='${STORY_W}' height='${STORY_H}' fill='url(#bg)'/>` +
+      `<rect width='${STORY_W}' height='${STORY_H}' fill='url(#aur1)'/>` +
+      echoRings +
       `<rect width='${STORY_W}' height='${STORY_H}' fill='url(#spot)'/>`
 
   const headline = headlineFor(overall)
@@ -267,38 +314,37 @@ function buildShareSVG(
   // „Klausur in N Tagen"-Pill oben rechts (nur wenn ein Klausurdatum vorliegt).
   const pillSvg = pill
     ? (() => {
-        const pw = Math.round(pill.length * 16.5 + 64)
-        const px = 960 - pw
+        const pw = Math.round(pill.length * 15.5 + 62)
+        const px = 964 - pw
         const fill = dark ? '#f5c645' : '#2a2a6e'
-        const tcol = dark ? '#2a2a6e' : '#fdfcf7'
+        const tcol = dark ? '#20204e' : '#fdfcf7'
         return (
-          `<rect x='${px}' y='298' width='${pw}' height='58' rx='29' fill='${fill}'/>` +
-          `<text x='${px + pw / 2}' y='337' text-anchor='middle' font-size='30' font-weight='700' fill='${tcol}'>${esc(pill)}</text>`
+          `<rect x='${px}' y='300' width='${pw}' height='60' rx='30' fill='${fill}'/>` +
+          `<text x='${px + pw / 2}' y='340' text-anchor='middle' font-size='29' font-weight='700' letter-spacing='-0.3' fill='${tcol}'>${esc(pill)}</text>`
         )
       })()
     : ''
 
   return (
-    `<svg xmlns='http://www.w3.org/2000/svg' width='${STORY_W}' height='${STORY_H}' viewBox='0 0 ${STORY_W} ${STORY_H}' font-family='${SHARE_FONT}'>` +
+    `<svg xmlns='http://www.w3.org/2000/svg' width='${STORY_W}' height='${STORY_H}' viewBox='0 0 ${STORY_W} ${STORY_H}' font-family="${SHARE_FONT}">` +
     bg +
-    // Top-Lockup (unter dem Plattform-Namensband) + optionales Klausur-Pill
-    logoSvg(120, 292, 60, dark) +
-    `<text x='196' y='340' font-size='44' font-weight='800' fill='${pal.text}'>SemBan</text>` +
+    // Oben: nur das Logo-Zeichen (kein Wortmark – kollidiert nicht mit der Headline) + Pill
+    logoSvg(116, 300, 60, dark) +
     pillSvg +
     // Headline + Sub
-    `<text x='${cx}' y='474' text-anchor='middle' font-size='64' font-weight='800' fill='${pal.text}'>${esc(headline)}</text>` +
-    `<text x='${cx}' y='532' text-anchor='middle' font-size='32' font-weight='500' fill='${pal.sub}'>${esc(sub)}</text>` +
+    `<text x='${cx}' y='498' text-anchor='middle' font-size='66' font-weight='800' letter-spacing='-1.5' fill='${pal.text}'>${esc(headline)}</text>` +
+    `<text x='${cx}' y='556' text-anchor='middle' font-size='32' font-weight='500' letter-spacing='-0.2' fill='${pal.sub}'>${esc(sub)}</text>` +
     // Ringe + Hero-Zahl
     ringSVG +
-    `<g filter='url(#heroShadow)'><text x='${cx}' y='${cy + 66}' text-anchor='middle' font-size='196' font-weight='800' letter-spacing='-6' fill='${pal.hero}' style='font-variant-numeric:tabular-nums'>${overall}%</text></g>` +
-    // Brag-Zeile
-    `<text x='${cx}' y='1178' text-anchor='middle' font-size='40' font-weight='700' fill='${pal.text}'>${esc(brag)}</text>` +
+    `<g filter='url(#heroShadow)'><text x='${cx}' y='${cy + 60}' text-anchor='middle' font-size='186' font-weight='900' letter-spacing='-8' fill='${pal.hero}' style='font-variant-numeric:tabular-nums'>${overall}%</text></g>` +
+    // Brag-Zeile (dezent)
+    `<text x='${cx}' y='1214' text-anchor='middle' font-size='36' font-weight='600' letter-spacing='-0.5' fill='${pal.sub}'>${esc(brag)}</text>` +
     // Legende
     legend +
-    // Footer-Lockup, exakt zentriert (Logo → Wortmarke → Handle) über der Antwortleiste
-    `<g filter='url(#footShadow)'>${logoSvg(cx - 38, 1632, 76, dark)}</g>` +
-    `<text x='${cx}' y='1742' text-anchor='middle' font-size='48' font-weight='800' fill='${pal.text}'>SemBan</text>` +
-    `<text x='${cx}' y='1784' text-anchor='middle' font-size='27' font-weight='600' fill='${pal.handle}'>@semban · semban.de</text>` +
+    // Footer-Lockup, exakt zentriert (Logo → Wortmarke → Handle)
+    `<g filter='url(#footShadow)'>${logoSvg(cx - 34, 1652, 68, dark)}</g>` +
+    `<text x='${cx}' y='1758' text-anchor='middle' font-size='44' font-weight='800' letter-spacing='-1' fill='${pal.text}'>SemBan</text>` +
+    `<text x='${cx}' y='1798' text-anchor='middle' font-size='26' font-weight='600' letter-spacing='0.2' fill='${pal.handle}'>@semban · semban.de</text>` +
     `</svg>`
   )
 }
@@ -309,11 +355,13 @@ export async function shareRings(
   overall: number,
   opts: { scopeLabel?: string; variant?: ShareVariant; pill?: string } = {},
 ): Promise<void> {
+  const fontCss = await interFontCss()
   const svg = buildShareSVG(
     rings,
     overall,
     opts.scopeLabel ?? 'Alle Lernpläne',
     opts.variant ?? 'dark',
+    fontCss,
     opts.pill,
   )
   const url = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)))
