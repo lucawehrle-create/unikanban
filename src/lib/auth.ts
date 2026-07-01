@@ -120,3 +120,35 @@ export async function signOut() {
   // 3. Lokale Daten entfernen: abgemeldet = keine Daten auf dem Gerät.
   await resetAll()
 }
+
+/**
+ * Löscht das Konto endgültig: serverseitig via Edge-Function (Auth-Nutzer +
+ * alle Cloud-Daten per Cascade), danach lokale Session & Daten entfernen. Die
+ * E-Mail ist anschließend wieder frei. Nicht rückgängig zu machen.
+ */
+export async function deleteAccount() {
+  if (!supabase) throw new Error('Kein Konto konfiguriert.')
+  const { data, error } = await supabase.functions.invoke<{ ok?: boolean; error?: string }>(
+    'delete-account',
+    { method: 'POST' },
+  )
+  if (error) {
+    // Serverfehler-Text möglichst konkret melden (Edge-Function-Body auslesen).
+    let msg = ''
+    const ctx = (error as { context?: Response }).context
+    if (ctx && typeof ctx.json === 'function') {
+      try {
+        const body = await ctx.json()
+        if (body && typeof body.error === 'string') msg = body.error
+      } catch {
+        /* Body nicht lesbar */
+      }
+    }
+    throw new Error(msg || friendlyAuthError(error))
+  }
+  if (data?.error) throw new Error(data.error)
+  // Erfolgreich gelöscht → lokal aufräumen (App wechselt danach zur Landing).
+  useSync.setState({ user: null, status: 'idle', lastSyncAt: null, conflict: null })
+  await supabase.auth.signOut().catch(() => {})
+  await resetAll()
+}

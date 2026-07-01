@@ -11,10 +11,11 @@ import {
   LogOut,
   Mail,
   RefreshCw,
+  Trash2,
 } from 'lucide-react'
 import { useUI } from '@/store/ui'
 import { useSync, resolveConflict, syncNow } from '@/lib/sync'
-import { signOut, updateEmail, updatePassword } from '@/lib/auth'
+import { signOut, updateEmail, updatePassword, deleteAccount } from '@/lib/auth'
 import { Modal } from './Modal'
 import { SignInPanel } from './SignInPanel'
 import { DataSection } from './DataSection'
@@ -149,6 +150,68 @@ function SignedIn({
       <p className="text-center text-[11px] text-stone-400">
         Beim Abmelden werden die Daten von diesem Gerät entfernt – in der Cloud bleiben sie sicher.
       </p>
+
+      {/* Konto löschen (Danger Zone) */}
+      <DeleteAccountSection />
+    </div>
+  )
+}
+
+function DeleteAccountSection() {
+  const [confirming, setConfirming] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  const doDelete = async () => {
+    setBusy(true)
+    setErr('')
+    try {
+      await deleteAccount()
+      // Erfolg: App wechselt automatisch zur Landing-Seite, Dialog wird entfernt.
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Konto konnte nicht gelöscht werden.')
+      setBusy(false)
+    }
+  }
+
+  if (!confirming)
+    return (
+      <div className="border-t border-stone-100 pt-4">
+        <button
+          onClick={() => setConfirming(true)}
+          className="flex w-full items-center justify-center gap-1.5 rounded-full bg-white px-4 py-2.5 text-sm font-medium text-red-600 ring-1 ring-red-200 hover:bg-red-50"
+        >
+          <Trash2 size={15} /> Konto löschen
+        </button>
+      </div>
+    )
+
+  return (
+    <div className="space-y-3 rounded-2xl bg-red-50 p-4 ring-1 ring-red-200">
+      <div className="flex items-start gap-2 text-sm text-red-700">
+        <AlertTriangle size={18} className="mt-0.5 shrink-0" />
+        <span>
+          Dein Konto und <strong>alle</strong> Daten (auf allen Geräten und in der Cloud) werden
+          dauerhaft gelöscht. Das lässt sich <strong>nicht</strong> rückgängig machen.
+        </span>
+      </div>
+      {err && <div className="rounded-lg bg-white px-3 py-2 text-[13px] text-red-600">{err}</div>}
+      <div className="flex justify-end gap-2">
+        <button
+          onClick={() => setConfirming(false)}
+          disabled={busy}
+          className="rounded-full px-4 py-1.5 text-sm font-medium text-stone-600 hover:bg-white/70 disabled:opacity-50"
+        >
+          Abbrechen
+        </button>
+        <button
+          onClick={() => void doDelete()}
+          disabled={busy}
+          className="flex items-center gap-1.5 rounded-full bg-red-600 px-4 py-1.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+        >
+          {busy && <Loader2 size={14} className="animate-spin" />} Endgültig löschen
+        </button>
+      </div>
     </div>
   )
 }
