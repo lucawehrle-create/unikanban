@@ -65,17 +65,51 @@ const COURSE_LIMIT_OPTS = [
 
 const KIND_ORDER: ItemKind[] = ['altklausur', 'kapitel', 'uebung', 'tut', 'karten']
 
-function Timeline({ bars, height = 96 }: { bars: DayBar[]; height?: number }) {
+/** Fasst die Tages-Balken in höchstens ~maxCols Spalten zusammen (mehrere Tage
+ *  pro Spalte bei langem Vorlauf). So passt der GESAMTE Zeitraum bis zur Klausur
+ *  in die Breite – man sieht sofort, dass die Last meist erst gegen Ende kommt,
+ *  statt nur die (leeren) ersten Tage zu sehen. */
+function bucketBars(bars: DayBar[], maxCols: number): { date: Date; end: Date; byKind: Record<ItemKind, number>; total: number }[] {
+  const perCol = Math.max(1, Math.ceil(bars.length / maxCols))
+  const cols: { date: Date; end: Date; byKind: Record<ItemKind, number>; total: number }[] = []
+  for (let i = 0; i < bars.length; i += perCol) {
+    const slice = bars.slice(i, i + perCol)
+    const byKind: Record<ItemKind, number> = { altklausur: 0, kapitel: 0, uebung: 0, tut: 0, karten: 0 }
+    let total = 0
+    for (const b of slice) {
+      for (const k of KIND_ORDER) byKind[k] += b.byKind[k]
+      total += b.total
+    }
+    cols.push({ date: slice[0].date, end: slice[slice.length - 1].date, byKind, total })
+  }
+  return cols
+}
+
+function Timeline({
+  bars,
+  height = 96,
+  maxCols = 60,
+}: {
+  bars: DayBar[]
+  height?: number
+  maxCols?: number
+}) {
   if (bars.length === 0) return null
-  const maxMin = Math.max(60, ...bars.map((b) => b.total))
+  const cols = bucketBars(bars, maxCols)
+  const grouped = cols.length < bars.length
+  const maxMin = Math.max(60, ...cols.map((b) => b.total))
   return (
-    <div className="flex items-end gap-px overflow-x-auto pb-1" style={{ height }}>
-      {bars.map((b, i) => (
+    <div className="flex items-end gap-px" style={{ height }}>
+      {cols.map((b, i) => (
         <div
           key={i}
-          className="flex w-2 shrink-0 flex-col-reverse rounded-sm bg-stone-100"
+          className="flex min-w-0 flex-1 flex-col-reverse overflow-hidden rounded-sm bg-stone-100"
           style={{ height: '100%' }}
-          title={`${format(b.date, 'EEE d. MMM', { locale: de })} · ${b.total} Min`}
+          title={
+            grouped
+              ? `${format(b.date, 'd. MMM', { locale: de })}–${format(b.end, 'd. MMM', { locale: de })} · ${b.total} Min`
+              : `${format(b.date, 'EEE d. MMM', { locale: de })} · ${b.total} Min`
+          }
         >
           {KIND_ORDER.map((k) =>
             b.byKind[k] > 0 ? (
@@ -529,7 +563,7 @@ function PlanEditor({
                 <div className={cn('mb-2 text-[11px]', on ? 'text-white/70' : 'text-stone-500')}>
                   {meta.desc} · {meta.reps}
                 </div>
-                <Timeline bars={timeline(cfg, v.sessions)} height={44} />
+                <Timeline bars={timeline(cfg, v.sessions)} height={44} maxCols={28} />
                 <div
                   className={cn('mt-1 text-[11px] tabular-nums', on ? 'text-white/80' : 'text-stone-500')}
                 >
@@ -554,6 +588,10 @@ function PlanEditor({
             Sessions
           </div>
           <Timeline bars={bars} height={110} />
+          <div className="mt-1 flex items-center justify-between text-[10px] font-medium text-stone-400">
+            <span>heute</span>
+            <span>Klausur · {format(parseISO(cfg.examDate), 'd. MMM', { locale: de })}</span>
+          </div>
           <div className="mt-2">
             <Legend />
           </div>
