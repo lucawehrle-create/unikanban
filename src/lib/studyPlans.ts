@@ -831,6 +831,57 @@ export function planProgress(allTasks: Task[], courseId: string): PlanProgress {
 
 // --- Klausur-Bereitschaft ---------------------------------------------------
 
+// --- Lern-Aktivität (Apple-Activity-Ringe) ----------------------------------
+
+export interface RingStat {
+  kind: ItemKind
+  label: string
+  color: string
+  done: number
+  total: number
+  /** 0–100 (0, wenn kein Material dieser Art vorhanden). */
+  pct: number
+}
+
+// Reihenfolge außen → innen und deutsche Labels für die Ringe.
+const RING_ORDER: ItemKind[] = ['kapitel', 'uebung', 'tut', 'altklausur', 'karten']
+const RING_LABEL: Record<ItemKind, string> = {
+  kapitel: 'Kapitel',
+  uebung: 'Übungsblätter',
+  tut: 'Tutorien',
+  altklausur: 'Klausuren',
+  karten: 'Karteikarten',
+}
+
+/**
+ * Abdeckung je Vorbereitungsart über ALLE Lernpläne (für die Aktivitäts-Ringe).
+ * Optional auf einen Kurs eingegrenzt.
+ */
+export function computeRingStats(allTasks: Task[], courseId?: string): RingStat[] {
+  const acc = new Map<ItemKind, { done: number; total: number }>()
+  for (const t of allTasks) {
+    if (!t.examId) continue
+    if (courseId && t.examId !== courseId) continue
+    const kind = kindOfTask(t)
+    if (!kind) continue
+    const a = acc.get(kind) ?? { done: 0, total: 0 }
+    a.total++
+    if (t.status === 'erledigt') a.done++
+    acc.set(kind, a)
+  }
+  return RING_ORDER.map((kind) => {
+    const a = acc.get(kind) ?? { done: 0, total: 0 }
+    return {
+      kind,
+      label: RING_LABEL[kind],
+      color: KIND_META[kind].color,
+      done: a.done,
+      total: a.total,
+      pct: a.total ? Math.round((a.done / a.total) * 100) : 0,
+    }
+  })
+}
+
 /** Themen-Schlüssel einer Session für die Sicherheits-Einschätzung, z.B.
  *  `kap:3`, `uebung:<id>`, `alt:1` – oder null für Karten/Unbekanntes (kein
  *  Sicherheits-Check). Fasst alle Wiederholungen eines Themas zusammen. */
