@@ -351,6 +351,38 @@ function buildShareSVG(
   )
 }
 
+/** Rastert ein SVG als PNG-Blob. Liefert null, statt zu werfen (nie hängen). */
+function rasterize(svg: string): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    const url = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)))
+    const img = new Image()
+    // Sicherheitsnetz: Falls onload/onerror nie feuern (manche Browser hängen bei
+    // großen SVG-<img>), nach 6 s aufgeben statt die Vorschau ewig zu blockieren.
+    const timer = setTimeout(() => resolve(null), 6000)
+    img.onload = () => {
+      clearTimeout(timer)
+      try {
+        const scale = 2
+        const canvas = document.createElement('canvas')
+        canvas.width = STORY_W * scale
+        canvas.height = STORY_H * scale
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return resolve(null)
+        ctx.scale(scale, scale)
+        ctx.drawImage(img, 0, 0)
+        canvas.toBlob((b) => resolve(b), 'image/png')
+      } catch {
+        resolve(null)
+      }
+    }
+    img.onerror = () => {
+      clearTimeout(timer)
+      resolve(null)
+    }
+    img.src = url
+  })
+}
+
 /** Rendert die Story (9:16) als PNG-Blob. */
 export async function renderSharePng(
   rings: RingStat[],
@@ -358,30 +390,22 @@ export async function renderSharePng(
   opts: { scopeLabel?: string; variant?: ShareVariant; pill?: string } = {},
 ): Promise<Blob | null> {
   const fontCss = await interFontCss()
-  const svg = buildShareSVG(
-    rings,
-    overall,
-    opts.scopeLabel ?? 'Alle Lernpläne',
-    opts.variant ?? 'dark',
-    fontCss,
-    opts.pill,
-  )
-  const url = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)))
-  const img = new Image()
-  await new Promise<void>((resolve, reject) => {
-    img.onload = () => resolve()
-    img.onerror = () => reject(new Error('SVG konnte nicht geladen werden'))
-    img.src = url
-  })
-  const scale = 2
-  const canvas = document.createElement('canvas')
-  canvas.width = STORY_W * scale
-  canvas.height = STORY_H * scale
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return null
-  ctx.scale(scale, scale)
-  ctx.drawImage(img, 0, 0)
-  return await new Promise<Blob | null>((r) => canvas.toBlob((b) => r(b), 'image/png'))
+  const make = (css: string) =>
+    buildShareSVG(
+      rings,
+      overall,
+      opts.scopeLabel ?? 'Alle Lernpläne',
+      opts.variant ?? 'dark',
+      css,
+      opts.pill,
+    )
+  // Erst mit eingebetteter Schrift. Manche Browser (z.B. iOS Safari) rastern ein
+  // SVG-<img> mit großen Font-Daten nicht – dann ohne Schrift erneut versuchen,
+  // damit immer eine Vorschau/PNG entsteht (System-Schrift statt gar nichts).
+  const withFont = await rasterize(make(fontCss))
+  if (withFont) return withFont
+  if (fontCss === '') return null
+  return await rasterize(make(''))
 }
 
 const SHARE_URL = 'https://semban.de'
@@ -460,17 +484,26 @@ export function SharePanel({
   }
 
   // Öffnet die native Teilen-Funktion mit dem Bild (mobil: WhatsApp, Instagram,
-  // Stories …). Gibt zurück, ob geteilt werden konnte.
+  // Stories …). Bricht der Nutzer ab, passiert nichts. Schlägt der Share aus
+  // einem anderen Grund fehl (z.B. Desktop meldet canShare=true, kann Dateien
+  // aber nicht teilen), wird auf Download zurückgefallen – so passiert IMMER
+  // etwas und der Button wirkt nie „tot".
   const shareFile = async (): Promise<boolean> => {
     const blob = blobRef.current
-    if (!blob || !native) return false
+    if (!blob) return false
     setBusy(true)
     try {
+      if (!native) throw new Error('no-native-share')
       const file = new File([blob], 'semban-lernaktivitaet.png', { type: 'image/png' })
       await navigator.share({ files: [file], title: 'Meine Lern-Aktivität', text: SHARE_TEXT })
       return true
-    } catch {
-      return false /* abgebrochen */
+    } catch (e) {
+      // Vom Nutzer abgebrochen → bewusst nichts tun.
+      if (e instanceof Error && e.name === 'AbortError') return false
+      // Echter Fehler / kein natives Teilen → Bild speichern als Fallback.
+      download(blob)
+      flash('Bild gespeichert.')
+      return true
     } finally {
       setBusy(false)
     }
