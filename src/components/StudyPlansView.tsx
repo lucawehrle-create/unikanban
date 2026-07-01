@@ -1310,6 +1310,9 @@ export function StudyPlansView() {
 
   const sel = courses.find((c) => c.id === selId) ?? courses[0]
   const plansCount = courses.filter((c) => c.studyPlan).length
+  // Lern-Aktivität nur zeigen, wenn es tatsächlich Plan-Material gibt (Sessions),
+  // nicht schon bei einer leeren Plan-Konfiguration ohne Fortschrittsdaten.
+  const hasActivity = useMemo(() => computeRingStats(allTasks).length > 0, [allTasks])
 
   const doRebalance = async () => {
     setRebalancing(true)
@@ -1360,8 +1363,8 @@ export function StudyPlansView() {
 
         <CoachTeaser />
 
-        {/* Lern-Aktivität (Apple-Ringe) – sobald mind. ein Plan existiert */}
-        {plansCount > 0 && <ActivityOverview allTasks={allTasks} courses={courses} />}
+        {/* Lern-Aktivität (Apple-Ringe) – nur wenn es Plan-Material gibt */}
+        {hasActivity && <ActivityOverview allTasks={allTasks} courses={courses} />}
 
         {/* Kursauswahl */}
         <div className="flex flex-wrap gap-2">

@@ -5,6 +5,8 @@ import { makePhases } from './taskTypes'
 import { generateRecurringTasks } from './recurring'
 import { attendanceKey } from './actions'
 import { dateForWeekday, withTime } from './semester'
+import { savePlan } from './studyPlans'
+import { getStudySettings } from '@/store/ui'
 
 // Dedupe nur gegen StrictMode-Doppelaufruf / parallele Aufrufe – nach Abschluss
 // wird der Merker gelöscht, damit nach einem Reset erneut geseedet werden kann.
@@ -281,4 +283,25 @@ async function doSeed(): Promise<void> {
       await db.attendance.bulkAdd(att)
     },
   )
+
+  // Lernplan-Sessions für Analysis II materialisieren und etwas Fortschritt
+  // setzen – so sehen neue Nutzer beim Erkunden der Beispieldaten sofort die
+  // Lern-Aktivität (Ringe) mit echtem Fortschritt, statt einer leeren Karte.
+  if (ana.studyPlan) {
+    const baseTasks = [...recurring, ...oneOff]
+    await savePlan(ana, ana.studyPlan, courses, baseTasks, getStudySettings())
+    const sessions = (await db.tasks.toArray())
+      .filter((t) => t.examId === ana.id)
+      .sort((a, b) => (a.dueDate ?? '').localeCompare(b.dueDate ?? ''))
+    // ~40 % der frühesten Sessions als erledigt markieren (lebendiger Anfang).
+    const doneCount = Math.round(sessions.length * 0.4)
+    for (let i = 0; i < doneCount; i++) {
+      const t = sessions[i]
+      await db.tasks.update(t.id, {
+        status: 'erledigt',
+        completedAt: t.dueDate ?? now,
+        phases: t.phases?.map((p) => ({ ...p, done: true })),
+      })
+    }
+  }
 }
