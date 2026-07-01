@@ -2,29 +2,28 @@ import { cn } from '@/lib/cn'
 
 // Sem – das SemBan-Maskottchen. Posen liegen als freigestellte WebP in
 // /public/mascot/. Neue Posen hier ergänzen, dann überall per <Mascot pose=…/>.
-export type MascotPose = 'wave' | 'face'
+export type MascotPose = 'wave'
 
 const SRC: Record<MascotPose, string> = {
   wave: '/mascot/sem-wave.webp',
-  face: '/mascot/sem-face.webp',
 }
 
-/** Runder Sem-Avatar (Gesicht formatfüllend im Kreis) – für Chat/Profil. */
+/** Runder Sem-Avatar – vollständige Kopf-Schulter-Büste, mittig, nichts
+ *  abgeschnitten (das Asset ist bereits mit Rand komponiert). Für Chat/Profil. */
 export function MascotAvatar({ size = 32, className }: { size?: number; className?: string }) {
   return (
     <span
       className={cn(
-        'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-cream-50 ring-1 ring-stone-200/80',
+        'inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-cream-100 ring-1 ring-stone-200/80',
         className,
       )}
       style={{ width: size, height: size }}
     >
       <img
-        src={SRC.face}
+        src="/mascot/sem-avatar.webp"
         alt="Sem"
         draggable={false}
-        className="h-full w-full select-none object-cover"
-        style={{ transform: 'scale(1.5) translateY(6%)' }}
+        className="h-full w-full select-none object-contain"
       />
     </span>
   )
