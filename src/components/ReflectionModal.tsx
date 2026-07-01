@@ -101,21 +101,27 @@ function ReflectionForm({
         </>
       }
     >
-      <div className="space-y-5">
-        <p className="text-sm text-stone-600">
-          „{title}" erledigt – wie lief's? Das hilft dir später beim Lernplan.
+      <div className="space-y-7">
+        <p className="text-[15px] leading-relaxed text-stone-500">
+          <span className="font-semibold text-stone-800">„{title}"</span> erledigt – wie lief's?
+          Das hilft dir später beim Lernplan.
         </p>
 
         {/* Schwierigkeit */}
-        <div>
-          <div className="mb-1.5 flex items-baseline justify-between">
-            <span className="text-xs font-medium text-stone-500">Wie schwer war es?</span>
-            <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: meta.color }}>
+        <section>
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-[15px] font-semibold tracking-tight text-stone-800">
+              Wie schwer war es?
+            </h3>
+            <span
+              className="flex items-center gap-1.5 text-sm font-semibold"
+              style={{ color: meta.color }}
+            >
               <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: meta.color }} />
               {meta.label}
             </span>
           </div>
-          <div className="flex gap-1.5">
+          <div className="flex gap-2">
             {Object.keys(DIFFICULTY).map((k) => {
               const n = Number(k)
               const dm = DIFFICULTY[n]
@@ -125,13 +131,13 @@ function ReflectionForm({
                   key={k}
                   onClick={() => setDifficulty(n)}
                   className={cn(
-                    'flex-1 rounded-xl py-2.5 text-center text-sm font-bold transition',
-                    on ? 'text-white shadow-sm' : 'text-stone-500 hover:opacity-80',
+                    'flex-1 rounded-xl py-3 text-center text-base font-bold tabular-nums transition',
+                    on ? 'text-white shadow-sm ring-2 ring-white/70' : 'hover:opacity-80',
                   )}
                   style={
                     on
-                      ? { backgroundColor: dm.color }
-                      : { backgroundColor: dm.color + '22', color: dm.color }
+                      ? { backgroundColor: dm.color, boxShadow: `0 4px 14px ${dm.color}40` }
+                      : { backgroundColor: dm.color + '1f', color: dm.color }
                   }
                   aria-label={dm.label}
                   aria-pressed={on}
@@ -141,18 +147,19 @@ function ReflectionForm({
               )
             })}
           </div>
-          <div className="mt-1 flex justify-between px-1 text-[10px] text-stone-400">
+          <div className="mt-2 flex justify-between px-0.5 text-[11px] font-medium text-stone-400">
             <span>leicht</span>
             <span>schwer</span>
           </div>
-        </div>
+        </section>
 
         {/* Tags */}
-        <div>
-          <span className="mb-1.5 block text-xs font-medium text-stone-500">
-            Woran lag's? (Mehrfachauswahl)
-          </span>
-          <div className="flex flex-wrap gap-1.5">
+        <section>
+          <h3 className="mb-3 text-[15px] font-semibold tracking-tight text-stone-800">
+            Woran lag's?{' '}
+            <span className="font-normal text-stone-400">· Mehrfachauswahl</span>
+          </h3>
+          <div className="flex flex-wrap gap-2">
             {PRESET_TAGS.map((t) => {
               const on = tags.includes(t)
               return (
@@ -160,9 +167,9 @@ function ReflectionForm({
                   key={t}
                   onClick={() => toggleTag(t)}
                   className={cn(
-                    'rounded-full px-3 py-1 text-xs font-medium transition',
+                    'rounded-full px-3.5 py-1.5 text-[13px] font-medium transition',
                     on
-                      ? 'bg-stone-900 text-white'
+                      ? 'bg-stone-900 text-white shadow-sm'
                       : 'bg-white text-stone-600 ring-1 ring-stone-200 hover:bg-stone-50',
                   )}
                 >
@@ -174,13 +181,13 @@ function ReflectionForm({
               <button
                 key={t}
                 onClick={() => toggleTag(t)}
-                className="flex items-center gap-1 rounded-full bg-indigo-600 px-3 py-1 text-xs font-medium text-white"
+                className="flex items-center gap-1 rounded-full bg-indigo-600 px-3.5 py-1.5 text-[13px] font-medium text-white shadow-sm"
               >
-                {t} <X size={11} />
+                {t} <X size={12} />
               </button>
             ))}
           </div>
-          <div className="mt-2 flex gap-2">
+          <div className="mt-2.5 flex gap-2">
             <input
               value={custom}
               onChange={(e) => setCustom(e.target.value)}
@@ -191,35 +198,36 @@ function ReflectionForm({
                 }
               }}
               placeholder="Eigener Tag …"
-              className="flex-1 rounded-lg border border-stone-200 px-2.5 py-1.5 text-sm outline-none focus:border-brand-400"
+              className="flex-1 rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
             />
             <button
               onClick={addCustom}
               disabled={!custom.trim()}
-              className="flex items-center gap-1 rounded-lg bg-stone-100 px-3 py-1.5 text-sm font-medium text-stone-600 hover:bg-stone-200 disabled:opacity-40"
+              className="flex items-center gap-1 rounded-lg bg-stone-100 px-3.5 py-2 text-sm font-medium text-stone-600 hover:bg-stone-200 disabled:opacity-40"
             >
               <Plus size={14} /> Tag
             </button>
           </div>
-        </div>
+        </section>
 
         {/* Freitext */}
-        <label className="block">
-          <span className="mb-1 block text-xs font-medium text-stone-500">
-            Was ist dir schwergefallen? (optional)
-          </span>
+        <section>
+          <h3 className="mb-3 text-[15px] font-semibold tracking-tight text-stone-800">
+            Was ist dir schwergefallen?{' '}
+            <span className="font-normal text-stone-400">· optional</span>
+          </h3>
           <textarea
             value={hardParts}
             onChange={(e) => setHardParts(e.target.value)}
-            rows={2}
+            rows={3}
             placeholder="z.B. Aufgabe 3 (Induktionsbeweis), Konvergenzkriterien …"
-            className="w-full resize-none rounded-lg border border-stone-200 px-3 py-2 text-sm outline-none focus:border-brand-400"
+            className="w-full resize-none rounded-lg border border-stone-200 px-3 py-2.5 text-sm leading-relaxed outline-none focus:border-brand-400"
           />
-        </label>
+        </section>
 
         <button
           onClick={onNeverAgain}
-          className="text-[11px] text-stone-400 underline hover:text-stone-600"
+          className="text-[11px] text-stone-400 underline decoration-stone-300 underline-offset-2 hover:text-stone-600"
         >
           Reflexion künftig nicht mehr anzeigen
         </button>
