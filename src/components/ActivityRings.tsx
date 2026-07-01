@@ -204,23 +204,25 @@ async function semShareDataUrl(overall: number): Promise<string> {
 const STORY_W = 1080
 const STORY_H = 1920
 
-/** Dynamische Überschrift je nach Gesamt-Fortschritt – rahmt auch niedrige Werte
- *  positiv, damit man früh im Semester genauso gern teilt. */
+/** Dynamische Überschrift je nach Gesamt-Fortschritt. Der Ton passt zu Sems
+ *  Stimmung im Bild: 0–24 % noch am Anfang, 25–74 % läuft, 75–100 % Triumph. */
 function headlineFor(pct: number): string {
-  if (pct <= 24) return 'Der Anfang ist gemacht'
+  if (pct <= 0) return 'Zeit, anzufangen'
+  if (pct <= 24) return 'Aller Anfang ist schwer'
   if (pct <= 49) return 'Warmgelaufen'
   if (pct <= 74) return 'Über die Hälfte. Läuft.'
   if (pct <= 94) return 'Fast klausurbereit'
-  return 'Semester im Griff'
+  if (pct <= 99) return 'Endspurt!'
+  return 'Klausurbereit!'
 }
 
 /** „Brag"-Zeile: hebt die stärkste Vorbereitung hervor (nie die schwächste). */
 function bragFor(rings: RingStat[], overall: number): string {
   const full = rings.find((r) => r.pct >= 100)
   if (full) return `${full.label}: durch.`
-  if (overall >= 80) return 'Klausurbereit.'
   const best = rings.reduce((b, r) => (r.pct > b.pct ? r : b), rings[0])
-  return best && best.pct > 0 ? `Stärkste Vorbereitung: ${best.label}` : 'Auf geht’s.'
+  if (best && best.pct > 0) return `Stärkste Vorbereitung: ${best.label}`
+  return overall <= 0 ? 'Auf geht’s – leg los.' : 'Auf geht’s.'
 }
 
 /** SemBan-Logo (aus Logo.tsx) als SVG-Gruppe, skaliert auf px. */
