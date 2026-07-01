@@ -10,10 +10,12 @@ import {
   Scale,
   SlidersHorizontal,
   Sparkles,
+  Sun,
 } from 'lucide-react'
 import { addDays, parseISO, format, differenceInCalendarDays } from 'date-fns'
 import { de } from 'date-fns/locale'
 import type { Course, StudyPlanConfig, StudyStrategy, Task } from '@/db/types'
+import { updateTask } from '@/lib/actions'
 import { useActiveSemester, useCourses, useTasks } from '@/hooks/data'
 import { CoachTeaser } from './CoachTeaser'
 import { useUI, getStudySettings } from '@/store/ui'
@@ -209,6 +211,104 @@ function ReadinessRing({ pct }: { pct: number }) {
       <span className="absolute inset-0 flex items-center justify-center text-sm font-bold tabular-nums text-stone-800">
         {pct}
       </span>
+    </div>
+  )
+}
+
+/** „Heute": der tägliche Handlungs-Anker des Plans. Zeigt die heute fälligen
+ *  Sessions zum Abhaken – und bei Rückstand einen Ein-Klick-Reflow („Aufholen"),
+ *  damit sich kein Überfällig-Berg auftürmt. */
+function TodayCard({
+  course,
+  allTasks,
+  overdue,
+  open,
+  onCatchUp,
+  busy,
+}: {
+  course: Course
+  allTasks: Task[]
+  overdue: number
+  open: number
+  onCatchUp: () => void
+  busy: boolean
+}) {
+  const prefix = `${course.short}: `
+  const strip = (t: string) => (t.startsWith(prefix) ? t.slice(prefix.length) : t)
+  const startMs = new Date().setHours(0, 0, 0, 0)
+  const endMs = new Date().setHours(23, 59, 59, 999)
+  const mine = allTasks.filter((t) => t.examId === course.id && t.status !== 'erledigt' && t.dueDate)
+  const today = mine
+    .filter((t) => {
+      const d = new Date(t.dueDate!).getTime()
+      return d >= startMs && d <= endMs
+    })
+    .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
+  const next = mine
+    .filter((t) => new Date(t.dueDate!).getTime() > endMs)
+    .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())[0]
+  const todayMin = today.reduce((s, t) => s + (t.duration ?? 0), 0)
+  const mark = (id: string) =>
+    void updateTask(id, { status: 'erledigt', completedAt: new Date().toISOString() })
+
+  return (
+    <div className="rounded-xl bg-white p-3.5 ring-1 ring-stone-200/70">
+      <div className="mb-2 flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-sm font-semibold text-stone-800">
+          <Sun size={15} className="text-amber-500" /> Heute
+        </span>
+        {today.length > 0 && todayMin > 0 && (
+          <span className="text-xs tabular-nums text-stone-500">{todayMin} Min</span>
+        )}
+      </div>
+
+      {today.length > 0 ? (
+        <div className="space-y-0.5">
+          {today.map((t) => (
+            <div key={t.id} className="flex items-center gap-2.5 rounded-lg px-1 py-1">
+              <button
+                onClick={() => mark(t.id)}
+                aria-label="Als erledigt markieren"
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-stone-300 text-transparent transition hover:border-emerald-500 hover:bg-emerald-500 hover:text-white"
+              >
+                <Check size={12} strokeWidth={3} />
+              </button>
+              <span className="min-w-0 flex-1 truncate text-sm text-stone-700">{strip(t.title)}</span>
+              {t.duration != null && (
+                <span className="shrink-0 text-[11px] tabular-nums text-stone-400">
+                  {t.duration} Min
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-stone-500">
+          {open === 0
+            ? 'Alles erledigt – stark! 🎉'
+            : overdue > 0
+              ? 'Für heute ist nichts geplant.'
+              : next
+                ? `Heute frei 👍 Nächste Session: ${format(new Date(next.dueDate!), 'EEE d. MMM', { locale: de })}`
+                : 'Heute nichts geplant.'}
+        </p>
+      )}
+
+      {overdue > 0 && (
+        <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-stone-100 pt-2.5">
+          <span className="text-xs font-medium text-amber-700">
+            {overdue} {overdue === 1 ? 'Session liegt' : 'Sessions liegen'} zurück
+          </span>
+          <button
+            onClick={onCatchUp}
+            disabled={busy}
+            title="Überfällige Sessions auf die nächsten freien Tage verteilen"
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-stone-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-stone-700 disabled:opacity-40"
+          >
+            <RotateCcw size={13} /> Aufholen
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -474,28 +574,19 @@ function PlanEditor({
               {readiness.weakest.done}/{readiness.weakest.total} erledigt)
             </div>
           )}
-
-          {progress.overdue > 0 ? (
-            <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-stone-200/70 pt-2.5">
-              <span className="text-xs font-medium text-amber-700">
-                {progress.overdue} überfällig – du hängst etwas hinterher
-              </span>
-              <button
-                onClick={() => void catchUp()}
-                disabled={busy}
-                className="flex shrink-0 items-center gap-1.5 rounded-full bg-stone-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-stone-700 disabled:opacity-40"
-              >
-                <RotateCcw size={13} /> Aufholen
-              </button>
-            </div>
-          ) : (
-            progress.open > 0 && (
-              <div className="mt-2.5 border-t border-stone-200/70 pt-2.5 text-xs font-medium text-emerald-600">
-                Du bist im Plan 🎉
-              </div>
-            )
-          )}
         </div>
+      )}
+
+      {/* Heute-Fokus: was ist jetzt dran + Aufholen bei Rückstand */}
+      {planned > 0 && (
+        <TodayCard
+          course={course}
+          allTasks={allTasks}
+          overdue={progress.overdue}
+          open={progress.open}
+          onCatchUp={() => void catchUp()}
+          busy={busy}
+        />
       )}
 
       {/* Schritt 1 – Die Klausur */}
