@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import type { User } from '@supabase/supabase-js'
 import { supabase, isSyncConfigured } from './supabase'
 import { db } from '@/db/db'
-import { exportData, importBackup, type Backup } from './backup'
+import { exportData, importBackup, resetAll, type Backup } from './backup'
 
 const TABLE = 'user_data'
 const lastSyncKey = (uid: string) => `semban:lastSyncAt:${uid}`
@@ -260,15 +260,28 @@ export function initSync() {
   })
 }
 
-function handleSession(user: User | null) {
+async function handleSession(user: User | null) {
   const prev = useSync.getState().user
-  useSync.setState({ user })
   if (user) {
     if (user.id !== prev?.id) {
+      // Direkter Kontowechsel OHNE vorherige Abmeldung (z.B. OAuth-Re-Auth im
+      // selben Tab): die lokalen Daten des Vorgänger-Kontos dürfen NICHT ins neue
+      // Konto übernommen (und hochgeladen) werden. Erst leeren – wie beim
+      // Abmelden mit user=null, damit die Lösch-Hooks keinen Push auslösen –,
+      // dann das neue Konto abgleichen. (prev == null = normales Login: lokale
+      // Onboarding-/Demodaten sollen erhalten bleiben und werden gemerged.)
+      if (prev) {
+        cancelPush()
+        useSync.setState({ user: null })
+        await resetAll().catch(() => {})
+      }
+      useSync.setState({ user })
       set({ lastSyncAt: getLastSync(user.id) })
       void reconcile(user)
+    } else {
+      useSync.setState({ user })
     }
   } else {
-    set({ status: 'idle', lastSyncAt: null, conflict: null })
+    useSync.setState({ user, status: 'idle', lastSyncAt: null, conflict: null })
   }
 }

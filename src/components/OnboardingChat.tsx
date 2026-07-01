@@ -642,11 +642,23 @@ export function OnboardingChat() {
         .map((c) => ({
           name: String(c.name ?? '').trim(),
           slots: (Array.isArray(c.slots) ? c.slots : [])
-            .filter((s) => s.weekday && s.start)
+            // Nur valide Slots übernehmen: Wochentag 1–7 und HH:MM-Startzeit.
+            // Sonst könnte eine unbrauchbare KI-Zeit („vormittags") als NaN im
+            // Stundenplan landen und das Raster zerlegen.
+            .filter(
+              (s) =>
+                typeof s.weekday === 'number' &&
+                s.weekday >= 1 &&
+                s.weekday <= 7 &&
+                typeof s.start === 'string' &&
+                /^\d{1,2}:\d{2}$/.test(s.start),
+            )
             .map((s) => ({
               id: uid(),
               kind: (SLOT_KINDS.some((k) => k.id === s.kind) ? s.kind : 'vorlesung') as CourseSlot['kind'],
-              weekday: s.weekday as number, start: s.start as string, end: s.end || (s.start as string),
+              weekday: s.weekday as number,
+              start: s.start as string,
+              end: typeof s.end === 'string' && /^\d{1,2}:\d{2}$/.test(s.end) ? s.end : (s.start as string),
               room: s.room || undefined,
             })),
         }))
@@ -998,7 +1010,19 @@ export function OnboardingChat() {
             name: c.name.trim(),
             short: (c.short.trim() || c.name.slice(0, 4)).toUpperCase(),
             color: c.color,
-            slots: c.slots.map((s) => (s.start && s.end && s.end < s.start ? { ...s, start: s.end, end: s.start } : s)),
+            slots: c.slots.map((s) => {
+              if (!s.start || !s.end) return s
+              if (s.end < s.start) return { ...s, start: s.end, end: s.start }
+              if (s.end === s.start) {
+                // Nulllängen-Slot (fehlende/gleiche Endzeit) → Standarddauer
+                // 90 Min, sonst entsteht ein 0-hoher Block im Stundenplan.
+                const [h, m] = s.start.split(':').map(Number)
+                const total = Math.min((h || 0) * 60 + (m || 0) + 90, 23 * 60 + 59)
+                const end = `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+                return { ...s, end }
+              }
+              return s
+            }),
             recurring,
           }
         })

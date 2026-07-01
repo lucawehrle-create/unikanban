@@ -16,9 +16,19 @@ export function courseMap(courses: Course[]): Map<string, Course> {
   return new Map(courses.map((c) => [c.id, c]))
 }
 
+/** Diakritika-/Umlaut-tolerante Normalisierung (wie beim Kurs-Abgleich in ics.ts):
+ *  „ubung" findet „Übung", „loesung" findet „Lösung". */
+function fold(s: string): string {
+  return s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/ß/g, 'ss')
+}
+
 export function filterTasks(tasks: Task[], courses: Course[], f: FilterState): Task[] {
   const byId = courseMap(courses)
-  const needle = f.search.trim().toLowerCase()
+  const needle = fold(f.search.trim())
   // Ende des heutigen Tages – „heute fällig" schließt Überfälliges mit ein.
   const endOfToday = new Date()
   endOfToday.setHours(23, 59, 59, 999)
@@ -36,7 +46,7 @@ export function filterTasks(tasks: Task[], courses: Course[], f: FilterState): T
     if (f.filterTypes.length && !f.filterTypes.includes(t.type)) return false
     if (needle) {
       const course = t.courseId ? byId.get(t.courseId) : undefined
-      const hay = `${t.title} ${course?.name ?? ''} ${course?.short ?? ''} ${t.notes ?? ''}`.toLowerCase()
+      const hay = fold(`${t.title} ${course?.name ?? ''} ${course?.short ?? ''} ${t.notes ?? ''}`)
       if (!hay.includes(needle)) return false
     }
     return true

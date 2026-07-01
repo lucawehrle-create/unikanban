@@ -1,7 +1,19 @@
 import { db } from '@/db/db'
 import type { Attendance, Course, Program, Semester, Task } from '@/db/types'
+import { TASK_TYPES } from './taskTypes'
 
 const BACKUP_VERSION = 1
+
+/** Robustheit beim Import fremder/älterer Backups: unbekannte Aufgabentypen auf
+ *  'sonstiges' zurückfallen (sonst wirft ein späteres TASK_TYPES[type].emoji und
+ *  weißt den Bildschirm) und Pflichtfelder wie phases absichern. */
+function sanitizeTask(t: Task): Task {
+  return {
+    ...t,
+    type: t.type in TASK_TYPES ? t.type : 'sonstiges',
+    phases: Array.isArray(t.phases) ? t.phases : [],
+  }
+}
 
 export interface Backup {
   app: 'semban' | 'unikanban'
@@ -76,7 +88,7 @@ export async function importBackup(raw: string): Promise<void> {
     await db.programs.bulkAdd(data.programs)
     await db.semesters.bulkAdd(data.semesters)
     await db.courses.bulkAdd(data.courses)
-    await db.tasks.bulkAdd(data.tasks)
+    await db.tasks.bulkAdd(data.tasks.map(sanitizeTask))
     await db.attendance.bulkAdd(data.attendance ?? [])
   })
 }
