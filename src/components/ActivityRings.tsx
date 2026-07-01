@@ -128,7 +128,7 @@ const SHARE_FONT = '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helveti
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 /** Eigenständiges SVG (Karte mit Ringen, Legende & Branding) für ein teilbares Bild. */
-function buildShareSVG(rings: RingStat[], overall: number, dateStr: string): string {
+function buildShareSVG(rings: RingStat[], overall: number, dateStr: string, title: string): string {
   const W = 1000
   const H = 1300
   const cx = 500
@@ -176,7 +176,7 @@ function buildShareSVG(rings: RingStat[], overall: number, dateStr: string): str
     `<feDropShadow dx='0' dy='10' stdDeviation='20' flood-color='#1c1917' flood-opacity='0.07'/></filter></defs>` +
     `<rect width='${W}' height='${H}' fill='#edece7'/>` +
     `<rect x='44' y='44' width='912' height='${H - 88}' rx='48' fill='#ffffff' filter='url(#cardShadow)'/>` +
-    `<text x='${cx}' y='138' text-anchor='middle' font-size='48' font-weight='700' fill='#292524'>Meine Lern-Aktivität</text>` +
+    `<text x='${cx}' y='138' text-anchor='middle' font-size='48' font-weight='700' fill='#292524'>${esc(title)}</text>` +
     `<text x='${cx}' y='186' text-anchor='middle' font-size='28' fill='#78716c'>Klausur-Vorbereitung · Stand ${esc(dateStr)}</text>` +
     ringSVG +
     `<text x='${cx}' y='${cy + 16}' text-anchor='middle' font-size='100' font-weight='800' fill='#292524'>${overall}%</text>` +
@@ -189,13 +189,17 @@ function buildShareSVG(rings: RingStat[], overall: number, dateStr: string): str
 }
 
 /** Rendert die Ringe als PNG und teilt sie (Web Share API) bzw. lädt sie herunter. */
-export async function shareRings(rings: RingStat[], overall: number): Promise<void> {
+export async function shareRings(
+  rings: RingStat[],
+  overall: number,
+  title = 'Meine Lern-Aktivität',
+): Promise<void> {
   const dateStr = new Date().toLocaleDateString('de-DE', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
   })
-  const svg = buildShareSVG(rings, overall, dateStr)
+  const svg = buildShareSVG(rings, overall, dateStr, title)
   const url = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)))
   const img = new Image()
   await new Promise<void>((resolve, reject) => {

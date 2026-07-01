@@ -1242,30 +1242,77 @@ const RING_ICON: Record<string, typeof BookOpen> = {
   karten: Layers,
 }
 
-/** Apple-Activity-Ringe über alle Lernpläne: pro Vorbereitungsart ein Ring,
- *  drüberfahren zeigt die Prozente, teilbar als Bild. */
-function ActivityOverview({ allTasks }: { allTasks: Task[] }) {
-  const stats = useMemo(() => computeRingStats(allTasks), [allTasks])
+/** Apple-Activity-Ringe: pro Vorbereitungsart ein Ring. Umschaltbar zwischen
+ *  Gesamt (alle Lernpläne) und einzelnem Kurs; drüberfahren zeigt die Prozente,
+ *  teilbar als Bild. */
+function ActivityOverview({ allTasks, courses }: { allTasks: Task[]; courses: Course[] }) {
+  const planned = courses.filter((c) => planSessionCount(allTasks, c.id) > 0)
+  const [scope, setScope] = useState<string>('all')
+  // Verliert der gewählte Kurs seinen Plan, auf „Gesamt" zurückfallen.
+  const validScope = scope !== 'all' && planned.some((c) => c.id === scope) ? scope : 'all'
+  const scopeCourse = courses.find((c) => c.id === validScope)
+  const stats = useMemo(
+    () => computeRingStats(allTasks, scopeCourse?.id),
+    [allTasks, scopeCourse?.id],
+  )
   const [active, setActive] = useState<number | null>(null)
   const withMaterial = stats.filter((s) => s.total > 0)
   const overall = withMaterial.length
     ? Math.round(withMaterial.reduce((s, r) => s + r.pct, 0) / withMaterial.length)
     : 0
+  const shareTitle = scopeCourse ? scopeCourse.name : 'Meine Lern-Aktivität'
 
   return (
     <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70 sm:p-5">
       <div className="mb-3 flex items-start justify-between gap-2">
         <div>
           <h2 className="text-sm font-semibold text-stone-800">Deine Lern-Aktivität</h2>
-          <p className="text-[11px] text-stone-500">Abdeckung je Vorbereitungsart über alle Lernpläne</p>
+          <p className="text-[11px] text-stone-500">
+            {scopeCourse
+              ? `${scopeCourse.name} · Abdeckung je Vorbereitungsart`
+              : 'Abdeckung je Vorbereitungsart über alle Lernpläne'}
+          </p>
         </div>
         <button
-          onClick={() => void shareRings(stats, overall)}
+          onClick={() => void shareRings(stats, overall, shareTitle)}
           className="flex shrink-0 items-center gap-1.5 rounded-full bg-stone-100 px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:bg-stone-200"
         >
           <Share2 size={13} /> Teilen
         </button>
       </div>
+
+      {/* Umfang: Gesamt vs. einzelner Kurs */}
+      {planned.length >= 2 && (
+        <div className="mb-4 flex flex-wrap gap-1.5">
+          <button
+            onClick={() => setScope('all')}
+            className={cn(
+              'rounded-full px-3 py-1 text-xs font-medium transition',
+              validScope === 'all'
+                ? 'bg-stone-900 text-white'
+                : 'bg-stone-100 text-stone-600 hover:bg-stone-200',
+            )}
+          >
+            Gesamt
+          </button>
+          {planned.map((c) => (
+            <button
+              key={c.id}
+              onClick={() => setScope(c.id)}
+              className={cn(
+                'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium transition',
+                validScope === c.id
+                  ? 'bg-stone-900 text-white'
+                  : 'bg-stone-100 text-stone-600 hover:bg-stone-200',
+              )}
+            >
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: c.color }} />
+              {c.short || c.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       <div className="flex flex-col items-center gap-5 sm:flex-row sm:gap-7">
         <ActivityRings rings={stats} active={active} onActive={setActive} size={208} />
         <div className="w-full flex-1 space-y-0.5">
@@ -1373,7 +1420,7 @@ export function StudyPlansView() {
         <CoachTeaser />
 
         {/* Lern-Aktivität (Apple-Ringe) – sobald mind. ein Plan existiert */}
-        {plansCount > 0 && <ActivityOverview allTasks={allTasks} />}
+        {plansCount > 0 && <ActivityOverview allTasks={allTasks} courses={courses} />}
 
         {/* Kursauswahl */}
         <div className="flex flex-wrap gap-2">
