@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Check, Download, Instagram, Link2, Loader2, MessageCircle, Share2, X } from 'lucide-react'
 import type { RingStat } from '@/lib/studyPlans'
 
@@ -516,7 +517,7 @@ export function SharePanel({
   }
 
   // WhatsApp: mobil das Bild über die native Teilen-Funktion (dort WhatsApp
-  // wählen), sonst die WhatsApp-Web-Einladung mit unserem Link.
+  // wählen), am Desktop die WhatsApp-Web-Einladung mit unserem Link.
   const whatsapp = async () => {
     if (native) {
       await shareFile()
@@ -526,15 +527,18 @@ export function SharePanel({
     window.open(`https://wa.me/?text=${text}`, '_blank', 'noopener')
   }
 
-  // Instagram nimmt kein Bild per Link entgegen: mobil über die native Teilen-
-  // Funktion (dort „Story"/Instagram wählen), am Desktop Bild speichern + Hinweis.
+  // Instagram nimmt vom Web aus kein Bild entgegen. Mobil: native Teilen-Funktion
+  // (dort „Story"/Instagram wählen). Desktop: Bild speichern UND Instagram öffnen,
+  // damit man es direkt in der Story posten kann.
   const instagram = async () => {
     if (native) {
       await shareFile()
       return
     }
+    // Fenster im selben Klick öffnen (sonst Popup-Blocker), dann speichern.
+    window.open('https://www.instagram.com/', '_blank', 'noopener')
     saveImage()
-    flash('Bild gespeichert – jetzt in deiner Instagram-Story posten ✨')
+    flash('Bild gespeichert – füge es in deiner Instagram-Story ein ✨')
   }
 
   const copyLink = async () => {
@@ -552,9 +556,9 @@ export function SharePanel({
       variant === v ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500 hover:text-stone-700'
     }`
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+      className="fixed inset-0 z-[100] flex items-end justify-center bg-black/50 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div
@@ -593,55 +597,64 @@ export function SharePanel({
           </button>
         </div>
 
-        {/* Primär: native Teilen-Funktion (alle Apps auf einmal) */}
-        {native && (
-          <button
-            onClick={shareImage}
-            disabled={!preview || busy}
-            className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl bg-stone-900 py-3 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:opacity-50"
-          >
-            <Share2 size={16} /> Teilen
-          </button>
-        )}
+        {/* Primär: garantiert funktionierende Aktion je Plattform. Mobil das
+            native Teilen-Menü (WhatsApp/Instagram/Stories), am Desktop ein
+            verlässlicher Download. */}
+        <button
+          onClick={native ? shareImage : saveImage}
+          disabled={!preview || busy}
+          className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl bg-stone-900 py-3 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:opacity-50"
+        >
+          {native ? (
+            <>
+              <Share2 size={16} /> Teilen
+            </>
+          ) : (
+            <>
+              <Download size={16} /> Bild herunterladen
+            </>
+          )}
+        </button>
 
-        {/* Plattform-Schnellziele */}
-        <div className="grid grid-cols-2 gap-2">
+        {/* Schnellziele */}
+        <div className="grid grid-cols-3 gap-2">
           <button
             onClick={whatsapp}
             disabled={!preview}
-            className="flex items-center justify-center gap-2 rounded-xl bg-[#25D366]/10 py-2.5 text-sm font-semibold text-[#128C4B] transition hover:bg-[#25D366]/20 disabled:opacity-50"
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-[#25D366]/10 py-2.5 text-xs font-semibold text-[#128C4B] transition hover:bg-[#25D366]/20 disabled:opacity-50"
           >
-            <MessageCircle size={16} /> WhatsApp
+            <MessageCircle size={15} /> WhatsApp
           </button>
           <button
             onClick={instagram}
             disabled={!preview}
-            className="flex items-center justify-center gap-2 rounded-xl bg-[#d62976]/10 py-2.5 text-sm font-semibold text-[#c13584] transition hover:bg-[#d62976]/20 disabled:opacity-50"
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-[#d62976]/10 py-2.5 text-xs font-semibold text-[#c13584] transition hover:bg-[#d62976]/20 disabled:opacity-50"
           >
-            <Instagram size={16} /> Instagram
-          </button>
-          <button
-            onClick={saveImage}
-            disabled={!preview}
-            className="flex items-center justify-center gap-2 rounded-xl bg-stone-100 py-2.5 text-sm font-semibold text-stone-700 transition hover:bg-stone-200 disabled:opacity-50"
-          >
-            <Download size={16} /> Speichern
+            <Instagram size={15} /> Instagram
           </button>
           <button
             onClick={copyLink}
-            className="flex items-center justify-center gap-2 rounded-xl bg-stone-100 py-2.5 text-sm font-semibold text-stone-700 transition hover:bg-stone-200"
+            className="flex items-center justify-center gap-1.5 rounded-xl bg-stone-100 py-2.5 text-xs font-semibold text-stone-700 transition hover:bg-stone-200"
           >
-            {copied ? <Check size={16} className="text-green-600" /> : <Link2 size={16} />}
+            {copied ? <Check size={15} className="text-green-600" /> : <Link2 size={15} />}
             {copied ? 'Kopiert' : 'Link'}
           </button>
         </div>
 
+        {/* Hinweis: was Instagram/Stories vom Web aus (nicht) können. */}
+        <p className="mt-3 text-center text-[11px] leading-relaxed text-stone-400">
+          {native
+            ? 'Für die Instagram-Story: „Teilen" → Instagram wählen.'
+            : 'Instagram/Stories brauchen die App: Bild herunterladen und dort posten.'}
+        </p>
+
         {hint && (
-          <p className="mt-3 rounded-xl bg-brand-50 px-3 py-2 text-center text-[12px] font-medium text-stone-600">
+          <p className="mt-2 rounded-xl bg-brand-50 px-3 py-2 text-center text-[12px] font-medium text-stone-600">
             {hint}
           </p>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
