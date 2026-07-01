@@ -6,11 +6,15 @@ import {
   Check,
   CalendarClock,
   ChevronRight,
+  Coffee,
+  Pause,
+  Play,
   RotateCcw,
   Scale,
   SlidersHorizontal,
   Sparkles,
   Sun,
+  Timer,
 } from 'lucide-react'
 import { addDays, parseISO, format, differenceInCalendarDays } from 'date-fns'
 import { de } from 'date-fns/locale'
@@ -39,6 +43,7 @@ import {
   type ItemKind,
   type StudySettings,
 } from '@/lib/studyPlans'
+import { Modal } from './Modal'
 import { DatePicker } from './DatePicker'
 import { Select } from './ui/Select'
 import { cn } from '@/lib/cn'
@@ -215,6 +220,161 @@ function ReadinessRing({ pct }: { pct: number }) {
   )
 }
 
+const FOCUS_BLOCK_MIN = 25
+const BREAK_MIN = 5
+interface FocusStep {
+  kind: 'focus' | 'break'
+  min: number
+  block: number
+  blocks: number
+}
+
+/** Teilt die geplante Dauer in 25-Min-Fokusblöcke mit 5-Min-Pausen dazwischen. */
+function focusSteps(planned: number): FocusStep[] {
+  const chunks: number[] = []
+  let rem = Math.max(1, planned)
+  while (rem > 0) {
+    const b = Math.min(FOCUS_BLOCK_MIN, rem)
+    chunks.push(b)
+    rem -= b
+  }
+  const steps: FocusStep[] = []
+  chunks.forEach((m, i) => {
+    steps.push({ kind: 'focus', min: m, block: i + 1, blocks: chunks.length })
+    if (i < chunks.length - 1) steps.push({ kind: 'break', min: BREAK_MIN, block: i + 1, blocks: chunks.length })
+  })
+  return steps
+}
+
+const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+
+/** Pomodoro-Fokus-Timer für eine Lern-Session: läuft die geplante Zeit in
+ *  25-Min-Blöcken mit Pausen, zeigt das Lernziel und hakt am Ende die Session ab. */
+function FocusTimer({
+  task,
+  title,
+  goal,
+  onClose,
+  onComplete,
+}: {
+  task: Task
+  title: string
+  goal?: string
+  onClose: () => void
+  onComplete: () => void
+}) {
+  const steps = useMemo(() => focusSteps(task.duration ?? FOCUS_BLOCK_MIN), [task.duration])
+  const [idx, setIdx] = useState(0)
+  const [left, setLeft] = useState(steps[0].min * 60)
+  const [running, setRunning] = useState(true)
+  const [done, setDone] = useState(false)
+
+  // Herunterzählen (eine Sekunde je Intervall) – sauber aufgeräumt bei Pause/Unmount.
+  useEffect(() => {
+    if (!running || done) return
+    const id = setInterval(() => setLeft((l) => l - 1), 1000)
+    return () => clearInterval(id)
+  }, [running, done])
+
+  // Schrittwechsel, sobald der aktuelle Abschnitt abgelaufen ist.
+  useEffect(() => {
+    if (left > 0 || done) return
+    const nextI = idx + 1
+    if (nextI < steps.length) {
+      setIdx(nextI)
+      setLeft(steps[nextI].min * 60)
+    } else {
+      setDone(true)
+      setRunning(false)
+    }
+  }, [left, done, idx, steps])
+
+  const step = steps[idx]
+  const isBreak = step.kind === 'break'
+  const total = step.min * 60
+  const pct = total > 0 ? ((total - Math.max(0, left)) / total) * 100 : 0
+
+  const finish = () => {
+    onComplete()
+    onClose()
+  }
+
+  return (
+    <Modal title={title} onClose={onClose}>
+      <div className="flex flex-col items-center py-2 text-center">
+        {done ? (
+          <>
+            <div className="text-lg font-semibold text-stone-800">Geschafft! 🎉</div>
+            <p className="mt-1 text-sm text-stone-500">
+              {task.duration ?? FOCUS_BLOCK_MIN} Minuten fokussiert gelernt.
+            </p>
+          </>
+        ) : (
+          <>
+            <div
+              className={cn(
+                'flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide',
+                isBreak ? 'text-emerald-600' : 'text-brand-600',
+              )}
+            >
+              {isBreak ? <Coffee size={13} /> : <Timer size={13} />}
+              {isBreak ? 'Pause' : `Fokus · Block ${step.block}/${step.blocks}`}
+            </div>
+            <div className="mt-2 text-6xl font-bold tabular-nums text-stone-900">{mmss(Math.max(0, left))}</div>
+            <div className="mt-3 h-1.5 w-48 overflow-hidden rounded-full bg-stone-200">
+              <div
+                className={cn('h-full rounded-full transition-all', isBreak ? 'bg-emerald-500' : 'bg-brand-400')}
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            {goal && !isBreak && (
+              <p className="mt-3 max-w-xs text-xs leading-relaxed text-stone-500">{goal}</p>
+            )}
+            {isBreak && (
+              <p className="mt-3 max-w-xs text-xs text-stone-500">
+                Kurz durchatmen, aufstehen, Augen entspannen – gleich geht’s weiter.
+              </p>
+            )}
+          </>
+        )}
+
+        <div className="mt-5 flex items-center gap-2">
+          {done ? (
+            <button
+              onClick={finish}
+              className="flex items-center gap-1.5 rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-600"
+            >
+              <Check size={16} /> Als erledigt markieren
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => setRunning((r) => !r)}
+                className="flex items-center gap-1.5 rounded-full bg-stone-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-stone-700"
+              >
+                {running ? <Pause size={16} /> : <Play size={16} />}
+                {running ? 'Pause' : 'Weiter'}
+              </button>
+              <button
+                onClick={() => setLeft(0)}
+                className="rounded-full px-3 py-2.5 text-sm font-medium text-stone-500 transition hover:bg-stone-100"
+              >
+                {isBreak ? 'Pause überspringen' : 'Block überspringen'}
+              </button>
+              <button
+                onClick={finish}
+                className="rounded-full px-3 py-2.5 text-sm font-medium text-emerald-600 transition hover:bg-emerald-50"
+              >
+                Fertig
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 /** „Heute": der tägliche Handlungs-Anker des Plans. Zeigt die heute fälligen
  *  Sessions zum Abhaken – und bei Rückstand einen Ein-Klick-Reflow („Aufholen"),
  *  damit sich kein Überfällig-Berg auftürmt. */
@@ -250,9 +410,13 @@ function TodayCard({
   const todayMin = today.reduce((s, t) => s + (t.duration ?? 0), 0)
   const mark = (id: string) =>
     void updateTask(id, { status: 'erledigt', completedAt: new Date().toISOString() })
+  const [focusTask, setFocusTask] = useState<Task | null>(null)
+  // Lernziel = erste Notizzeile ohne das 🎯-Präfix.
+  const goalOf = (t: Task) => t.notes?.split('\n')[0]?.replace(/^🎯\s*/, '').trim() || undefined
 
   return (
-    <div className="rounded-xl bg-white p-3.5 ring-1 ring-stone-200/70">
+    <>
+      <div className="rounded-xl bg-white p-3.5 ring-1 ring-stone-200/70">
       <div className="mb-2 flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-sm font-semibold text-stone-800">
           <Sun size={15} className="text-amber-500" /> Heute
@@ -279,6 +443,13 @@ function TodayCard({
                   {t.duration} Min
                 </span>
               )}
+              <button
+                onClick={() => setFocusTask(t)}
+                title="Fokus-Timer starten"
+                className="flex shrink-0 items-center gap-1 rounded-full bg-stone-100 px-2 py-1 text-[11px] font-medium text-stone-600 transition hover:bg-brand-100 hover:text-stone-800"
+              >
+                <Play size={11} /> Fokus
+              </button>
             </div>
           ))}
         </div>
@@ -309,7 +480,17 @@ function TodayCard({
           </button>
         </div>
       )}
-    </div>
+      </div>
+      {focusTask && (
+        <FocusTimer
+          task={focusTask}
+          title={strip(focusTask.title)}
+          goal={goalOf(focusTask)}
+          onClose={() => setFocusTask(null)}
+          onComplete={() => mark(focusTask.id)}
+        />
+      )}
+    </>
   )
 }
 
