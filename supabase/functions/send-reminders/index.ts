@@ -113,14 +113,25 @@ function addDays(date: string, n: number): string {
 // Lesbares Fälligkeitsdatum in de-DE in der TZ des Nutzers.
 function formatDue(iso: string, tz: string): string {
   const d = new Date(iso)
-  // Hat der ISO-String eine Uhrzeit? Dann diese mit anzeigen.
-  const hasTime = /\d{2}:\d{2}/.test(iso)
+  // Jeder ISO-String enthält eine Uhrzeit – ein reiner /\d{2}:\d{2}/-Test wäre
+  // also immer true. „Ganztägige" Fristen ohne echte Uhrzeit werden als
+  // Tagesende (23:59 lokal) gespeichert; das erkennen wir an der Uhrzeit in der
+  // TZ des Nutzers und blenden sie dann aus (sonst stünde überall „23:59").
+  const clock = new Intl.DateTimeFormat('en-GB', {
+    timeZone: tz,
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(d)
+  const hour = Number(clock.find((p) => p.type === 'hour')?.value ?? '0')
+  const min = Number(clock.find((p) => p.type === 'minute')?.value ?? '0')
+  const allDay = hour === 23 && min >= 58
   return new Intl.DateTimeFormat('de-DE', {
     timeZone: tz,
     weekday: 'short',
     day: '2-digit',
     month: '2-digit',
-    ...(hasTime ? { hour: '2-digit', minute: '2-digit' } : {}),
+    ...(allDay ? {} : { hour: '2-digit', minute: '2-digit' }),
   }).format(d)
 }
 

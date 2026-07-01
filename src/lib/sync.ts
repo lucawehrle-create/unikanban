@@ -72,6 +72,17 @@ function hasLocalEdits(uid: string): boolean {
 let applyingRemote = false
 let pushTimer: ReturnType<typeof setTimeout> | null = null
 
+/** Einen entprellten, noch nicht ausgeführten Push abbrechen. Wichtig, sobald
+ *  wir Cloud-Daten übernehmen oder einen Konflikt anzeigen: sonst feuert der
+ *  alte Timer später los und überschreibt neuere Cloud-Daten bzw. lädt eine
+ *  halb eingespielte DB hoch. */
+function cancelPush() {
+  if (pushTimer) {
+    clearTimeout(pushTimer)
+    pushTimer = null
+  }
+}
+
 async function pullRemote(uid: string): Promise<{ data: Backup; updatedAt: string } | null> {
   const { data, error } = await supabase!
     .from(TABLE)
@@ -84,8 +95,12 @@ async function pullRemote(uid: string): Promise<{ data: Backup; updatedAt: strin
 }
 
 async function push() {
-  const { user } = useSync.getState()
+  const { user, conflict } = useSync.getState()
   if (!supabase || !user) return
+  // Nicht hochladen, während wir gerade Cloud-Daten einspielen (die DB ist
+  // dann evtl. halb geleert) oder ein ungelöster Konflikt ansteht (ein
+  // entprellter Push würde die neueren Cloud-Daten blind überschreiben).
+  if (applyingRemote || conflict) return
   set({ status: 'syncing', error: null })
   try {
     const data = await exportData()
@@ -103,6 +118,7 @@ async function push() {
 }
 
 async function applyRemote(uid: string, remote: { data: Backup; updatedAt: string }) {
+  cancelPush() // kein alter Timer darf während des Imports einen Push auslösen
   applyingRemote = true
   try {
     await importBackup(JSON.stringify(remote.data))
@@ -135,6 +151,7 @@ async function reconcile(user: User) {
     // Beide Seiten haben Daten:
     if (!lastSync) {
       // Dieses Gerät war noch nie mit dem Konto verknüpft → Nutzer fragen.
+      cancelPush()
       set({ status: 'idle', conflict: { remoteUpdatedAt: remote.updatedAt } })
       return
     }
@@ -143,6 +160,7 @@ async function reconcile(user: User) {
       // …aber lokal gibt es noch nicht hochgeladene Änderungen → echter
       // Mehrgeräte-Konflikt: nicht blind überschreiben, sondern nachfragen.
       if (hasLocalEdits(user.id)) {
+        cancelPush()
         set({ status: 'idle', conflict: { remoteUpdatedAt: remote.updatedAt } })
         return
       }
@@ -179,6 +197,7 @@ export async function syncNow() {
   if (remote && (!lastSync || remote.updatedAt > lastSync)) {
     // Remote neuer, aber lokal nicht hochgeladene Änderungen → Konflikt zeigen.
     if (hasLocalEdits(user.id)) {
+      cancelPush()
       set({ status: 'idle', conflict: { remoteUpdatedAt: remote.updatedAt } })
       return
     }

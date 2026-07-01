@@ -167,7 +167,11 @@ export function computePace(
   const istTempo = stats.doneEcts / semesterCount
   if (istTempo <= 0) return null
   const remaining = Math.max(0, stats.targetEcts - stats.doneEcts)
-  const semestersLeft = Math.ceil(remaining / Math.max(istTempo, sollTempo))
+  // Prognose am tatsächlichen Ist-Tempo (nicht am Soll): „voraussichtlich fertig"
+  // wird gerade bei rückständigen Studierenden gezeigt – mit Math.max(…, sollTempo)
+  // würde man dort ein zu optimistisches Ergebnis anzeigen (unterstellt, sie holen
+  // ab jetzt aufs Soll-Tempo auf). istTempo > 0 ist oben garantiert.
+  const semestersLeft = Math.ceil(remaining / istTempo)
   const extraSemesters = Math.max(0, semesterCount + semestersLeft - reg)
   return { onTrack: istTempo >= sollTempo, extraSemesters }
 }

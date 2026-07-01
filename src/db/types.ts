@@ -205,6 +205,9 @@ export interface Task {
   /** stabile Blatt-Nummer (1-basiert) innerhalb der Serie – Identität beim
    *  Neugenerieren, unabhängig vom (editierbaren) Titel. */
   seriesIndex?: number
+  /** true, sobald der Nutzer eine Auto-Aufgabe im Editor angefasst hat. Schützt
+   *  offene, aber bearbeitete Serien-Aufgaben vor dem Ersetzen beim Neugenerieren. */
+  userEdited?: boolean
   /** id der Klausur-Aufgabe, zu der diese Lern-Session gehört (Lernplan). */
   examId?: string
   /** Stabiler Schlüssel der Lerneinheit (strategieunabhängig) – erkennt beim

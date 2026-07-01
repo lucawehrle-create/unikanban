@@ -53,7 +53,13 @@ const VTIMEZONE_BERLIN = [
 ]
 
 function esc(text: string): string {
-  return text.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n')
+  // \r\n | \r | \n allesamt zu literalem \n – ein roher CR mitten in einer
+  // Content-Zeile ist laut RFC 5545 ungültig (strenge Parser brechen ab).
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r\n|\r|\n/g, '\\n')
 }
 
 // RFC 5545: Content-Zeilen dürfen max. 75 Oktette lang sein; längere werden
@@ -138,15 +144,13 @@ export function buildICS(
     for (const t of tasks) {
       if (!t.dueDate) continue
       const start = new Date(t.dueDate)
-      const end = new Date(start.getTime() + 30 * 60000)
       const course = t.courseId ? byId.get(t.courseId) : undefined
       const summary = `${TASK_TYPES[t.type].emoji} ${t.title}${course ? ` (${course.short})` : ''}`
-      lines.push(
-        'BEGIN:VEVENT',
-        `UID:${t.id}@semban.de`,
-        `DTSTAMP:${now}`,
-        `DTSTART:${fmtUTC(start)}`,
-        `DTEND:${fmtUTC(end)}`,
+      const bp = berlinParts(start)
+      // Datum-Fristen werden als Tagesende (23:59 lokal) gespeichert → als
+      // Ganztags-Banner ausgeben (wie im Kalender-Abo), nicht als 23:59-Termin.
+      const allDay = bp.hour === 23 && bp.min >= 58
+      const common = [
         `SUMMARY:${esc(summary)}`,
         ...(t.notes ? [`DESCRIPTION:${esc(t.notes)}`] : []),
         // Deadlines blockieren den Kalender nicht als „belegt".
@@ -158,7 +162,27 @@ export function buildICS(
         'TRIGGER:-P1D',
         'END:VALARM',
         'END:VEVENT',
-      )
+      ]
+      if (allDay) {
+        lines.push(
+          'BEGIN:VEVENT',
+          `UID:${t.id}@semban.de`,
+          `DTSTAMP:${now}`,
+          `DTSTART;VALUE=DATE:${icsDate(bp)}`,
+          `DTEND;VALUE=DATE:${icsNextDay(bp)}`,
+          ...common,
+        )
+      } else {
+        const end = new Date(start.getTime() + 30 * 60000)
+        lines.push(
+          'BEGIN:VEVENT',
+          `UID:${t.id}@semban.de`,
+          `DTSTAMP:${now}`,
+          `DTSTART:${fmtUTC(start)}`,
+          `DTEND:${fmtUTC(end)}`,
+          ...common,
+        )
+      }
     }
   }
 
@@ -250,6 +274,24 @@ const BERLIN_PARTS = new Intl.DateTimeFormat('en-GB', {
   second: '2-digit',
   hour12: false,
 })
+
+/** Berlin-Wandzeit-Bestandteile eines Instants (für die Ganztags-Erkennung von
+ *  Deadlines – konsistent mit dem Kalender-Abo, das 23:59-Fristen als Ganztags-
+ *  Banner ausgibt statt als 23:59-Termin). */
+function berlinParts(d: Date): { y: number; m: number; d: number; hour: number; min: number } {
+  const p = Object.fromEntries(BERLIN_PARTS.formatToParts(d).map((x) => [x.type, x.value]))
+  return { y: +p.year, m: +p.month, d: +p.day, hour: +p.hour % 24, min: +p.minute }
+}
+/** YYYYMMDD (iCalendar DATE) aus Berlin-Bestandteilen. */
+function icsDate(bp: { y: number; m: number; d: number }): string {
+  return `${bp.y}${pad(bp.m)}${pad(bp.d)}`
+}
+/** Folgetag als YYYYMMDD (exklusives DTEND für Ganztags-Events). */
+function icsNextDay(bp: { y: number; m: number; d: number }): string {
+  const dt = new Date(Date.UTC(bp.y, bp.m - 1, bp.d))
+  dt.setUTCDate(dt.getUTCDate() + 1)
+  return `${dt.getUTCFullYear()}${pad(dt.getUTCMonth() + 1)}${pad(dt.getUTCDate())}`
+}
 
 function parseDt(value: string): Date | null {
   const m = value.match(/(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})?)?(Z)?/)

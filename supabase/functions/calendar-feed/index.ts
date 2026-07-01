@@ -76,6 +76,8 @@ const TASK_EMOJI: Record<string, string> = {
   referat: '🎤',
   lektuere: '📖',
   klausur: '🎓',
+  altklausur: '🗂️',
+  karteikarten: '🃏',
   sonstiges: '•',
 }
 
@@ -118,7 +120,13 @@ const VTIMEZONE_BERLIN = [
 ]
 
 function esc(text: string): string {
-  return text.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n')
+  // \r\n | \r | \n → literales \n (ein roher CR mitten in der Zeile ist laut
+  // RFC 5545 ungültig; strenge Parser brechen sonst ab).
+  return text
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r\n|\r|\n/g, '\\n')
 }
 
 // RFC 5545: max. 75 Oktette pro Zeile, sonst falten (Folgezeile mit Leerzeichen).
