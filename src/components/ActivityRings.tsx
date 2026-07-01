@@ -17,9 +17,13 @@ export function ActivityRings({
   onActive: (i: number | null) => void
 }) {
   const c = size / 2
-  const stroke = Math.round(size / 15)
-  const gap = Math.round(stroke * 0.5)
-  const outerR = c - stroke / 2 - 2
+  // Ringgrößen adaptiv aus der Anzahl: so passen ALLE Ringe (auch der innerste,
+  // z.B. Karteikarten) mit einem klaren Loch in der Mitte hinein. gap = 0.4·stroke.
+  const n = rings.length || 1
+  const hole = size * 0.15
+  const stroke = (c - 2 - hole) / (n + 0.4 * (n - 1))
+  const gap = stroke * 0.4
+  const outerR = c - 2 - stroke / 2
   const withMaterial = rings.filter((r) => r.total > 0)
   const overall = withMaterial.length
     ? Math.round(withMaterial.reduce((s, r) => s + r.pct, 0) / withMaterial.length)
@@ -31,7 +35,7 @@ export function ActivityRings({
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
         {rings.map((r, i) => {
           const radius = outerR - i * (stroke + gap)
-          if (radius <= stroke) return null
+          if (radius <= 0) return null
           const circ = 2 * Math.PI * radius
           const off = circ * (1 - Math.min(100, r.pct) / 100)
           const dim = active != null && active !== i
@@ -107,8 +111,10 @@ function buildShareSVG(rings: RingStat[], overall: number): string {
   const cx = 500
   const cy = 400
   const S = 620
-  const stroke = 44
-  const gap = 20
+  const n = rings.length || 1
+  const hole = S * 0.15
+  const stroke = (S / 2 - hole) / (n + 0.4 * (n - 1))
+  const gap = stroke * 0.4
   const outerR = S / 2 - stroke / 2
   const font = "font-family='-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'"
 
