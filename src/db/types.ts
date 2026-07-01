@@ -161,6 +161,10 @@ export interface StudyPlanConfig {
   weight?: number
   /** Bevorzugte Uhrzeit der Sessions (HH:mm). */
   time: string
+  /** Selbsteingeschätzte Sicherheit je Thema (Themen-Schlüssel → 1=unsicher,
+   *  2=geht so, 3=sicher). Unsichere Themen bekommen eine zusätzliche
+   *  Wiederholung nahe der Klausur (adaptives Spaced Repetition). */
+  confidence?: Record<string, number>
 }
 
 export interface Phase {

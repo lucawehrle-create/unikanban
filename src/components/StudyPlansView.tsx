@@ -37,8 +37,10 @@ import {
   rescheduleOverduePlan,
   reviewReps,
   savePlan,
+  setTopicConfidence,
   summarize,
   timeline,
+  topicOf,
   type DayBar,
   type ItemKind,
   type StudySettings,
@@ -375,6 +377,51 @@ function FocusTimer({
   )
 }
 
+const CONFIDENCE_OPTS: { rating: number; label: string; emoji: string; color: string }[] = [
+  { rating: 1, label: 'Unsicher', emoji: '😕', color: '#ef4444' },
+  { rating: 2, label: 'Geht so', emoji: '😐', color: '#f59e0b' },
+  { rating: 3, label: 'Sicher', emoji: '😀', color: '#10b981' },
+]
+
+/** Kurzer Sicherheits-Check nach einer Lerneinheit. „Unsicher" plant das Thema
+ *  nahe der Klausur nochmal ein (adaptives Spaced Repetition). */
+function ConfidencePrompt({
+  topicLabel,
+  onPick,
+  onClose,
+}: {
+  topicLabel: string
+  onPick: (rating: number) => void
+  onClose: () => void
+}) {
+  return (
+    <Modal title="Wie sicher fühlst du dich?" onClose={onClose}>
+      <div className="py-1">
+        <p className="mb-3 text-sm text-stone-600">
+          Gerade gelernt: <span className="font-medium text-stone-800">{topicLabel}</span>
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          {CONFIDENCE_OPTS.map((o) => (
+            <button
+              key={o.rating}
+              onClick={() => onPick(o.rating)}
+              className="flex flex-col items-center gap-1 rounded-xl border border-stone-200 px-2 py-3 transition hover:border-stone-300 hover:bg-stone-50"
+            >
+              <span className="text-2xl">{o.emoji}</span>
+              <span className="text-xs font-semibold" style={{ color: o.color }}>
+                {o.label}
+              </span>
+            </button>
+          ))}
+        </div>
+        <p className="mt-3 text-[11px] text-stone-400">
+          Bei „Unsicher" plane ich das Thema näher an der Klausur nochmal ein.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
 /** „Heute": der tägliche Handlungs-Anker des Plans. Zeigt die heute fälligen
  *  Sessions zum Abhaken – und bei Rückstand einen Ein-Klick-Reflow („Aufholen"),
  *  damit sich kein Überfällig-Berg auftürmt. */
@@ -385,6 +432,7 @@ function TodayCard({
   open,
   onCatchUp,
   busy,
+  settings,
 }: {
   course: Course
   allTasks: Task[]
@@ -392,6 +440,7 @@ function TodayCard({
   open: number
   onCatchUp: () => void
   busy: boolean
+  settings: StudySettings
 }) {
   const prefix = `${course.short}: `
   const strip = (t: string) => (t.startsWith(prefix) ? t.slice(prefix.length) : t)
@@ -408,11 +457,16 @@ function TodayCard({
     .filter((t) => new Date(t.dueDate!).getTime() > endMs)
     .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())[0]
   const todayMin = today.reduce((s, t) => s + (t.duration ?? 0), 0)
-  const mark = (id: string) =>
-    void updateTask(id, { status: 'erledigt', completedAt: new Date().toISOString() })
   const [focusTask, setFocusTask] = useState<Task | null>(null)
+  const [confTask, setConfTask] = useState<Task | null>(null)
   // Lernziel = erste Notizzeile ohne das 🎯-Präfix.
   const goalOf = (t: Task) => t.notes?.split('\n')[0]?.replace(/^🎯\s*/, '').trim() || undefined
+  // Session abschließen: erledigt markieren und – bei „echtem" Stoff (kein
+  // Karteikarten-Tagesritual) – nach der Sicherheit fragen.
+  const complete = (t: Task) => {
+    void updateTask(t.id, { status: 'erledigt', completedAt: new Date().toISOString() })
+    if (topicOf(t.planKey)) setConfTask(t)
+  }
 
   return (
     <>
@@ -431,7 +485,7 @@ function TodayCard({
           {today.map((t) => (
             <div key={t.id} className="flex items-center gap-2.5 rounded-lg px-1 py-1">
               <button
-                onClick={() => mark(t.id)}
+                onClick={() => complete(t)}
                 aria-label="Als erledigt markieren"
                 className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-stone-300 text-transparent transition hover:border-emerald-500 hover:bg-emerald-500 hover:text-white"
               >
@@ -487,7 +541,18 @@ function TodayCard({
           title={strip(focusTask.title)}
           goal={goalOf(focusTask)}
           onClose={() => setFocusTask(null)}
-          onComplete={() => mark(focusTask.id)}
+          onComplete={() => complete(focusTask)}
+        />
+      )}
+      {confTask && (
+        <ConfidencePrompt
+          topicLabel={strip(confTask.title)}
+          onClose={() => setConfTask(null)}
+          onPick={(r) => {
+            const topic = topicOf(confTask.planKey)
+            if (topic) void setTopicConfidence(course, topic, r, settings)
+            setConfTask(null)
+          }}
         />
       )}
     </>
@@ -767,6 +832,7 @@ function PlanEditor({
           open={progress.open}
           onCatchUp={() => void catchUp()}
           busy={busy}
+          settings={settings}
         />
       )}
 

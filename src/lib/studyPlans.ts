@@ -259,6 +259,38 @@ function buildUnits(
       key: `alt:${i + 1}`,
     })
 
+  // Adaptive Wiederholung: Themen, die der Nutzer nach dem Lernen als „unsicher"
+  // (1) markiert hat, bekommen eine zusätzliche Festigungs-Session nahe der
+  // Klausur (leicht gestreut, damit sie nicht alle auf denselben Tag fallen).
+  const conf = cfg.confidence ?? {}
+  for (let i = 0; i < cfg.chapters; i++) {
+    if (conf[`kap:${i + 1}`] === 1)
+      u.push({
+        kind: 'kapitel',
+        label: `Kapitel ${i + 1} sichern`,
+        durationMin: Math.round(CHAPTER_MIN * 0.5),
+        pos: Math.min(0.93, 0.85 + (i / Math.max(1, cfg.chapters)) * 0.08),
+        focus:
+          'Gezielt die Stellen, bei denen du dich unsicher gefühlt hast – kurze Selbstabfrage, bis es sitzt.',
+        key: `kap:${i + 1}:sicher`,
+      })
+  }
+  const extraSheet = (sheets: SheetRef[], kind: ItemKind) => {
+    sheets.forEach((sh, i) => {
+      if (conf[`${kind}:${sh.id}`] === 1)
+        u.push({
+          kind,
+          label: `${sh.title} sichern`,
+          durationMin: Math.max(15, Math.round(reviewMinutes(sh.difficulty) * 0.8)),
+          pos: Math.min(0.94, 0.87 + (i / Math.max(1, sheets.length)) * 0.06),
+          focus: 'Die zuletzt unsicheren Aufgaben nochmal aus dem Kopf lösen.',
+          key: `${kind}:${sh.id}:sicher`,
+        })
+    })
+  }
+  extraSheet(uebungSheets, 'uebung')
+  extraSheet(tutSheets, 'tut')
+
   return u.sort((a, b) => a.pos - b.pos)
 }
 
@@ -798,6 +830,43 @@ export function planProgress(allTasks: Task[], courseId: string): PlanProgress {
 }
 
 // --- Klausur-Bereitschaft ---------------------------------------------------
+
+/** Themen-Schlüssel einer Session für die Sicherheits-Einschätzung, z.B.
+ *  `kap:3`, `uebung:<id>`, `alt:1` – oder null für Karten/Unbekanntes (kein
+ *  Sicherheits-Check). Fasst alle Wiederholungen eines Themas zusammen. */
+export function topicOf(planKey?: string): string | null {
+  if (!planKey) return null
+  if (planKey.startsWith('kap:') || planKey.startsWith('uebung:') || planKey.startsWith('tut:'))
+    return planKey.split(':').slice(0, 2).join(':')
+  if (planKey.startsWith('alt:')) return planKey
+  return null
+}
+
+/**
+ * Speichert die Selbsteinschätzung zu einem Thema. Bei „unsicher" (1) wird der
+ * Plan neu aufgebaut, damit eine Festigungs-Session nahe der Klausur dazukommt
+ * (erledigte Sessions bleiben erhalten). Bei geht-so/sicher nur speichern.
+ */
+export async function setTopicConfidence(
+  course: Course,
+  topicKey: string,
+  rating: number,
+  settings: StudySettings,
+): Promise<void> {
+  if (!course.studyPlan) return
+  const confidence = { ...(course.studyPlan.confidence ?? {}), [topicKey]: rating }
+  const cfg: StudyPlanConfig = { ...course.studyPlan, confidence }
+  await db.courses.update(course.id, { studyPlan: cfg })
+  if (rating !== 1) return
+  // Frisch aus der DB lesen (enthält die gerade erledigte Session → bleibt erhalten).
+  const freshCourses = (await db.courses.where('semesterId').equals(course.semesterId).toArray()).map(
+    (c) => (c.id === course.id ? { ...c, studyPlan: cfg } : c),
+  )
+  const freshTasks = await db.tasks.where('semesterId').equals(course.semesterId).toArray()
+  const planned = freshCourses.filter((c) => c.studyPlan)
+  const gp = buildGlobalPlan(planned, freshTasks, settings)
+  await writeGlobalPlan(planned, freshTasks, gp)
+}
 
 /** Art einer Plan-Session aus ihrem planKey (bzw. Aufgabentyp als Fallback). */
 function kindOfTask(t: Task): ItemKind | null {
