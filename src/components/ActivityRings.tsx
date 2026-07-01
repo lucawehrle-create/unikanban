@@ -344,10 +344,11 @@ function buildShareSVG(
     `<text x='${cx}' y='1214' text-anchor='middle' font-size='36' font-weight='600' letter-spacing='-0.5' fill='${pal.sub}'>${esc(brag)}</text>` +
     // Legende
     legend +
-    // Footer-Lockup, exakt zentriert (Logo → Wortmarke → Handle)
-    `<g filter='url(#footShadow)'>${logoSvg(cx - 34, 1652, 68, dark)}</g>` +
-    `<text x='${cx}' y='1758' text-anchor='middle' font-size='44' font-weight='800' letter-spacing='-1' fill='${pal.text}'>SemBan</text>` +
-    `<text x='${cx}' y='1798' text-anchor='middle' font-size='26' font-weight='600' letter-spacing='0.2' fill='${pal.handle}'>semban.de</text>` +
+    // Footer-Lockup, exakt zentriert (Logo → Wortmarke → Adresse). Mehr Luft
+    // zwischen Logo und Textblock, damit es nicht ineinander hängt.
+    `<g filter='url(#footShadow)'>${logoSvg(cx - 29, 1628, 58, dark)}</g>` +
+    `<text x='${cx}' y='1752' text-anchor='middle' font-size='44' font-weight='800' letter-spacing='-1' fill='${pal.text}'>SemBan</text>` +
+    `<text x='${cx}' y='1792' text-anchor='middle' font-size='26' font-weight='600' letter-spacing='0.2' fill='${pal.handle}'>semban.de</text>` +
     `</svg>`
   )
 }
