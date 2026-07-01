@@ -8,6 +8,7 @@ import {
   ChevronRight,
   RotateCcw,
   Scale,
+  SlidersHorizontal,
   Sparkles,
 } from 'lucide-react'
 import { addDays, parseISO, format, differenceInCalendarDays } from 'date-fns'
@@ -146,6 +147,94 @@ function NumField({
   )
 }
 
+/** Nummerierter Abschnittskopf – gibt dem Editor einen klaren „1 · 2 · 3"-Faden,
+ *  damit sofort sichtbar ist, wo man im Ablauf steht. */
+function StepHead({ n, title, hint }: { n: number; title: string; hint?: string }) {
+  return (
+    <div className="mb-3 flex items-center gap-2.5">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-stone-900 text-xs font-bold tabular-nums text-white">
+        {n}
+      </span>
+      <div className="leading-tight">
+        <div className="text-sm font-semibold text-stone-800">{title}</div>
+        {hint && <div className="text-xs text-stone-500">{hint}</div>}
+      </div>
+    </div>
+  )
+}
+
+/** Selten geänderte Feineinstellungen – standardmäßig eingeklappt, damit der
+ *  Kernablauf (Datum → Material → Plan) schlank bleibt. */
+function AdvancedSettings({
+  cfg,
+  set,
+  prepWindowWeeks,
+  dailyMaxMin,
+  weeklyMaxMin,
+}: {
+  cfg: StudyPlanConfig
+  set: <K extends keyof StudyPlanConfig>(k: K, v: StudyPlanConfig[K]) => void
+  prepWindowWeeks: number
+  dailyMaxMin: number
+  weeklyMaxMin: number
+}) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="rounded-xl ring-1 ring-stone-200/70">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left"
+      >
+        <span className="flex items-center gap-2 text-sm font-medium text-stone-700">
+          <SlidersHorizontal size={14} className="text-stone-400" /> Feinschliff
+          <span className="text-xs font-normal text-stone-400">optional</span>
+        </span>
+        <ChevronRight
+          size={15}
+          className={cn('text-stone-400 transition-transform', open && 'rotate-90')}
+        />
+      </button>
+      {open && (
+        <div className="grid gap-3 border-t border-stone-100 px-3.5 py-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-stone-500">
+              Max. Lernzeit für diesen Kurs pro Tag
+            </span>
+            <Select
+              value={cfg.dailyMaxMin != null ? String(cfg.dailyMaxMin) : ''}
+              options={COURSE_LIMIT_OPTS}
+              onChange={(v) => set('dailyMaxMin', v ? Number(v) : undefined)}
+            />
+            <span className="mt-1 block text-[11px] text-stone-500">
+              Tagesdeckel über alle Kurse ({Math.round(dailyMaxMin / 60)} h) &amp; Wochenlimit (
+              {Math.round(weeklyMaxMin / 60)} h) liegen in den Einstellungen.
+            </span>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-stone-500">Vorbereitungsfenster</span>
+            <Select
+              value={cfg.prepWindowWeeks != null ? String(cfg.prepWindowWeeks) : ''}
+              options={[
+                { value: '', label: `Standard (${prepWindowWeeks} Wochen)` },
+                { value: '2', label: '2 Wochen' },
+                { value: '3', label: '3 Wochen' },
+                { value: '4', label: '4 Wochen' },
+                { value: '6', label: '6 Wochen' },
+                { value: '8', label: '8 Wochen' },
+              ]}
+              onChange={(v) => set('prepWindowWeeks', v ? Number(v) : undefined)}
+            />
+            <span className="mt-1 block text-[11px] text-stone-500">
+              So lange vor der Klausur startet das intensive Lernen. Davor nur leichter Kontakt.
+            </span>
+          </label>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PlanEditor({
   course,
   courses,
@@ -251,28 +340,27 @@ function PlanEditor({
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       {/* Einstieg, solange noch kein Plan existiert */}
       {planned === 0 && (
         <div className="rounded-xl bg-brand-50 p-3.5 ring-1 ring-brand-200/70">
-          <div className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold text-stone-800">
+          <div className="mb-1 flex items-center gap-1.5 text-sm font-semibold text-stone-800">
             <Sparkles size={15} className="text-brand-500" /> In 3 Schritten zum Lernplan
           </div>
-          <ol className="space-y-0.5 text-xs text-stone-600">
-            <li><strong className="text-stone-700">1.</strong> Datum &amp; Material – Klausur, Kapitel, Altklausuren, Karteikarten.</li>
-            <li><strong className="text-stone-700">2.</strong> Strategie wählen – sofort starten, mit Pausen oder später.</li>
-            <li><strong className="text-stone-700">3.</strong> „Lernplan anlegen" – ich verteile alles bis zur Klausur.</li>
-          </ol>
-          <p className="mt-1.5 text-[11px] text-stone-500">Deine Übungsblätter sind automatisch zur Wiederholung dabei.</p>
+          <p className="text-xs leading-relaxed text-stone-600">
+            Datum &amp; Material eintragen, Tempo wählen, „Lernplan anlegen" – ich verteile alles bis
+            zur Klausur. Deine Übungsblätter sind automatisch zur Wiederholung dabei.
+          </p>
         </div>
       )}
+
       {/* Fortschritt (nur bei aktivem Plan) */}
       {planned > 0 && (
-        <div className="rounded-xl bg-stone-50 p-3">
-          <div className="mb-1.5 flex items-baseline justify-between text-xs">
-            <span className="font-medium text-stone-600">Dein Fortschritt</span>
-            <span className="text-stone-500">
-              <strong className="text-stone-700">{progress.done}</strong>/{progress.total} Sessions ·{' '}
+        <div className="rounded-xl bg-stone-50 p-3.5 ring-1 ring-stone-200/60">
+          <div className="mb-1.5 flex items-baseline justify-between">
+            <span className="text-sm font-semibold text-stone-800">Dein Fortschritt</span>
+            <span className="text-xs tabular-nums text-stone-500">
+              <strong className="text-stone-800">{progress.done}</strong>/{progress.total} Sessions ·{' '}
               {progress.pct}%
             </span>
           </div>
@@ -283,7 +371,7 @@ function PlanEditor({
             />
           </div>
           {progress.overdue > 0 ? (
-            <div className="mt-2 flex items-center justify-between gap-2">
+            <div className="mt-2.5 flex items-center justify-between gap-2">
               <span className="text-xs font-medium text-amber-700">
                 {progress.overdue} überfällig – du hängst etwas hinterher
               </span>
@@ -303,153 +391,125 @@ function PlanEditor({
         </div>
       )}
 
-      {/* Eckdaten */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block">
-          <span className="mb-1 block text-xs font-medium text-stone-500">Klausurdatum</span>
-          <DatePicker dateOnly value={cfg.examDate} onChange={(v) => set('examDate', v ?? cfg.examDate)} />
-          <span className="mt-1 block text-[11px] text-stone-400">
-            {examDays < 0
-              ? 'liegt in der Vergangenheit'
-              : examDays === 0
-                ? 'heute'
-                : examDays === 1
-                  ? 'in 1 Tag'
-                  : `in ${examDays} Tagen`}
-          </span>
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs font-medium text-stone-500">Klausurdauer (Min)</span>
-          <NumField
-            min={30}
-            max={360}
-            fallback={120}
-            value={cfg.examDurationMin}
-            onCommit={(v) => set('examDurationMin', v)}
-            className={inputCls}
-          />
-          <span className="mt-1 block text-[11px] text-stone-400">
-            pro Altklausur werden {cfg.examDurationMin * 2} Min eingeplant (inkl. Nacharbeit)
-          </span>
-        </label>
-      </div>
-
-      {/* Karteikarten-Slider */}
-      <div>
-        <div className="mb-1 flex items-baseline justify-between">
-          <span className="text-xs font-medium text-stone-500">Karteikarten pro Tag</span>
-          <span className="text-xs text-stone-400">
-            <strong className="text-stone-700">{cfg.cardsPerDay}</strong> Karten · ≈{' '}
-            {cardMinutesPerDay(cfg)} Min/Tag
-          </span>
+      {/* Schritt 1 – Die Klausur */}
+      <section>
+        <StepHead n={1} title="Die Klausur" hint="Wann ist sie – und wie lang?" />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-stone-500">Klausurdatum</span>
+            <DatePicker dateOnly value={cfg.examDate} onChange={(v) => set('examDate', v ?? cfg.examDate)} />
+            <span className="mt-1 block text-[11px] text-stone-500">
+              {examDays < 0
+                ? 'liegt in der Vergangenheit'
+                : examDays === 0
+                  ? 'heute'
+                  : examDays === 1
+                    ? 'in 1 Tag'
+                    : `in ${examDays} Tagen`}
+            </span>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-stone-500">Klausurdauer (Min)</span>
+            <NumField
+              min={30}
+              max={360}
+              fallback={120}
+              value={cfg.examDurationMin}
+              onCommit={(v) => set('examDurationMin', v)}
+              className={inputCls}
+            />
+            <span className="mt-1 block text-[11px] text-stone-500">
+              pro Altklausur werden {cfg.examDurationMin * 2} Min eingeplant (inkl. Nacharbeit)
+            </span>
+          </label>
         </div>
-        <input
-          type="range"
-          min={0}
-          max={60}
-          step={5}
-          value={cfg.cardsPerDay}
-          onChange={(e) => set('cardsPerDay', Number(e.target.value))}
-          className="slider-grade"
-        />
-        <p className="mt-1 text-[11px] text-stone-400">
-          Plant täglich Zeit für deine eigenen Karteikarten ein (SemBan verwaltet keine Karten).
-        </p>
-      </div>
+      </section>
 
-      {/* Optionales Tageslimit nur für diesen Kurs */}
-      <label className="block sm:max-w-xs">
-        <span className="mb-1 block text-xs font-medium text-stone-500">
-          Max. Lernzeit für diesen Kurs pro Tag
-        </span>
-        <Select
-          value={cfg.dailyMaxMin != null ? String(cfg.dailyMaxMin) : ''}
-          options={COURSE_LIMIT_OPTS}
-          onChange={(v) => set('dailyMaxMin', v ? Number(v) : undefined)}
-        />
-        <span className="mt-1 block text-[11px] text-stone-400">
-          Der gesamte Tagesdeckel über alle Kurse ({Math.round(dailyMaxMin / 60)} h) &amp; das
-          Wochenlimit ({Math.round(weeklyMaxMin / 60)} h) liegen in den Einstellungen.
-        </span>
-      </label>
+      {/* Schritt 2 – Dein Material */}
+      <section>
+        <StepHead n={2} title="Dein Material" hint="Was willst du durcharbeiten?" />
+        <div className="space-y-3">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-stone-500">Kapitel (Skript/VL)</span>
+              <input
+                type="number"
+                min={0}
+                max={50}
+                value={cfg.chapters || ''}
+                placeholder="0"
+                onChange={(e) => set('chapters', Math.max(0, Number(e.target.value) || 0))}
+                className={inputCls}
+              />
+            </label>
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-stone-500">Altklausuren</span>
+              <input
+                type="number"
+                min={0}
+                max={20}
+                value={cfg.altklausuren || ''}
+                placeholder="0"
+                onChange={(e) => set('altklausuren', Math.max(0, Number(e.target.value) || 0))}
+                className={inputCls}
+              />
+            </label>
+          </div>
 
-      {/* Vorbereitungsfenster (pro Kurs) */}
-      <label className="block sm:max-w-xs">
-        <span className="mb-1 block text-xs font-medium text-stone-500">Vorbereitungsfenster</span>
-        <Select
-          value={cfg.prepWindowWeeks != null ? String(cfg.prepWindowWeeks) : ''}
-          options={[
-            { value: '', label: `Standard (${prepWindowWeeks} Wochen)` },
-            { value: '2', label: '2 Wochen' },
-            { value: '3', label: '3 Wochen' },
-            { value: '4', label: '4 Wochen' },
-            { value: '6', label: '6 Wochen' },
-            { value: '8', label: '8 Wochen' },
-          ]}
-          onChange={(v) => set('prepWindowWeeks', v ? Number(v) : undefined)}
-        />
-        <span className="mt-1 block text-[11px] text-stone-400">
-          So lange vor der Klausur startet das intensive Lernen. Davor nur leichter Kontakt.
-        </span>
-      </label>
+          {/* Karteikarten */}
+          <div className="rounded-xl bg-stone-50 p-3">
+            <div className="mb-1.5 flex items-baseline justify-between">
+              <span className="text-xs font-medium text-stone-600">Karteikarten pro Tag</span>
+              <span className="text-xs tabular-nums text-stone-500">
+                <strong className="text-stone-800">{cfg.cardsPerDay}</strong> Karten · ≈{' '}
+                {cardMinutesPerDay(cfg)} Min/Tag
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0}
+              max={60}
+              step={5}
+              value={cfg.cardsPerDay}
+              onChange={(e) => set('cardsPerDay', Number(e.target.value))}
+              className="slider-grade"
+            />
+            <p className="mt-1 text-[11px] text-stone-500">
+              Plant täglich Zeit für deine eigenen Karteikarten ein (SemBan verwaltet keine Karten).
+            </p>
+          </div>
 
-      {/* Mengen */}
-      <div className="grid gap-3 sm:grid-cols-2">
-        <label className="block">
-          <span className="mb-1 block text-xs font-medium text-stone-500">Altklausuren</span>
-          <input
-            type="number"
-            min={0}
-            max={20}
-            value={cfg.altklausuren || ''}
-            placeholder="0"
-            onChange={(e) => set('altklausuren', Math.max(0, Number(e.target.value) || 0))}
-            className={inputCls}
-          />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-xs font-medium text-stone-500">Kapitel (Skript/VL)</span>
-          <input
-            type="number"
-            min={0}
-            max={50}
-            value={cfg.chapters || ''}
-            placeholder="0"
-            onChange={(e) => set('chapters', Math.max(0, Number(e.target.value) || 0))}
-            className={inputCls}
-          />
-        </label>
-      </div>
-
-      {/* Übungen/Tutorien bestätigen */}
-      <div className="rounded-xl bg-stone-50 p-3">
-        <div className="mb-2 text-xs font-medium text-stone-600">
-          Aus deinen Aufgaben – welche nochmal wiederholen?
+          {/* Übungen/Tutorien bestätigen */}
+          <div className="rounded-xl bg-stone-50 p-3">
+            <div className="text-xs font-medium text-stone-600">
+              Aus deinen Aufgaben – welche nochmal wiederholen?
+            </div>
+            <p className="mb-2 mt-0.5 text-[11px] leading-relaxed text-stone-500">
+              Als <span className="font-medium text-orange-600">schwer</span> reflektierte Blätter
+              bekommen automatisch mehr Zeit und mehrere Wiederholungen mit wachsenden Abständen
+              (Spaced Repetition).
+            </p>
+            <div className="space-y-2">
+              <ReviewSection
+                label="Übungsblätter"
+                tasks={uebungTasks}
+                selectedIds={cfg.uebungReviewIds}
+                onChange={(ids) => set('uebungReviewIds', ids)}
+              />
+              <ReviewSection
+                label="Tutoriumsblätter"
+                tasks={tutTasks}
+                selectedIds={cfg.tutReviewIds}
+                onChange={(ids) => set('tutReviewIds', ids)}
+              />
+            </div>
+          </div>
         </div>
-        <p className="mb-2 text-[11px] leading-relaxed text-stone-400">
-          Als <span className="font-medium text-orange-600">schwer</span> reflektierte Blätter bekommen
-          automatisch mehr Zeit und mehrere Wiederholungen mit wachsenden Abständen (Spaced
-          Repetition).
-        </p>
-        <div className="space-y-2">
-          <ReviewSection
-            label="Übungsblätter"
-            tasks={uebungTasks}
-            selectedIds={cfg.uebungReviewIds}
-            onChange={(ids) => set('uebungReviewIds', ids)}
-          />
-          <ReviewSection
-            label="Tutoriumsblätter"
-            tasks={tutTasks}
-            selectedIds={cfg.tutReviewIds}
-            onChange={(ids) => set('tutReviewIds', ids)}
-          />
-        </div>
-      </div>
+      </section>
 
-      {/* 3 Strategie-Varianten */}
-      <div>
-        <span className="mb-1.5 block text-xs font-medium text-stone-500">Welcher Plan passt?</span>
+      {/* Schritt 3 – Dein Plan */}
+      <section>
+        <StepHead n={3} title="Dein Plan" hint="Wähle das Tempo – ich verteile alles bis zur Klausur." />
         <div className="grid gap-2 sm:grid-cols-3">
           {variants.map((v) => {
             const on = cfg.strategy === v.strategy
@@ -460,19 +520,25 @@ function PlanEditor({
                 onClick={() => set('strategy', v.strategy)}
                 className={cn(
                   'rounded-xl border p-3 text-left transition',
-                  on ? 'border-stone-900 bg-stone-900 text-white' : 'border-stone-200 bg-white hover:border-stone-300',
+                  on
+                    ? 'border-stone-900 bg-stone-900 text-white'
+                    : 'border-stone-200 bg-white hover:border-stone-300',
                 )}
               >
                 <div className="text-sm font-semibold">{meta.title}</div>
-                <div className={cn('mb-2 text-[11px]', on ? 'text-white/70' : 'text-stone-400')}>
+                <div className={cn('mb-2 text-[11px]', on ? 'text-white/70' : 'text-stone-500')}>
                   {meta.desc} · {meta.reps}
                 </div>
                 <Timeline bars={timeline(cfg, v.sessions)} height={44} />
-                <div className={cn('mt-1 text-[11px]', on ? 'text-white/80' : 'text-stone-500')}>
+                <div
+                  className={cn('mt-1 text-[11px] tabular-nums', on ? 'text-white/80' : 'text-stone-500')}
+                >
                   {v.summary.sessions} Sessions · ø {v.summary.perDayMin} Min/Tag
                 </div>
                 {v.unplaced > 0 && (
-                  <div className={cn('text-[11px] font-medium', on ? 'text-amber-200' : 'text-amber-600')}>
+                  <div
+                    className={cn('text-[11px] font-medium', on ? 'text-amber-200' : 'text-amber-600')}
+                  >
                     {v.unplaced} passen nicht
                   </div>
                 )}
@@ -480,78 +546,93 @@ function PlanEditor({
             )
           })}
         </div>
-      </div>
 
-      {/* Große Timeline */}
-      <div className="rounded-xl bg-stone-50 p-3">
-        <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-stone-500">
-          <CalendarClock size={13} /> Materialverteilung bis zur Klausur · {active.summary.sessions}{' '}
-          Sessions
-        </div>
-        <Timeline bars={bars} height={110} />
-        <div className="mt-2">
-          <Legend />
-        </div>
-        {active.unplaced > 0 && (
-          <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            <div className="font-medium">
-              ⚠ {active.unplaced} Einheit{active.unplaced === 1 ? '' : 'en'} passen nicht ins Budget – so bekommst du sie unter:
-            </div>
-            <div className="mt-1.5 flex flex-wrap gap-1.5">
-              {cfg.strategy !== 'now' && (
+        {/* Große Timeline */}
+        <div className="mt-3 rounded-xl bg-stone-50 p-3">
+          <div className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-stone-600">
+            <CalendarClock size={13} /> Materialverteilung bis zur Klausur · {active.summary.sessions}{' '}
+            Sessions
+          </div>
+          <Timeline bars={bars} height={110} />
+          <div className="mt-2">
+            <Legend />
+          </div>
+          {active.unplaced > 0 && (
+            <div className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <div className="font-medium">
+                ⚠ {active.unplaced} Einheit{active.unplaced === 1 ? '' : 'en'} passen nicht ins Budget
+                – so bekommst du sie unter:
+              </div>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {cfg.strategy !== 'now' && (
+                  <button
+                    onClick={() => set('strategy', 'now')}
+                    className="rounded-full bg-white px-2.5 py-1 font-medium text-amber-800 ring-1 ring-amber-200 transition hover:bg-amber-100"
+                  >
+                    Sofort starten
+                  </button>
+                )}
                 <button
-                  onClick={() => set('strategy', 'now')}
+                  onClick={() => setStudyDailyMaxMin(Math.min(600, dailyMaxMin + 30))}
                   className="rounded-full bg-white px-2.5 py-1 font-medium text-amber-800 ring-1 ring-amber-200 transition hover:bg-amber-100"
                 >
-                  Sofort starten
+                  +30 Min/Tag (jetzt {dailyMaxMin})
                 </button>
-              )}
-              <button
-                onClick={() => setStudyDailyMaxMin(Math.min(600, dailyMaxMin + 30))}
-                className="rounded-full bg-white px-2.5 py-1 font-medium text-amber-800 ring-1 ring-amber-200 transition hover:bg-amber-100"
-              >
-                +30 Min/Tag (jetzt {dailyMaxMin})
-              </button>
+              </div>
+              <div className="mt-1 text-[11px] text-amber-700">
+                …oder oben das Material etwas reduzieren.
+              </div>
             </div>
-            <div className="mt-1 text-[11px] text-amber-700">…oder oben das Material etwas reduzieren.</div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </section>
+
+      {/* Feinschliff – selten geänderte Einstellungen, eingeklappt */}
+      <AdvancedSettings
+        cfg={cfg}
+        set={set}
+        prepWindowWeeks={prepWindowWeeks}
+        dailyMaxMin={dailyMaxMin}
+        weeklyMaxMin={weeklyMaxMin}
+      />
 
       {/* Aktionen */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => void save()}
-          disabled={busy || active.summary.sessions === 0}
-          className="flex items-center justify-center gap-2 rounded-full bg-brand-400 px-5 py-2.5 text-sm font-semibold text-stone-900 transition hover:bg-brand-500 disabled:opacity-40"
-        >
-          <Check size={16} /> {planned > 0 ? 'Plan aktualisieren' : 'Lernplan anlegen'}
-        </button>
-        {planned > 0 && (
+      <div className="border-t border-stone-100 pt-4">
+        <div className="flex items-center gap-3">
           <button
-            onClick={() => void remove()}
-            disabled={busy}
-            className="flex items-center gap-1.5 text-sm text-red-500 transition hover:text-red-700 disabled:opacity-40"
+            onClick={() => void save()}
+            disabled={busy || active.summary.sessions === 0}
+            className="flex items-center justify-center gap-2 rounded-full bg-brand-400 px-5 py-2.5 text-sm font-semibold text-stone-900 transition hover:bg-brand-500 disabled:opacity-40"
           >
-            <Trash2 size={14} /> entfernen
+            <Check size={16} /> {planned > 0 ? 'Plan aktualisieren' : 'Lernplan anlegen'}
           </button>
+          {planned > 0 && (
+            <button
+              onClick={() => void remove()}
+              disabled={busy}
+              className="flex items-center gap-1.5 text-sm text-red-500 transition hover:text-red-700 disabled:opacity-40"
+            >
+              <Trash2 size={14} /> entfernen
+            </button>
+          )}
+          {flash && (
+            <span className="flex items-center gap-1 text-sm text-emerald-600">
+              <Check size={15} /> {flash}
+            </span>
+          )}
+        </div>
+        {active.summary.sessions === 0 && (
+          <p className="mt-2 text-[11px] font-medium text-amber-700">
+            Gib mindestens 1 Kapitel, eine Altklausur oder ein Blatt zum Wiederholen an — dann lege
+            ich den Plan an.
+          </p>
         )}
-        {flash && (
-          <span className="flex items-center gap-1 text-sm text-emerald-600">
-            <Check size={15} /> {flash}
-          </span>
-        )}
-      </div>
-      {active.summary.sessions === 0 && (
-        <p className="text-[11px] font-medium text-amber-700">
-          Gib mindestens 1 Kapitel, eine Altklausur oder ein Blatt zum Wiederholen an — dann lege ich den Plan an.
+        <p className="mt-2 text-[11px] leading-relaxed text-stone-500">
+          Die Sessions werden echte Aufgaben (erscheinen in „Diese Woche", im Kalender &amp; in
+          Erinnerungen). Im Aufgaben-Board siehst du nur die aktuell anstehenden – nicht die ganze
+          Zukunft. Beim Aktualisieren bleiben bereits erledigte Sessions erhalten.
         </p>
-      )}
-      <p className="text-[11px] leading-relaxed text-stone-400">
-        Die Sessions werden echte Aufgaben (erscheinen in „Diese Woche", im Kalender &amp; in
-        Erinnerungen). Im Aufgaben-Board siehst du nur die aktuell anstehenden – nicht die ganze
-        Zukunft. Beim Aktualisieren bleiben bereits erledigte Sessions erhalten.
-      </p>
+      </div>
     </div>
   )
 }
@@ -783,8 +864,11 @@ export function StudyPlansView() {
         </div>
 
         {sel && (
-          <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70">
-            <div className="mb-3 text-sm font-semibold text-stone-800">{sel.name}</div>
+          <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70 sm:p-5">
+            <div className="mb-4 flex items-center gap-2 border-b border-stone-100 pb-3">
+              <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: sel.color }} />
+              <span className="text-sm font-semibold text-stone-800">{sel.name}</span>
+            </div>
             <PlanEditor key={sel.id} course={sel} courses={courses} allTasks={allTasks} />
           </div>
         )}
