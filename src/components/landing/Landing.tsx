@@ -3,7 +3,6 @@ import {
   motion,
   useScroll,
   useTransform,
-  useMotionValueEvent,
   MotionConfig,
   type MotionValue,
   type Variants,
@@ -52,72 +51,6 @@ function useCalmMotion() {
         window.matchMedia('(pointer: coarse)').matches),
   )
   return calm
-}
-
-/**
- * Sem läuft beim Scrollen unten im Hero von links herein und winkt – ein per
- * Scroll „gescrubbtes" Video (video.currentTime am Fortschritt gekoppelt). Der
- * Clip ist auf demselben Creme-Ton gerendert und per Maske weich ausgeblendet,
- * sodass er nahtlos in den Seitenhintergrund übergeht. Auf Touch/Reduced-Motion
- * (kein flüssiges Video-Scrubbing, v.a. iOS) ein ruhiges statisches Bild.
- */
-function HeroSem({ progress }: { progress: MotionValue<number> }) {
-  const calm = useCalmMotion()
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const durRef = useRef(0)
-
-  // Scroll-Fortschritt des Hero-Fensters (0 … ~0.16) → Video-Zeit (0 … Dauer).
-  useMotionValueEvent(progress, 'change', (v) => {
-    const vid = videoRef.current
-    if (!vid || !durRef.current) return
-    const p = Math.min(1, Math.max(0, v / 0.16))
-    const t = p * durRef.current
-    if (Math.abs(vid.currentTime - t) > 0.015) vid.currentTime = t
-  })
-
-  const mask = {
-    WebkitMaskImage: 'radial-gradient(80% 115% at 50% 100%, #000 55%, transparent 82%)',
-    maskImage: 'radial-gradient(80% 115% at 50% 100%, #000 55%, transparent 82%)',
-  } as const
-  // Klein & unten gehalten, damit Sem den Hero-Text nicht überlagert – er läuft
-  // als dezenter Begleiter am unteren Rand herein.
-  const box = 'h-[clamp(150px,22vw,300px)] w-full object-contain object-bottom'
-
-  if (calm) {
-    return (
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 bottom-2 z-0 mx-auto max-w-6xl px-5 sm:px-6"
-      >
-        <img src="/landing/sem-hero.webp" alt="" className={cn(box, 'select-none')} style={mask} />
-      </div>
-    )
-  }
-
-  return (
-    <div
-      aria-hidden
-      className="pointer-events-none absolute inset-x-0 bottom-2 z-0 mx-auto max-w-6xl px-5 sm:px-6"
-    >
-      <video
-        ref={videoRef}
-        src="/landing/sem-walkin.mp4"
-        poster="/landing/sem-walkin-poster.webp"
-        muted
-        playsInline
-        preload="auto"
-        disablePictureInPicture
-        onLoadedMetadata={(e) => {
-          const vid = e.currentTarget
-          durRef.current = vid.duration || 0
-          // Dekoder „aufwecken", damit currentTime-Seeks sofort Frames zeigen.
-          vid.play().then(() => vid.pause()).catch(() => {})
-        }}
-        className={cn(box, 'block select-none')}
-        style={mask}
-      />
-    </div>
-  )
 }
 
 function Reveal({
@@ -363,8 +296,6 @@ function Hero({
 
   return (
     <section className="relative px-5 pb-20 pt-14 sm:px-6 sm:pt-20">
-      {/* Sem läuft beim Scrollen unten herein (hinter dem Inhalt, blendet in Creme) */}
-      <HeroSem progress={progress} />
       {/* Scroll-Parallax nur auf Nicht-Touch (auf Mobile sonst Flacker-Quelle) */}
       <motion.div style={calm ? undefined : { y, opacity }} className="mx-auto grid max-w-6xl items-center gap-12 lg:grid-cols-[1.05fr_1fr]">
         <motion.div variants={stagger} initial="hidden" animate="show">
