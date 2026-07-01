@@ -155,6 +155,25 @@ async function interFontCss(): Promise<string> {
   return _fontCss
 }
 
+// Sem (Maskottchen) einmal als base64-Data-URL laden und cachen, damit er ins
+// Story-SVG eingebettet werden kann (externe URLs lädt der SVG-<img>-Rasterizer
+// nicht). Fällt bei Fehler still auf '' zurück (dann kein Sem im Bild).
+let _semUrl: string | null = null
+async function semShareDataUrl(): Promise<string> {
+  if (_semUrl != null) return _semUrl
+  try {
+    const res = await fetch('/mascot/sem-wave.webp')
+    if (!res.ok) throw new Error('sem')
+    const buf = new Uint8Array(await res.arrayBuffer())
+    let bin = ''
+    for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i])
+    _semUrl = `data:image/webp;base64,${btoa(bin)}`
+  } catch {
+    _semUrl = ''
+  }
+  return _semUrl
+}
+
 // Story-Format (9:16) – teilbar für Instagram/Facebook Stories.
 const STORY_W = 1080
 const STORY_H = 1920
@@ -205,6 +224,7 @@ function buildShareSVG(
   scopeLabel: string,
   variant: ShareVariant,
   fontCss: string,
+  semUrl: string,
   pill?: string,
 ): string {
   const dark = variant !== 'cream'
@@ -328,8 +348,17 @@ function buildShareSVG(
       })()
     : ''
 
+  // Sem (Maskottchen) unten rechts als sympathische Signatur – „präsentiert"
+  // die Statistik. preserveAspectRatio unten-bündig, damit er auf der Grundlinie steht.
+  const semSize = 360
+  const semX = STORY_W - semSize + 26
+  const semY = STORY_H - semSize - 70
+  const semSvg = semUrl
+    ? `<g filter='url(#footShadow)'><image href='${semUrl}' xlink:href='${semUrl}' x='${semX}' y='${semY}' width='${semSize}' height='${semSize}' preserveAspectRatio='xMidYMax meet'/></g>`
+    : ''
+
   return (
-    `<svg xmlns='http://www.w3.org/2000/svg' width='${STORY_W}' height='${STORY_H}' viewBox='0 0 ${STORY_W} ${STORY_H}' font-family="${SHARE_FONT}">` +
+    `<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='${STORY_W}' height='${STORY_H}' viewBox='0 0 ${STORY_W} ${STORY_H}' font-family="${SHARE_FONT}">` +
     bg +
     // Oben: nur das Logo-Zeichen (kein Wortmark – kollidiert nicht mit der Headline) + Pill
     logoSvg(116, 300, 60, dark) +
@@ -344,6 +373,8 @@ function buildShareSVG(
     `<text x='${cx}' y='1214' text-anchor='middle' font-size='36' font-weight='600' letter-spacing='-0.5' fill='${pal.sub}'>${esc(brag)}</text>` +
     // Legende
     legend +
+    // Sem als Signatur (vor dem Footer, damit der Footer nicht verdeckt wird)
+    semSvg +
     // Footer-Lockup, exakt zentriert (Logo → Wortmarke → Adresse). Mehr Luft
     // zwischen Logo und Textblock, damit es nicht ineinander hängt.
     `<g filter='url(#footShadow)'>${logoSvg(cx - 29, 1628, 58, dark)}</g>` +
@@ -391,7 +422,7 @@ export async function renderSharePng(
   overall: number,
   opts: { scopeLabel?: string; variant?: ShareVariant; pill?: string } = {},
 ): Promise<Blob | null> {
-  const fontCss = await interFontCss()
+  const [fontCss, semUrl] = await Promise.all([interFontCss(), semShareDataUrl()])
   const make = (css: string) =>
     buildShareSVG(
       rings,
@@ -399,6 +430,7 @@ export async function renderSharePng(
       opts.scopeLabel ?? 'Alle Lernpläne',
       opts.variant ?? 'dark',
       css,
+      semUrl,
       opts.pill,
     )
   // Erst mit eingebetteter Schrift. Manche Browser (z.B. iOS Safari) rastern ein
