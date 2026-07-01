@@ -133,7 +133,13 @@ export async function deleteAccount() {
     { method: 'POST' },
   )
   if (error) {
-    // Serverfehler-Text möglichst konkret melden (Edge-Function-Body auslesen).
+    // Funktion nicht erreichbar (meist: noch nicht deployt) → klarer Hinweis.
+    if ((error as { name?: string }).name === 'FunctionsFetchError') {
+      throw new Error(
+        'Die Lösch-Funktion ist nicht erreichbar. Ist die Edge-Function „delete-account" deployt?',
+      )
+    }
+    // Sonst: Serverfehler-Text möglichst konkret melden (Function-Body auslesen).
     let msg = ''
     const ctx = (error as { context?: Response }).context
     if (ctx && typeof ctx.json === 'function') {
