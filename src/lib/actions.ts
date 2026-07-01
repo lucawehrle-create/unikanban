@@ -258,7 +258,18 @@ export function togglePhase(phases: Phase[], index: number): Phase[] {
 }
 
 export async function saveCourse(course: Course): Promise<void> {
-  await db.courses.put(course)
+  await db.transaction('rw', db.courses, db.attendance, async () => {
+    const prev = await db.courses.get(course.id)
+    await db.courses.put(course)
+    // Beim Bearbeiten entfernte Slots: deren Anwesenheits-Einträge aufräumen,
+    // sonst verwaisen sie (ihr slotId zeigt auf keinen Termin mehr).
+    const keep = new Set(course.slots.map((s) => s.id))
+    const removed = new Set((prev?.slots ?? []).map((s) => s.id).filter((sid) => !keep.has(sid)))
+    if (removed.size) {
+      const stale = await db.attendance.filter((a) => removed.has(a.slotId)).toArray()
+      if (stale.length) await db.attendance.bulkDelete(stale.map((a) => a.id))
+    }
+  })
 }
 
 export async function deleteCourse(id: string): Promise<void> {
