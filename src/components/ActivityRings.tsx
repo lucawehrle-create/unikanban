@@ -412,11 +412,26 @@ export async function renderSharePng(
 const SHARE_URL = 'https://semban.de'
 const SHARE_TEXT = 'Meine Klausur-Vorbereitung mit SemBan 📚'
 
-/** Kann der Browser Dateien über die native Teilen-Funktion teilen? (v.a. mobil) */
+/**
+ * Kann der Browser Dateien über die native Teilen-Funktion teilen?
+ *
+ * Wichtig: Desktop-Chrome meldet oft canShare({files}) = true, doch
+ * navigator.share() öffnet dann nichts (der Button wirkt „tot"). Darum die
+ * native Funktion nur auf echten Touch-Geräten (Handy/Tablet) nutzen – am
+ * Desktop ist der Download der verlässliche Weg.
+ */
 export function canShareImage(): boolean {
   try {
-    const nav = navigator as Navigator & { canShare?: (d: { files: File[] }) => boolean }
-    if (!nav.canShare) return false
+    const nav = navigator as Navigator & {
+      canShare?: (d: { files: File[] }) => boolean
+      share?: (d: unknown) => Promise<void>
+      maxTouchPoints?: number
+    }
+    if (!nav.canShare || !nav.share) return false
+    const touch =
+      (nav.maxTouchPoints ?? 0) > 0 ||
+      (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches)
+    if (!touch) return false
     const probe = new File([new Uint8Array(1)], 'probe.png', { type: 'image/png' })
     return nav.canShare({ files: [probe] })
   } catch {
