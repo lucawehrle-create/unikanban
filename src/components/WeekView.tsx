@@ -385,7 +385,8 @@ export function WeekView({ tasks, courses }: WeekViewProps) {
                     onClick={() => useUI.getState().setShowAllSeries(true)}
                     className="px-2 pt-1 text-xs font-medium text-red-500 underline-offset-2 hover:underline"
                   >
-                    + {overdueHidden} weitere überfällige Serien-Aufgaben anzeigen
+                    + {overdueHidden} weitere überfällige{' '}
+                    {overdueHidden === 1 ? 'Serien-Aufgabe' : 'Serien-Aufgaben'} anzeigen
                   </button>
                 )}
               </div>

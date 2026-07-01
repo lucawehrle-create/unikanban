@@ -55,7 +55,10 @@ export function formatDue(dueISO?: string): string {
   if (isToday(d)) return 'heute'
   if (isTomorrow(d)) return 'morgen'
   const diff = differenceInCalendarDays(d, new Date())
-  if (diff < 0) return `${format(d, 'd. MMM', { locale: de })} (${Math.abs(diff)} Tage)`
+  if (diff < 0) {
+    const days = Math.abs(diff)
+    return `${format(d, 'd. MMM', { locale: de })} (${days} ${days === 1 ? 'Tag' : 'Tage'})`
+  }
   if (diff < 7) return format(d, 'EEEE', { locale: de })
   return format(d, 'd. MMM', { locale: de })
 }

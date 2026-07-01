@@ -309,7 +309,13 @@ function PlanEditor({
           <span className="mb-1 block text-xs font-medium text-stone-500">Klausurdatum</span>
           <DatePicker dateOnly value={cfg.examDate} onChange={(v) => set('examDate', v ?? cfg.examDate)} />
           <span className="mt-1 block text-[11px] text-stone-400">
-            {examDays >= 0 ? `in ${examDays} Tagen` : 'liegt in der Vergangenheit'}
+            {examDays < 0
+              ? 'liegt in der Vergangenheit'
+              : examDays === 0
+                ? 'heute'
+                : examDays === 1
+                  ? 'in 1 Tag'
+                  : `in ${examDays} Tagen`}
           </span>
         </label>
         <label className="block">
