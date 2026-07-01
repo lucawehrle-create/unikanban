@@ -1171,7 +1171,7 @@ function ActivityOverview({ allTasks, courses }: { allTasks: Task[]; courses: Co
   const overall = withMaterial.length
     ? Math.round(withMaterial.reduce((s, r) => s + r.pct, 0) / withMaterial.length)
     : 0
-  const shareTitle = scopeCourse ? scopeCourse.name : 'Meine Lern-Aktivität'
+  const shareScope = scopeCourse ? scopeCourse.name : 'Alle Lernpläne'
 
   return (
     <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-stone-200/70 sm:p-5">
@@ -1185,7 +1185,7 @@ function ActivityOverview({ allTasks, courses }: { allTasks: Task[]; courses: Co
           </p>
         </div>
         <button
-          onClick={() => void shareRings(stats, overall, shareTitle)}
+          onClick={() => void shareRings(stats, overall, { scopeLabel: shareScope })}
           className="flex shrink-0 items-center gap-1.5 rounded-full bg-stone-100 px-3 py-1.5 text-xs font-medium text-stone-600 transition hover:bg-stone-200"
         >
           <Share2 size={13} /> Teilen
