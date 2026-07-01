@@ -410,11 +410,13 @@ function buildShareSVG(
     legend +
     // Sem als Signatur (vor dem Footer, damit der Footer nicht verdeckt wird)
     semSvg +
-    // Footer-Lockup unten LINKS (Logo + Wortmarke/Adresse) – bildet mit Sem
-    // rechts eine ausbalancierte Grundlinie.
-    `<g filter='url(#footShadow)'>${logoSvg(150, 1712, 54, dark)}</g>` +
-    `<text x='222' y='1748' font-size='40' font-weight='800' letter-spacing='-1' fill='${pal.text}'>SemBan</text>` +
-    `<text x='222' y='1790' font-size='24' font-weight='600' letter-spacing='0.2' fill='${pal.handle}'>semban.de</text>` +
+    // Footer-Lockup unten LINKS (Logo + Wortmarke + Claim + Adresse) – bildet mit
+    // Sem rechts eine ausbalancierte Grundlinie. Der Claim erklärt Fremden in der
+    // Story sofort, was SemBan ist.
+    `<g filter='url(#footShadow)'>${logoSvg(150, 1704, 52, dark)}</g>` +
+    `<text x='222' y='1738' font-size='38' font-weight='800' letter-spacing='-1' fill='${pal.text}'>SemBan</text>` +
+    `<text x='222' y='1772' font-size='23' font-weight='600' letter-spacing='0' fill='${pal.legendLabel}'>Dein Semesterplaner</text>` +
+    `<text x='222' y='1804' font-size='21' font-weight='500' letter-spacing='0.2' fill='${pal.handle}'>semban.de</text>` +
     `</svg>`
   )
 }
