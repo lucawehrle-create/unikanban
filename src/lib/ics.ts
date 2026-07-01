@@ -385,6 +385,22 @@ export interface ImportPlan {
 
 const norm = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim()
 
+/** Schlüssel „Titel|Kalendertag" – identifiziert eine Deadline über Importe
+ *  hinweg (auch für die „schon gesehen"-Liste abonnierter Feeds). */
+export const deadlineKey = (title: string, iso: string) =>
+  `${norm(title)}|${new Date(iso).toDateString()}`
+
+/** Fälligkeit eines Einzel-/Ganztags-Termins (Ganztag = Tagesende 23:59,
+ *  App-Konvention – identisch zur Deadline-Ableitung in planImport). */
+const dueOf = (e: ParsedEvent): Date => (e.allDay ? withTime(e.start, '23:59') : e.start)
+
+/** Schlüssel ALLER Einzel-/Ganztags-Termine eines Kalenders – für abonnierte
+ *  Feeds: einmal Gesehenes wird nie erneut importiert, selbst wenn der Nutzer
+ *  die daraus entstandene Aufgabe gelöscht hat. */
+export function deadlineKeysOf(events: ParsedEvent[]): string[] {
+  return events.filter((e) => !e.weekly || e.allDay).map((e) => deadlineKey(e.summary, dueOf(e).toISOString()))
+}
+
 const ROMAN: Record<string, string> = {
   i: '1', ii: '2', iii: '3', iv: '4', v: '5', vi: '6', vii: '7', viii: '8', ix: '9', x: '10',
 }
@@ -505,18 +521,15 @@ export function planImport(
   }
 
   // --- Deadlines aus Einzel-/Ganztags-Terminen ---
-  const taskDayKey = (title: string, iso: string) =>
-    `${norm(title)}|${new Date(iso).toDateString()}`
   const existingTaskKeys = new Set(
-    existingTasks.filter((t) => t.dueDate).map((t) => taskDayKey(t.title, t.dueDate!)),
+    existingTasks.filter((t) => t.dueDate).map((t) => deadlineKey(t.title, t.dueDate!)),
   )
 
   const deadlines: PlannedDeadline[] = []
   let di = 0
   for (const e of oneoff) {
-    const due = e.allDay ? withTime(e.start, '23:59') : e.start
-    const iso = due.toISOString()
-    if (existingTaskKeys.has(taskDayKey(e.summary, iso))) continue
+    const iso = dueOf(e).toISOString()
+    if (existingTaskKeys.has(deadlineKey(e.summary, iso))) continue
     // Kurs zuordnen, wenn der (volle) Name vorkommt oder das Kürzel als
     // eigenes Wort auftaucht – kurze Kürzel wie „E"/„MA" sollen nicht jeden
     // Titel matchen.

@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { Attendance, Course, Program, Semester, Task } from './types'
+import type { Attendance, Course, IcsFeed, Program, Semester, Task } from './types'
 
 export function uid(): string {
   return crypto.randomUUID()
@@ -13,6 +13,7 @@ export class UniKanbanDB extends Dexie {
   courses!: Table<Course, string>
   tasks!: Table<Task, string>
   attendance!: Table<Attendance, string>
+  icsFeeds!: Table<IcsFeed, string>
 
   constructor() {
     super('unikanban')
@@ -142,6 +143,16 @@ export class UniKanbanDB extends Dexie {
             }
           })
       })
+
+    // v6: Abonnierte Uni-Kalender (ICS-Feeds) mit Auto-Import neuer Termine.
+    this.version(6).stores({
+      programs: 'id, active, order',
+      semesters: 'id, programId, active',
+      courses: 'id, semesterId',
+      tasks: 'id, semesterId, courseId, status, type, dueDate',
+      attendance: 'id, semesterId, slotId',
+      icsFeeds: 'id',
+    })
   }
 }
 

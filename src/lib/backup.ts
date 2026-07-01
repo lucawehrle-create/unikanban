@@ -1,5 +1,5 @@
 import { db } from '@/db/db'
-import type { Attendance, Course, Program, Semester, Task } from '@/db/types'
+import type { Attendance, Course, IcsFeed, Program, Semester, Task } from '@/db/types'
 import { TASK_TYPES } from './taskTypes'
 
 const BACKUP_VERSION = 1
@@ -24,16 +24,19 @@ export interface Backup {
   courses: Course[]
   tasks: Task[]
   attendance: Attendance[]
+  /** Abonnierte Uni-Kalender (ab v6; ältere Backups haben das Feld nicht). */
+  icsFeeds?: IcsFeed[]
 }
 
 /** Liest den gesamten Datenbestand in ein Backup-Objekt. */
 export async function exportData(): Promise<Backup> {
-  const [programs, semesters, courses, tasks, attendance] = await Promise.all([
+  const [programs, semesters, courses, tasks, attendance, icsFeeds] = await Promise.all([
     db.programs.toArray(),
     db.semesters.toArray(),
     db.courses.toArray(),
     db.tasks.toArray(),
     db.attendance.toArray(),
+    db.icsFeeds.toArray(),
   ])
   return {
     app: 'semban',
@@ -44,6 +47,7 @@ export async function exportData(): Promise<Backup> {
     courses,
     tasks,
     attendance,
+    icsFeeds,
   }
 }
 
@@ -77,31 +81,42 @@ function isBackup(x: unknown): x is Backup {
 export async function importBackup(raw: string): Promise<void> {
   const data: unknown = JSON.parse(raw)
   if (!isBackup(data)) throw new Error('Ungültige Backup-Datei.')
-  await db.transaction('rw', db.programs, db.semesters, db.courses, db.tasks, db.attendance, async () => {
-    await Promise.all([
-      db.programs.clear(),
-      db.semesters.clear(),
-      db.courses.clear(),
-      db.tasks.clear(),
-      db.attendance.clear(),
-    ])
-    await db.programs.bulkAdd(data.programs)
-    await db.semesters.bulkAdd(data.semesters)
-    await db.courses.bulkAdd(data.courses)
-    await db.tasks.bulkAdd(data.tasks.map(sanitizeTask))
-    await db.attendance.bulkAdd(data.attendance ?? [])
-  })
+  await db.transaction(
+    'rw',
+    [db.programs, db.semesters, db.courses, db.tasks, db.attendance, db.icsFeeds],
+    async () => {
+      await Promise.all([
+        db.programs.clear(),
+        db.semesters.clear(),
+        db.courses.clear(),
+        db.tasks.clear(),
+        db.attendance.clear(),
+        db.icsFeeds.clear(),
+      ])
+      await db.programs.bulkAdd(data.programs)
+      await db.semesters.bulkAdd(data.semesters)
+      await db.courses.bulkAdd(data.courses)
+      await db.tasks.bulkAdd(data.tasks.map(sanitizeTask))
+      await db.attendance.bulkAdd(data.attendance ?? [])
+      await db.icsFeeds.bulkAdd(data.icsFeeds ?? [])
+    },
+  )
 }
 
 /** Löscht den gesamten Datenbestand (Zurücksetzen → Onboarding). */
 export async function resetAll(): Promise<void> {
-  await db.transaction('rw', db.programs, db.semesters, db.courses, db.tasks, db.attendance, async () => {
-    await Promise.all([
-      db.programs.clear(),
-      db.semesters.clear(),
-      db.courses.clear(),
-      db.tasks.clear(),
-      db.attendance.clear(),
-    ])
-  })
+  await db.transaction(
+    'rw',
+    [db.programs, db.semesters, db.courses, db.tasks, db.attendance, db.icsFeeds],
+    async () => {
+      await Promise.all([
+        db.programs.clear(),
+        db.semesters.clear(),
+        db.courses.clear(),
+        db.tasks.clear(),
+        db.attendance.clear(),
+        db.icsFeeds.clear(),
+      ])
+    },
+  )
 }

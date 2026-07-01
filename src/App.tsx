@@ -16,6 +16,7 @@ import { AuthGate } from '@/components/AuthGate'
 import { SyncLoading } from '@/components/SyncLoading'
 import { Tour } from '@/components/Tour'
 import { initSync, useSync } from '@/lib/sync'
+import { syncIcsFeeds } from '@/lib/icsFeeds'
 import { isSyncConfigured } from '@/lib/supabase'
 import { hasSeenTour } from '@/lib/tour'
 import { useLocalReminderNotifications } from '@/lib/reminders'
@@ -64,6 +65,15 @@ export default function App() {
   // Cloud-Sync (no-op, falls nicht konfiguriert) einmalig initialisieren.
   useEffect(() => {
     initSync()
+  }, [])
+
+  // Abonnierte Uni-Kalender abgleichen: beim Start und bei Rückkehr zur App
+  // (intern gedrosselt auf max. alle 6 h pro Feed; no-op ohne Feeds).
+  useEffect(() => {
+    void syncIcsFeeds()
+    const onFocus = () => void syncIcsFeeds()
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
   }, [])
 
   // Produkt-Tour einmalig pro Konto automatisch starten – sobald Inhalte da

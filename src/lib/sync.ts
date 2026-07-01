@@ -243,7 +243,7 @@ export function initSync() {
 
   // Jede lokale Änderung (egal woher) stößt einen entprellten Push an.
   const onWrite = () => schedulePush()
-  for (const t of [db.programs, db.semesters, db.courses, db.tasks, db.attendance]) {
+  for (const t of [db.programs, db.semesters, db.courses, db.tasks, db.attendance, db.icsFeeds]) {
     t.hook('creating', onWrite)
     t.hook('updating', onWrite)
     t.hook('deleting', onWrite)

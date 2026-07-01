@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useLiveQuery } from 'dexie-react-hooks'
 import {
   Download,
   Upload,
@@ -11,19 +12,22 @@ import {
   Copy,
   RefreshCw,
   Trash2,
+  Rss,
 } from 'lucide-react'
-import type { Course, Semester, Task } from '@/db/types'
+import type { Course, IcsFeed, Semester, Task } from '@/db/types'
 import { db, uid } from '@/db/db'
 import {
   buildICS,
   downloadICS,
   parseICS,
   planImport,
+  deadlineKeysOf,
   COURSE_COLORS,
   type IcsOptions,
   type ImportPlan,
   type PlannedCourse,
 } from '@/lib/ics'
+import { fetchIcsText, normalizeFeedUrl, addFeed, removeFeed, syncIcsFeeds } from '@/lib/icsFeeds'
 import {
   isFeedConfigured,
   getFeedToken,
@@ -84,6 +88,14 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
   const [error, setError] = useState('')
   const [flash, setFlash] = useState('')
   const [dragging, setDragging] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  // Feed-Abo: Quelle des letzten Link-Imports + „schon gesehen"-Schlüssel.
+  const [loadedUrl, setLoadedUrl] = useState<string | null>(null)
+  const [subscribe, setSubscribe] = useState(true)
+  const seedKeysRef = useRef<string[]>([])
+  const feeds = useLiveQuery(() => db.icsFeeds.toArray(), []) ?? []
+  const alreadyFeed = !!loadedUrl && feeds.some((f) => f.url === loadedUrl)
 
   // Wie viele Slots eines Imports wären beim gewählten Ziel WIRKLICH neu?
   const newSlotsFor = (pc: PlannedCourse, tgt: string) => {
@@ -99,14 +111,20 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
     downloadICS(`semban-${semester.name.replace(/\s+/g, '-')}.ics`, ics)
   }
 
-  function ingest(text: string) {
+  function ingest(text: string, fromUrl?: string) {
     setError('')
     setFlash('')
+    setLoadedUrl(null)
     const events = parseICS(text)
     if (events.length === 0) {
       setError('Keine Termine in der Datei gefunden.')
       setPlan(null)
       return
+    }
+    // Bei Link-Import: Quelle & gesehene Termine merken → Abo anbieten.
+    if (fromUrl) {
+      setLoadedUrl(fromUrl)
+      seedKeysRef.current = deadlineKeysOf(events)
     }
     const p = planImport(events, semester, courses, tasks)
     if (p.courses.length === 0 && p.deadlines.length === 0) {
@@ -132,18 +150,28 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
   async function loadFromUrl() {
     setError('')
     setPlan(null)
-    const u = url.trim().replace(/^webcal:\/\//, 'https://')
+    const u = normalizeFeedUrl(url)
     if (!u) return
+    setLoading(true)
     try {
-      const res = await fetch(u)
-      if (!res.ok) throw new Error(String(res.status))
-      ingest(await res.text())
-    } catch {
+      // Lädt über die Edge-Function (umgeht CORS), sonst direkt.
+      ingest(await fetchIcsText(u), u)
+    } catch (e) {
       setError(
-        'Laden per Link hat nicht geklappt (oft blockiert der Browser fremde Server). ' +
-          'Lade die .ics-Datei herunter und importiere sie unten als Datei.',
+        (e instanceof Error && e.message) ||
+          'Laden per Link hat nicht geklappt. Lade die .ics-Datei herunter und importiere sie unten als Datei.',
       )
+    } finally {
+      setLoading(false)
     }
+  }
+
+  /** Feed abonnieren (alles aktuell Sichtbare gilt als „gesehen"). */
+  async function connectFeed() {
+    if (!loadedUrl) return
+    await addFeed(loadedUrl, { seedKeys: seedKeysRef.current })
+    setFlash('Kalender verbunden – neue Termine werden automatisch importiert.')
+    setTimeout(() => setFlash(''), 3000)
   }
 
   const toggle = (key: string) => setSelected((s) => ({ ...s, [key]: !s[key] }))
@@ -213,12 +241,19 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
       })
     }
 
+    // Auf Wunsch den Link als Feed behalten → neue Termine kommen automatisch.
+    if (loadedUrl && subscribe && !alreadyFeed) {
+      await addFeed(loadedUrl, { seedKeys: seedKeysRef.current })
+    }
+
     const parts: string[] = []
     if (created) parts.push(`${created} neuer Kurs${created === 1 ? '' : 'e'}`)
     if (merged) parts.push(`${merged} Kurs${merged === 1 ? '' : 'e'} ergänzt`)
     if (selDeadlines.length) parts.push(`${selDeadlines.length} Termin${selDeadlines.length === 1 ? '' : 'e'}`)
+    if (loadedUrl && subscribe && !alreadyFeed) parts.push('Kalender verbunden')
     setPlan(null)
     setUrl('')
+    setLoadedUrl(null)
     setFlash(parts.length ? `${parts.join(' · ')} importiert.` : 'Nichts zu importieren.')
     setTimeout(() => setFlash(''), 3000)
   }
@@ -321,6 +356,9 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
             du pro Kurs anpassen, damit nichts doppelt angelegt wird.
           </p>
 
+          {/* Verbundene Uni-Kalender (Moodle/StudIP/ILIAS-Feeds) */}
+          {feeds.length > 0 && <FeedList feeds={feeds} />}
+
           {/* Per Link */}
           <div>
             <span className="mb-1 block text-xs font-medium text-stone-500">Per Link (URL / webcal)</span>
@@ -336,11 +374,16 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
               </div>
               <button
                 onClick={() => void loadFromUrl()}
-                className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-stone-700"
+                disabled={loading}
+                className="rounded-lg bg-stone-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-stone-700 disabled:opacity-40"
               >
-                Laden
+                {loading ? 'Lädt …' : 'Laden'}
               </button>
             </div>
+            <p className="mt-1 text-[12px] text-stone-400">
+              Tipp: Moodle, StudIP &amp; Co. bieten einen persönlichen Kalender-Export-Link – den
+              kannst du hier verbinden, dann landen neue Abgaben automatisch in SemBan.
+            </p>
           </div>
 
           {/* Per Datei (inkl. Drag & Drop) */}
@@ -383,6 +426,16 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
 
           {error && (
             <div className="rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-600">{error}</div>
+          )}
+
+          {/* Link geladen, aber nichts Neues → Abo trotzdem anbieten. */}
+          {!plan && loadedUrl && !alreadyFeed && (
+            <button
+              onClick={() => void connectFeed()}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm font-medium text-stone-700 transition hover:border-brand-400 hover:text-brand-600"
+            >
+              <Rss size={15} /> Kalender trotzdem verbinden – neue Termine automatisch importieren
+            </button>
           )}
 
           {/* Vorschau */}
@@ -433,6 +486,22 @@ export function CalendarModal({ semester, courses, tasks }: Props) {
                     </Row>
                   ))}
                 </PreviewSection>
+              )}
+
+              {/* Per Link geladen → Abo anbieten (neue Termine kommen automatisch). */}
+              {loadedUrl && !alreadyFeed && (
+                <label className="flex cursor-pointer items-center gap-2.5 rounded-xl bg-stone-50 px-3 py-2.5 text-sm text-stone-700">
+                  <input
+                    type="checkbox"
+                    checked={subscribe}
+                    onChange={(e) => setSubscribe(e.target.checked)}
+                    className="h-4 w-4 shrink-0 rounded accent-brand-500"
+                  />
+                  <span>
+                    <Rss size={13} className="mr-1 inline text-stone-400" />
+                    Kalender verbinden: neue Abgaben &amp; Termine künftig automatisch importieren
+                  </span>
+                </label>
               )}
 
               <button
@@ -632,6 +701,89 @@ function SubscribeTab() {
           <Trash2 size={13} /> Abo deaktivieren
         </button>
       </div>
+    </div>
+  )
+}
+
+/** Verbundene Uni-Kalender: Status, manuell aktualisieren, trennen. */
+function FeedList({ feeds }: { feeds: IcsFeed[] }) {
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  const refresh = async (feed: IcsFeed) => {
+    setBusyId(feed.id)
+    try {
+      await syncIcsFeeds({ force: true, feedId: feed.id })
+    } finally {
+      setBusyId(null)
+    }
+  }
+  const disconnect = async (feed: IcsFeed) => {
+    if (!window.confirm(`„${feed.label}" trennen? Bereits importierte Aufgaben bleiben erhalten.`))
+      return
+    await removeFeed(feed.id)
+  }
+
+  const statusLine = (f: IcsFeed) => {
+    if (f.lastError) return f.lastError
+    if (!f.lastSyncAt) return 'Noch nicht abgeglichen'
+    const when = new Date(f.lastSyncAt).toLocaleString('de-DE', {
+      day: '2-digit',
+      month: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+    const news =
+      f.lastNewCount != null
+        ? f.lastNewCount === 0
+          ? 'nichts Neues'
+          : `${f.lastNewCount} neue${f.lastNewCount === 1 ? 'r' : ''} Termin${f.lastNewCount === 1 ? '' : 'e'}`
+        : null
+    return `Zuletzt geprüft ${when}${news ? ` · ${news}` : ''}`
+  }
+
+  return (
+    <div>
+      <span className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-stone-500">
+        <Rss size={13} className="text-stone-400" /> Verbundene Kalender · {feeds.length}
+      </span>
+      <div className="space-y-1">
+        {feeds.map((f) => (
+          <div key={f.id} className="flex items-center gap-2 rounded-lg bg-stone-50 px-2.5 py-2">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm text-stone-700">{f.label}</span>
+              <span
+                className={cn(
+                  'block truncate text-xs',
+                  f.lastError ? 'text-red-500' : 'text-stone-400',
+                )}
+              >
+                {statusLine(f)}
+              </span>
+            </span>
+            <button
+              onClick={() => void refresh(f)}
+              disabled={busyId === f.id}
+              title="Jetzt abgleichen"
+              aria-label={`${f.label} jetzt abgleichen`}
+              className="shrink-0 rounded-lg p-1.5 text-stone-400 transition hover:bg-stone-200 hover:text-stone-700 disabled:opacity-40"
+            >
+              <RefreshCw size={14} className={busyId === f.id ? 'animate-spin' : undefined} />
+            </button>
+            <button
+              onClick={() => void disconnect(f)}
+              title="Kalender trennen"
+              aria-label={`${f.label} trennen`}
+              className="shrink-0 rounded-lg p-1.5 text-stone-400 transition hover:bg-red-50 hover:text-red-600"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <p className="mt-1 text-[12px] text-stone-400">
+        Neue Abgaben &amp; Einzeltermine aus diesen Kalendern werden automatisch als Aufgaben
+        angelegt (geprüft beim App-Start, max. alle 6 Std.).
+      </p>
     </div>
   )
 }
