@@ -7,6 +7,8 @@ import {
   CalendarClock,
   ChevronRight,
   Coffee,
+  FileText,
+  Layers,
   Pause,
   Play,
   RotateCcw,
@@ -16,6 +18,7 @@ import {
   Sparkles,
   Sun,
   Timer,
+  Users,
 } from 'lucide-react'
 import { addDays, parseISO, format, differenceInCalendarDays } from 'date-fns'
 import { de } from 'date-fns/locale'
@@ -48,7 +51,7 @@ import {
   type StudySettings,
 } from '@/lib/studyPlans'
 import { Modal } from './Modal'
-import { ActivityRings, shareRings } from './ActivityRings'
+import { ActivityRings, readable, shareRings } from './ActivityRings'
 import { DatePicker } from './DatePicker'
 import { Select } from './ui/Select'
 import { cn } from '@/lib/cn'
@@ -1230,6 +1233,15 @@ function ReviewSection({
   )
 }
 
+// Icon je Vorbereitungsart – macht die Ringe für Studierende sofort erkennbar.
+const RING_ICON: Record<string, typeof BookOpen> = {
+  kapitel: BookOpen,
+  uebung: FileText,
+  tut: Users,
+  altklausur: GraduationCap,
+  karten: Layers,
+}
+
 /** Apple-Activity-Ringe über alle Lernpläne: pro Vorbereitungsart ein Ring,
  *  drüberfahren zeigt die Prozente, teilbar als Bild. */
 function ActivityOverview({ allTasks }: { allTasks: Task[] }) {
@@ -1254,33 +1266,44 @@ function ActivityOverview({ allTasks }: { allTasks: Task[] }) {
           <Share2 size={13} /> Teilen
         </button>
       </div>
-      <div className="flex flex-col items-center gap-5 sm:flex-row sm:gap-6">
-        <ActivityRings rings={stats} active={active} onActive={setActive} size={200} />
-        <div className="w-full flex-1 space-y-1">
-          {stats.map((r, i) => (
-            <button
-              key={r.kind}
-              onMouseEnter={() => setActive(i)}
-              onMouseLeave={() => setActive(null)}
-              onClick={() => setActive(active === i ? null : i)}
-              className={cn(
-                'flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition',
-                active === i ? 'bg-stone-50' : 'hover:bg-stone-50',
-              )}
-            >
-              <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: r.color }} />
-              <span className="flex-1 text-sm text-stone-700">{r.label}</span>
-              <span className="text-xs tabular-nums text-stone-400">
-                {r.total ? `${r.done}/${r.total}` : 'kein Material'}
-              </span>
-              <span
-                className="w-10 text-right text-sm font-semibold tabular-nums"
-                style={{ color: r.total ? r.color : '#a8a29e' }}
+      <div className="flex flex-col items-center gap-5 sm:flex-row sm:gap-7">
+        <ActivityRings rings={stats} active={active} onActive={setActive} size={208} />
+        <div className="w-full flex-1 space-y-0.5">
+          {stats.map((r, i) => {
+            const Icon = RING_ICON[r.kind] ?? BookOpen
+            const tint = readable(r.color)
+            return (
+              <button
+                key={r.kind}
+                onMouseEnter={() => setActive(i)}
+                onMouseLeave={() => setActive(null)}
+                onClick={() => setActive(active === i ? null : i)}
+                className={cn(
+                  'flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left transition',
+                  active === i ? 'bg-stone-50' : 'hover:bg-stone-50',
+                )}
               >
-                {r.total ? `${r.pct}%` : '–'}
-              </span>
-            </button>
-          ))}
+                <span
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+                  style={{ backgroundColor: r.color + '1f' }}
+                >
+                  <Icon size={17} style={{ color: tint }} />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-medium text-stone-800">{r.label}</span>
+                  <span className="block text-[11px] tabular-nums text-stone-500">
+                    {r.total ? `${r.done}/${r.total} erledigt` : 'kein Material'}
+                  </span>
+                </span>
+                <span
+                  className="text-base font-bold tabular-nums"
+                  style={{ color: r.total ? tint : '#a8a29e' }}
+                >
+                  {r.total ? `${r.pct}%` : '–'}
+                </span>
+              </button>
+            )
+          })}
         </div>
       </div>
     </div>

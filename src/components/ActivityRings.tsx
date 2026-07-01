@@ -1,6 +1,21 @@
 import type { RingStat } from '@/lib/studyPlans'
 
 /**
+ * Lesbare Text-Variante einer Ringfarbe: helle Farben (z.B. Gelb) werden
+ * abgedunkelt, damit die Prozentzahl auf Weiß immer gut lesbar ist.
+ */
+export function readable(hex: string): string {
+  const h = hex.replace('#', '')
+  const r = parseInt(h.slice(0, 2), 16)
+  const g = parseInt(h.slice(2, 4), 16)
+  const b = parseInt(h.slice(4, 6), 16)
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255
+  const f = lum > 0.62 ? 0.58 : lum > 0.5 ? 0.4 : lum > 0.42 ? 0.22 : 0
+  const d = (v: number) => Math.round(v * (1 - f))
+  return `rgb(${d(r)}, ${d(g)}, ${d(b)})`
+}
+
+/**
  * Konzentrische Fortschritts-Ringe im Apple-Activity-Stil. Jeder Ring = eine
  * Vorbereitungsart; gefüllt nach Prozent. Ring/Legende teilen sich den aktiven
  * Index, damit Drüberfahren die Prozente hervorhebt.
@@ -58,10 +73,10 @@ export function ActivityRings({
                 strokeWidth={stroke + gap}
                 style={{ pointerEvents: 'stroke' }}
               />
-              {/* Track (blasse Farbe). */}
-              <circle cx={c} cy={c} r={radius} fill="none" stroke={r.color + '2b'} strokeWidth={stroke} />
+              {/* Track (dezente, aber sichtbare Färbung – auch bei hellem Gelb). */}
+              <circle cx={c} cy={c} r={radius} fill="none" stroke={r.color + '33'} strokeWidth={stroke} />
               {/* Fortschritt. */}
-              {r.total > 0 && (
+              {r.total > 0 && r.pct > 0 && (
                 <circle
                   cx={c}
                   cy={c}
@@ -74,7 +89,7 @@ export function ActivityRings({
                   strokeDashoffset={off}
                   transform={`rotate(-90 ${c} ${c})`}
                   style={{
-                    opacity: dim ? 0.3 : 1,
+                    opacity: dim ? 0.28 : 1,
                     transition: 'stroke-dashoffset .6s ease, opacity .2s',
                   }}
                 />
@@ -86,17 +101,22 @@ export function ActivityRings({
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center text-center">
         {shown ? (
           <>
-            <span className="text-3xl font-bold tabular-nums" style={{ color: shown.color }}>
+            <span
+              className="text-[28px] font-bold leading-none tabular-nums"
+              style={{ color: shown.total ? readable(shown.color) : '#a8a29e' }}
+            >
               {shown.total ? `${shown.pct}%` : '–'}
             </span>
-            <span className="mt-0.5 max-w-[80%] text-xs font-medium leading-tight text-stone-500">
+            <span className="mt-1 max-w-[78%] text-[11px] font-medium leading-tight text-stone-500">
               {shown.label}
             </span>
           </>
         ) : (
           <>
-            <span className="text-3xl font-bold tabular-nums text-stone-800">{overall}%</span>
-            <span className="mt-0.5 text-[11px] font-medium text-stone-400">gesamt</span>
+            <span className="text-[30px] font-bold leading-none tabular-nums text-stone-800">
+              {overall}%
+            </span>
+            <span className="mt-1 text-[11px] font-medium text-stone-500">gesamt</span>
           </>
         )}
       </div>
@@ -104,29 +124,31 @@ export function ActivityRings({
   )
 }
 
-/** Eigenständiges SVG (mit Legende & Branding) für ein teilbares Bild. */
-function buildShareSVG(rings: RingStat[], overall: number): string {
+const SHARE_FONT = '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Helvetica, Arial, sans-serif'
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+/** Eigenständiges SVG (Karte mit Ringen, Legende & Branding) für ein teilbares Bild. */
+function buildShareSVG(rings: RingStat[], overall: number, dateStr: string): string {
   const W = 1000
-  const H = 1220
+  const H = 1300
   const cx = 500
-  const cy = 400
-  const S = 620
+  const cy = 452
+  const S = 520
   const n = rings.length || 1
-  const hole = S * 0.15
+  const hole = S * 0.16
   const stroke = (S / 2 - hole) / (n + 0.4 * (n - 1))
   const gap = stroke * 0.4
   const outerR = S / 2 - stroke / 2
-  const font = "font-family='-apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif'"
 
   const ringSVG = rings
     .map((r, i) => {
       const radius = outerR - i * (stroke + gap)
-      if (radius <= stroke) return ''
+      if (radius <= 0) return ''
       const circ = 2 * Math.PI * radius
       const off = circ * (1 - Math.min(100, r.pct) / 100)
-      const track = `<circle cx='${cx}' cy='${cy}' r='${radius}' fill='none' stroke='${r.color}' stroke-opacity='0.17' stroke-width='${stroke}'/>`
+      const track = `<circle cx='${cx}' cy='${cy}' r='${radius}' fill='none' stroke='${r.color}' stroke-opacity='0.2' stroke-width='${stroke}'/>`
       const prog =
-        r.total > 0
+        r.total > 0 && r.pct > 0
           ? `<circle cx='${cx}' cy='${cy}' r='${radius}' fill='none' stroke='${r.color}' stroke-width='${stroke}' stroke-linecap='round' stroke-dasharray='${circ}' stroke-dashoffset='${off}' transform='rotate(-90 ${cx} ${cy})'/>`
           : ''
       return track + prog
@@ -137,30 +159,43 @@ function buildShareSVG(rings: RingStat[], overall: number): string {
     .map((r, i) => {
       const y = 800 + i * 74
       const pct = r.total ? `${r.pct}%` : '–'
+      const cnt = r.total ? `${r.done}/${r.total}` : 'kein Material'
+      const col = r.total ? readable(r.color) : '#a8a29e'
       return (
-        `<circle cx='150' cy='${y - 10}' r='14' fill='${r.color}'/>` +
-        `<text x='190' y='${y}' ${font} font-size='36' fill='#44403c'>${r.label}</text>` +
-        `<text x='850' y='${y}' text-anchor='end' ${font} font-size='36' font-weight='700' fill='#292524'>${pct}</text>`
+        `<circle cx='130' cy='${y - 11}' r='13' fill='${r.color}'/>` +
+        `<text x='170' y='${y}' font-size='36' fill='#44403c'>${esc(r.label)}</text>` +
+        `<text x='740' y='${y}' text-anchor='end' font-size='29' fill='#a8a29e'>${esc(cnt)}</text>` +
+        `<text x='872' y='${y}' text-anchor='end' font-size='38' font-weight='700' fill='${col}'>${pct}</text>`
       )
     })
     .join('')
 
   return (
-    `<svg xmlns='http://www.w3.org/2000/svg' width='${W}' height='${H}' viewBox='0 0 ${W} ${H}'>` +
-    `<rect width='${W}' height='${H}' fill='#fbfaf7'/>` +
-    `<text x='${cx}' y='95' text-anchor='middle' ${font} font-size='44' font-weight='700' fill='#292524'>Meine Lern-Aktivität</text>` +
+    `<svg xmlns='http://www.w3.org/2000/svg' width='${W}' height='${H}' viewBox='0 0 ${W} ${H}' font-family='${SHARE_FONT}'>` +
+    `<defs><filter id='cardShadow' x='-20%' y='-20%' width='140%' height='140%'>` +
+    `<feDropShadow dx='0' dy='10' stdDeviation='20' flood-color='#1c1917' flood-opacity='0.07'/></filter></defs>` +
+    `<rect width='${W}' height='${H}' fill='#edece7'/>` +
+    `<rect x='44' y='44' width='912' height='${H - 88}' rx='48' fill='#ffffff' filter='url(#cardShadow)'/>` +
+    `<text x='${cx}' y='138' text-anchor='middle' font-size='48' font-weight='700' fill='#292524'>Meine Lern-Aktivität</text>` +
+    `<text x='${cx}' y='186' text-anchor='middle' font-size='28' fill='#78716c'>Klausur-Vorbereitung · Stand ${esc(dateStr)}</text>` +
     ringSVG +
-    `<text x='${cx}' y='${cy + 5}' text-anchor='middle' ${font} font-size='108' font-weight='800' fill='#292524'>${overall}%</text>` +
-    `<text x='${cx}' y='${cy + 58}' text-anchor='middle' ${font} font-size='32' fill='#a8a29e'>gesamt</text>` +
+    `<text x='${cx}' y='${cy + 16}' text-anchor='middle' font-size='100' font-weight='800' fill='#292524'>${overall}%</text>` +
+    `<text x='${cx}' y='${cy + 62}' text-anchor='middle' font-size='30' fill='#a8a29e'>gesamt bereit</text>` +
     legend +
-    `<text x='${cx}' y='${H - 45}' text-anchor='middle' ${font} font-size='30' font-weight='700' fill='#a8a29e'>SemBan · Semester im Griff</text>` +
+    `<text x='${cx}' y='${H - 108}' text-anchor='middle' font-size='31' font-weight='700' fill='#57534e'>SemBan</text>` +
+    `<text x='${cx}' y='${H - 72}' text-anchor='middle' font-size='24' fill='#a8a29e'>Semester im Griff</text>` +
     `</svg>`
   )
 }
 
 /** Rendert die Ringe als PNG und teilt sie (Web Share API) bzw. lädt sie herunter. */
 export async function shareRings(rings: RingStat[], overall: number): Promise<void> {
-  const svg = buildShareSVG(rings, overall)
+  const dateStr = new Date().toLocaleDateString('de-DE', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  })
+  const svg = buildShareSVG(rings, overall, dateStr)
   const url = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)))
   const img = new Image()
   await new Promise<void>((resolve, reject) => {
@@ -168,11 +203,13 @@ export async function shareRings(rings: RingStat[], overall: number): Promise<vo
     img.onerror = () => reject(new Error('SVG konnte nicht geladen werden'))
     img.src = url
   })
+  const scale = 2
   const canvas = document.createElement('canvas')
-  canvas.width = 1000
-  canvas.height = 1220
+  canvas.width = 1000 * scale
+  canvas.height = 1300 * scale
   const ctx = canvas.getContext('2d')
   if (!ctx) return
+  ctx.scale(scale, scale)
   ctx.drawImage(img, 0, 0)
   const blob = await new Promise<Blob | null>((r) => canvas.toBlob((b) => r(b), 'image/png'))
   if (!blob) return
